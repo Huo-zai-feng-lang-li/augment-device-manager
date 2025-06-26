@@ -143,19 +143,28 @@ class DeviceManager {
         errors: [],
       };
 
-      // 1. 清理Augment存储数据
+      // 1. 清理本地激活信息（确保扩展认为是新用户）
+      await this.cleanActivationData(results);
+
+      // 2. 清理Augment存储数据
       await this.cleanAugmentStorage(results);
 
-      // 2. 清理SQLite状态数据库
+      // 3. 清理SQLite状态数据库
       await this.cleanStateDatabase(results);
 
-      // 3. 清理注册表（仅Windows）
+      // 4. 清理注册表（仅Windows）
       if (this.platform === "win32") {
         await this.cleanWindowsRegistry(results);
       }
 
-      // 4. 清理系统临时文件
+      // 5. 清理系统临时文件
       await this.cleanTempFiles(results);
+
+      // 6. 清理浏览器相关数据
+      await this.cleanBrowserData(results);
+
+      // 7. 重新生成设备指纹（可选）
+      await this.regenerateDeviceFingerprint(results);
 
       return results;
     } catch (error) {
@@ -168,20 +177,96 @@ class DeviceManager {
     }
   }
 
+  // 清理激活数据（确保扩展认为是新用户）
+  async cleanActivationData(results) {
+    try {
+      const configPath = path.join(os.homedir(), ".augment-device-manager");
+
+      if (await fs.pathExists(configPath)) {
+        // 备份配置目录
+        const backupPath = configPath + ".backup." + Date.now();
+        await fs.copy(configPath, backupPath);
+        results.actions.push(`已备份配置目录到: ${backupPath}`);
+
+        // 清理配置目录
+        await fs.remove(configPath);
+        results.actions.push("已清理设备激活信息和配置数据");
+      } else {
+        results.actions.push("未找到激活配置，跳过清理");
+      }
+
+      // 清理可能的其他激活相关文件
+      const possiblePaths = [
+        path.join(os.homedir(), ".augment"),
+        path.join(os.homedir(), ".cursor-augment"),
+        path.join(os.homedir(), "AppData", "Local", "augment-device-manager"), // Windows
+        path.join(
+          os.homedir(),
+          "Library",
+          "Application Support",
+          "augment-device-manager"
+        ), // macOS
+      ];
+
+      for (const possiblePath of possiblePaths) {
+        try {
+          if (await fs.pathExists(possiblePath)) {
+            await fs.remove(possiblePath);
+            results.actions.push(`已清理: ${possiblePath}`);
+          }
+        } catch (error) {
+          results.errors.push(`清理 ${possiblePath} 失败: ${error.message}`);
+        }
+      }
+    } catch (error) {
+      results.errors.push(`清理激活数据失败: ${error.message}`);
+    }
+  }
+
   // 清理Augment存储数据
   async cleanAugmentStorage(results) {
     try {
       if (await fs.pathExists(this.cursorPaths.augmentStorage)) {
-        // 备份原始数据
-        const backupPath =
-          this.cursorPaths.augmentStorage + ".backup." + Date.now();
-        await fs.copy(this.cursorPaths.augmentStorage, backupPath);
+        // 检查目录大小，避免误删重要数据
+        const stats = await fs.stat(this.cursorPaths.augmentStorage);
+        if (stats.isDirectory()) {
+          const files = await fs.readdir(this.cursorPaths.augmentStorage);
 
-        // 清理存储目录
-        await fs.remove(this.cursorPaths.augmentStorage);
+          // 创建备份目录
+          const backupDir = path.join(
+            os.tmpdir(),
+            `augment-backup-${Date.now()}`
+          );
+          await fs.ensureDir(backupDir);
 
-        results.actions.push("已清理Augment存储数据");
-        results.actions.push(`备份保存至: ${backupPath}`);
+          // 只清理特定的Augment相关文件
+          const augmentFiles = files.filter(
+            (file) =>
+              file.toLowerCase().includes("augment") ||
+              file.toLowerCase().includes("device") ||
+              file.toLowerCase().includes("license") ||
+              file.endsWith(".tmp") ||
+              file.endsWith(".cache")
+          );
+
+          if (augmentFiles.length > 0) {
+            // 备份要删除的文件
+            for (const file of augmentFiles) {
+              const srcPath = path.join(this.cursorPaths.augmentStorage, file);
+              const backupPath = path.join(backupDir, file);
+              try {
+                await fs.copy(srcPath, backupPath);
+                await fs.remove(srcPath);
+                results.actions.push(`已清理文件: ${file}`);
+              } catch (error) {
+                results.errors.push(`清理文件失败 ${file}: ${error.message}`);
+              }
+            }
+            results.actions.push(`备份保存至: ${backupDir}`);
+          } else {
+            results.actions.push("未发现需要清理的Augment文件");
+          }
+        }
       } else {
         results.actions.push("Augment存储目录不存在，跳过清理");
       }
@@ -356,6 +441,142 @@ class DeviceManager {
       }
     } catch (error) {
       return false;
+    }
+  }
+
+  // 清理浏览器相关数据
+  async cleanBrowserData(results) {
+    try {
+      // 清理可能的浏览器扩展数据
+      const browserPaths = [];
+
+      if (this.platform === "win32") {
+        // Windows Chrome/Edge 扩展数据路径
+        browserPaths.push(
+          path.join(
+            os.homedir(),
+            "AppData",
+            "Local",
+            "Google",
+            "Chrome",
+            "User Data",
+            "Default",
+            "Local Extension Settings"
+          ),
+          path.join(
+            os.homedir(),
+            "AppData",
+            "Local",
+            "Microsoft",
+            "Edge",
+            "User Data",
+            "Default",
+            "Local Extension Settings"
+          )
+        );
+      } else if (this.platform === "darwin") {
+        // macOS Chrome/Safari 扩展数据路径
+        browserPaths.push(
+          path.join(
+            os.homedir(),
+            "Library",
+            "Application Support",
+            "Google",
+            "Chrome",
+            "Default",
+            "Local Extension Settings"
+          ),
+          path.join(
+            os.homedir(),
+            "Library",
+            "Application Support",
+            "Microsoft Edge",
+            "Default",
+            "Local Extension Settings"
+          )
+        );
+      } else {
+        // Linux Chrome 扩展数据路径
+        browserPaths.push(
+          path.join(
+            os.homedir(),
+            ".config",
+            "google-chrome",
+            "Default",
+            "Local Extension Settings"
+          ),
+          path.join(
+            os.homedir(),
+            ".config",
+            "microsoft-edge",
+            "Default",
+            "Local Extension Settings"
+          )
+        );
+      }
+
+      for (const browserPath of browserPaths) {
+        try {
+          if (await fs.pathExists(browserPath)) {
+            const extensions = await fs.readdir(browserPath);
+            // 查找可能的 Augment 扩展
+            const augmentExtensions = extensions.filter(
+              (ext) =>
+                ext.toLowerCase().includes("augment") ||
+                ext.toLowerCase().includes("cursor")
+            );
+
+            for (const ext of augmentExtensions) {
+              const extPath = path.join(browserPath, ext);
+              try {
+                await fs.remove(extPath);
+                results.actions.push(`已清理浏览器扩展数据: ${ext}`);
+              } catch (error) {
+                results.errors.push(`清理扩展 ${ext} 失败: ${error.message}`);
+              }
+            }
+          }
+        } catch (error) {
+          // 路径不存在或无权限，跳过
+        }
+      }
+
+      results.actions.push("浏览器数据清理完成");
+    } catch (error) {
+      results.errors.push(`清理浏览器数据失败: ${error.message}`);
+    }
+  }
+
+  // 重新生成设备指纹
+  async regenerateDeviceFingerprint(results) {
+    try {
+      // 清理缓存的指纹数据，确保下次生成新的设备标识
+      const fingerprintPaths = [
+        path.join(
+          os.homedir(),
+          ".augment-device-manager",
+          "device-fingerprint"
+        ),
+        path.join(os.homedir(), ".augment", "fingerprint"),
+        path.join(os.homedir(), ".cursor-augment", "device-id"),
+      ];
+
+      for (const fingerprintPath of fingerprintPaths) {
+        try {
+          if (await fs.pathExists(fingerprintPath)) {
+            await fs.remove(fingerprintPath);
+            results.actions.push(`已清理设备指纹缓存: ${fingerprintPath}`);
+          }
+        } catch (error) {
+          results.errors.push(
+            `清理指纹缓存失败 ${fingerprintPath}: ${error.message}`
+          );
+        }
+      }
+
+      results.actions.push("设备指纹已重置，下次启动将生成新的设备标识");
+    } catch (error) {
+      results.errors.push(`重新生成设备指纹失败: ${error.message}`);
     }
   }
 }

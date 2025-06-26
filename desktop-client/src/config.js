@@ -6,9 +6,9 @@ const os = require("os");
 // 默认配置
 const DEFAULT_CONFIG = {
   server: {
-    host: "localhost", // 默认本地地址，可通过环境变量或配置文件修改
-    port: 3002, // 本地服务端口
-    protocol: "http", // 本地使用http
+    host: "your-ngrok-url.ngrok.io", // 默认本地地址，可通过环境变量或配置文件修改
+    port: 443, // 本地服务端口
+    protocol: "https", // 本地使用http
   },
   client: {
     autoConnect: true,

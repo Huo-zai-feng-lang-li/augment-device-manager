@@ -237,15 +237,60 @@ npm run release      # 构建并发布到GitHub Releases
 - **自动更新**: electron-updater, GitHub Releases
 - **跨平台**: Windows/macOS/Linux 支持
 
+## 🌐 远程控制
+
+本项目支持完整的远程控制功能，您可以控制不在同一局域网和地区的客户端。
+
+### 快速开始
+
+**方法一：一键配置（推荐）**
+
+```bash
+# 运行远程控制配置向导
+npm run setup-remote
+```
+
+**方法二：手动配置**
+
+```bash
+# 1. 启动后端服务
+npm run server-only
+
+# 2. 使用 ngrok 暴露到公网
+ngrok http 3002
+
+# 3. 配置客户端连接远程服务器
+npm run configure-client your-ngrok-url.ngrok.io 443 https
+
+# 4. 重新打包客户端
+npm run build
+
+# 5. 测试连接
+npm run test-connection
+```
+
+### 详细配置
+
+完整的远程控制配置指南请参考：**[📖 远程控制配置指南](./REMOTE_CONTROL.md)**
+
+支持的部署方案：
+
+- 🚀 **ngrok** - 快速测试，几分钟完成配置
+- ☁️ **云服务器** - 生产环境推荐
+- 🔗 **内网穿透** - frp、花生壳等工具
+
 ## 📋 命令速查
 
-| 命令                  | 功能                    |
-| --------------------- | ----------------------- |
-| `npm run dev`         | 🚀 一键启动完整开发环境 |
-| `npm run setup`       | 📦 安装所有依赖         |
-| `npm run server-only` | 🌐 仅启动远程控制服务器 |
-| `npm run build`       | 📦 打包桌面 exe         |
-| `npm run release`     | 🚀 发布新版本           |
+| 命令                       | 功能                    |
+| -------------------------- | ----------------------- |
+| `npm run dev`              | 🚀 一键启动完整开发环境 |
+| `npm run setup`            | 📦 安装所有依赖         |
+| `npm run server-only`      | 🌐 仅启动远程控制服务器 |
+| `npm run build`            | 📦 打包桌面 exe         |
+| `npm run release`          | 🚀 发布新版本           |
+| `npm run setup-remote`     | 🌐 远程控制配置向导     |
+| `npm run test-connection`  | 🔍 测试远程连接         |
+| `npm run configure-client` | ⚙️ 配置客户端服务器     |
 
 ## 🤝 技术交流
 
@@ -256,6 +301,71 @@ npm run release      # 构建并发布到GitHub Releases
   你来用
 - 🐛 [提交 Issue](../../issues) 报告问题或建议
 - ⭐ 觉得项目有用请给个 Star 支持一下
+
+## 🧪 系统测试
+
+### 自动化测试套件
+
+项目包含完整的自动化测试脚本，验证所有核心功能：
+
+```bash
+# 运行完整的系统测试（推荐）
+node start-test.js
+
+# 或手动运行测试脚本
+node test-system.js
+```
+
+### 测试覆盖范围
+
+✅ **管理员登录功能** - 验证登录接口和 JWT 令牌 ✅ **激活码管理功能** - 创建、更
+新、撤销、删除激活码 ✅ **激活验证功能** - 客户端验证和实时状态检查 ✅ **用户管
+理功能** - 用户列表和状态管理 ✅ **统计功能** - 数据统计和实时更新 ✅
+**WebSocket 通信** - 连接建立和消息推送
+
+### 测试结果示例
+
+```
+ℹ️ [2024-01-20T10:30:00.000Z] 开始系统功能测试...
+==================================================
+✅ [2024-01-20T10:30:01.200Z] PASS: 管理员登录成功
+✅ [2024-01-20T10:30:01.350Z] PASS: 创建激活码成功
+✅ [2024-01-20T10:30:01.500Z] PASS: 激活码验证成功
+✅ [2024-01-20T10:30:02.000Z] PASS: WebSocket连接建立成功
+==================================================
+ℹ️ [2024-01-20T10:30:05.000Z] 测试完成! 通过: 15, 失败: 0
+✅ [2024-01-20T10:30:05.001Z] 🎉 系统测试完成，所有功能正常！
+```
+
+## 🔧 故障排除
+
+### 常见问题
+
+**Q: 端口被占用怎么办？**
+
+```bash
+# Windows
+netstat -ano | findstr :3002
+taskkill /PID <PID> /F
+
+# macOS/Linux
+lsof -ti:3002 | xargs kill -9
+```
+
+**Q: 依赖安装失败？**
+
+```bash
+# 清理缓存重新安装
+npm cache clean --force
+rm -rf node_modules package-lock.json
+npm install
+```
+
+**Q: WebSocket 连接失败？**
+
+- 检查防火墙设置
+- 确认后台服务正常运行
+- 验证端口 3002 是否可访问
 
 ## 📄 许可证
 

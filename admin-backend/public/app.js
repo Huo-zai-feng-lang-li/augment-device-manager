@@ -537,11 +537,14 @@ async function revokeCode(codeId) {
     return;
   }
 
+  const reason = prompt("请输入撤销原因（可选）:");
+
   try {
     const response = await apiRequest(
       `/api/activation-codes/${codeId}/revoke`,
       {
         method: "POST",
+        body: JSON.stringify({ reason: reason || "管理员撤销" }),
       }
     );
 
@@ -704,12 +707,11 @@ async function disconnectClient(clientId) {
 // 加载用户管理数据
 async function loadUsers() {
   try {
-    // 获取激活记录和设备绑定信息
-    const codesData = await apiRequest("/api/activation-codes");
-    const logsData = await apiRequest("/api/usage-logs");
+    // 使用新的用户API
+    const usersData = await apiRequest("/api/users");
 
-    if (codesData.success && logsData.success) {
-      renderUsersTable(codesData.data, logsData.data);
+    if (usersData.success) {
+      renderUsersTable(usersData.data);
     }
   } catch (error) {
     console.error("加载用户数据失败:", error);
@@ -720,43 +722,8 @@ async function loadUsers() {
 }
 
 // 渲染用户管理表格
-function renderUsersTable(codes, logs) {
+function renderUsersTable(users) {
   const table = document.getElementById("usersTable");
-
-  // 统计用户数据
-  const userMap = new Map();
-
-  // 从激活码中提取用户信息
-  codes.forEach((code) => {
-    if (code.used_by_device) {
-      if (!userMap.has(code.used_by_device)) {
-        userMap.set(code.used_by_device, {
-          deviceId: code.used_by_device,
-          activationCodes: [],
-          lastActivity: null,
-          totalUsage: 0,
-        });
-      }
-
-      const user = userMap.get(code.used_by_device);
-      user.activationCodes.push(code);
-    }
-  });
-
-  // 从日志中补充活动信息
-  logs.forEach((log) => {
-    if (userMap.has(log.device_id)) {
-      const user = userMap.get(log.device_id);
-      user.totalUsage++;
-
-      const logTime = new Date(log.timestamp);
-      if (!user.lastActivity || logTime > new Date(user.lastActivity)) {
-        user.lastActivity = log.timestamp;
-      }
-    }
-  });
-
-  const users = Array.from(userMap.values());
 
   if (users.length === 0) {
     table.innerHTML = '<div class="alert alert-info">暂无用户数据</div>';
@@ -768,9 +735,9 @@ function renderUsersTable(codes, logs) {
       <thead>
         <tr>
           <th>设备ID</th>
-          <th>激活码数量</th>
-          <th>最后活动</th>
-          <th>使用次数</th>
+          <th>激活码</th>
+          <th>激活时间</th>
+          <th>过期时间</th>
           <th>状态</th>
           <th>操作</th>
         </tr>
@@ -778,36 +745,45 @@ function renderUsersTable(codes, logs) {
       <tbody>
         ${users
           .map((user) => {
-            const activeCode = user.activationCodes.find(
-              (c) => c.status === "used" && !isExpired(c.expires_at)
-            );
-            const isOnline = checkIfUserOnline(user.deviceId);
+            const isExpired = new Date(user.expiresAt) < new Date();
+            const statusClass = user.isOnline ? "active" : "inactive";
+            const activationStatus =
+              user.status === "used" && !isExpired
+                ? "已激活"
+                : user.status === "revoked"
+                ? "已撤销"
+                : user.status === "inactive"
+                ? "已禁用"
+                : isExpired
+                ? "已过期"
+                : "未知";
 
             return `
             <tr>
               <td><code class="device-id">${user.deviceId}</code></td>
-              <td>${user.activationCodes.length}</td>
-              <td>${formatDateTime(user.lastActivity)}</td>
-              <td>${user.totalUsage}</td>
+              <td><code class="code-text">${user.activationCode}</code></td>
+              <td>${formatDateTime(user.activatedAt)}</td>
+              <td>${formatDateTime(user.expiresAt)}</td>
               <td>
-                <span class="status-badge status-${
-                  isOnline ? "active" : "inactive"
-                }">
-                  ${isOnline ? "在线" : "离线"}
+                <span class="status-badge status-${statusClass}">
+                  ${user.isOnline ? "在线" : "离线"}
                 </span>
-                ${
-                  activeCode
-                    ? `<span class="status-badge status-active">已激活</span>`
-                    : `<span class="status-badge status-expired">未激活</span>`
-                }
+                <span class="status-badge status-${user.status}">
+                  ${activationStatus}
+                </span>
               </td>
               <td>
                 <button onclick="viewUserDetails('${
                   user.deviceId
                 }')" class="btn-small btn-secondary">详情</button>
-                <button onclick="revokeUserAccess('${
+                ${
+                  user.status === "used"
+                    ? `<button onclick="toggleUserStatus('${user.deviceId}', 'disable')" class="btn-small btn-warning">禁用</button>`
+                    : `<button onclick="toggleUserStatus('${user.deviceId}', 'enable')" class="btn-small btn-success">启用</button>`
+                }
+                <button onclick="sendUserNotification('${
                   user.deviceId
-                }')" class="btn-small btn-warning">撤销权限</button>
+                }')" class="btn-small btn-secondary">通知</button>
               </td>
             </tr>
           `;
@@ -820,30 +796,65 @@ function renderUsersTable(codes, logs) {
   table.innerHTML = tableHTML;
 }
 
-// 检查用户是否在线
-function checkIfUserOnline(deviceId) {
-  // 这里可以通过WebSocket连接信息来判断
-  // 暂时返回false，实际应该检查connectedClients
-  return false;
-}
-
 // 查看用户详情
 function viewUserDetails(deviceId) {
   alert(`查看用户详情功能开发中...\n设备ID: ${deviceId}`);
 }
 
-// 撤销用户权限
-async function revokeUserAccess(deviceId) {
-  if (!confirm(`确定要撤销设备 ${deviceId} 的所有权限吗？`)) {
+// 切换用户状态（启用/禁用）
+async function toggleUserStatus(deviceId, action) {
+  const actionText = action === "disable" ? "禁用" : "启用";
+  if (!confirm(`确定要${actionText}设备 ${deviceId} 吗？`)) {
     return;
   }
 
   try {
-    // 这里应该撤销该设备的所有激活码
-    alert("撤销用户权限功能开发中...");
+    const response = await apiRequest(`/api/users/${deviceId}/toggle`, {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    });
+
+    if (response.success) {
+      alert(`用户${actionText}成功！`);
+      loadUsers(); // 刷新用户列表
+    } else {
+      throw new Error(response.error);
+    }
   } catch (error) {
-    console.error("撤销用户权限失败:", error);
-    alert("操作失败: " + error.message);
+    console.error(`${actionText}用户失败:`, error);
+    alert(`操作失败: ${error.message}`);
+  }
+}
+
+// 发送用户通知
+async function sendUserNotification(deviceId) {
+  const title = prompt("请输入通知标题:");
+  if (!title) return;
+
+  const message = prompt("请输入通知内容:");
+  if (!message) return;
+
+  const type = prompt("请输入通知类型 (info/warning/error):", "info");
+
+  try {
+    const response = await apiRequest("/api/send-notification", {
+      method: "POST",
+      body: JSON.stringify({
+        deviceId: deviceId,
+        title: title,
+        message: message,
+        type: type || "info",
+      }),
+    });
+
+    if (response.success) {
+      alert("通知发送成功！");
+    } else {
+      throw new Error(response.error);
+    }
+  } catch (error) {
+    console.error("发送通知失败:", error);
+    alert("发送失败: " + error.message);
   }
 }
 

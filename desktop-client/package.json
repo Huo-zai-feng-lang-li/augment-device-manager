@@ -20,8 +20,9 @@
   "build": {
     "appId": "com.augment.device-manager",
     "productName": "Augment设备管理器",
+    "executableName": "Augment设备管理器",
     "directories": {
-      "output": "exe-output"
+      "output": "build-output"
     },
     "files": [
       "src/**/*",

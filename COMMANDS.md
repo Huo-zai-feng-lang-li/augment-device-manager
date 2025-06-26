@@ -39,6 +39,8 @@ npm run release
 
 ## 🌐 远程控制
 
+### 基础命令
+
 ```bash
 # 启动远程控制服务器
 npm run server-only
@@ -46,6 +48,53 @@ npm run server-only
 # 获取公网地址（需要ngrok）
 ngrok http 3002
 ```
+
+### 客户端配置
+
+```bash
+# 进入客户端目录
+cd desktop-client
+
+# 查看当前配置
+node configure-server.js
+
+# 配置 ngrok 地址
+node configure-server.js your-domain.ngrok.io 443 https
+
+# 配置自定义服务器
+node configure-server.js your-server.com 3002 http
+
+# 配置局域网地址
+node configure-server.js 192.168.1.100 3002 http
+```
+
+### 连接测试
+
+```bash
+# 测试 WebSocket 连接
+node test-websocket.js
+
+# 完整系统测试
+node test-system.js
+```
+
+### 环境变量配置
+
+```bash
+# Windows
+set AUGMENT_SERVER_HOST=your-server.com
+set AUGMENT_SERVER_PORT=3002
+set AUGMENT_SERVER_PROTOCOL=https
+
+# Linux/macOS
+export AUGMENT_SERVER_HOST=your-server.com
+export AUGMENT_SERVER_PORT=3002
+export AUGMENT_SERVER_PROTOCOL=https
+```
+
+### 详细配置指南
+
+完整的远程控制配置请参考：[📖 远程控制配置指南](./REMOTE_CONTROL.md)
 
 ---
 

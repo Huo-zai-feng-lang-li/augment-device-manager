@@ -6,6 +6,7 @@ if (process.platform === "win32") {
   process.stdout.write("\x1b]0;Augment设备管理器客户端\x07");
 }
 
+// 引入所需模块
 const {
   app,
   BrowserWindow,
@@ -13,6 +14,7 @@ const {
   dialog,
   shell,
   Menu,
+  Notification,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
@@ -20,6 +22,22 @@ const fs = require("fs-extra");
 const os = require("os");
 const WebSocket = require("ws");
 const serverConfig = require("./config");
+
+// 设置应用程序名称和元数据
+app.setName("Augment设备管理器");
+app.setAppUserModelId("com.augment.device-manager");
+
+// Windows特定设置
+if (process.platform === "win32") {
+  // 设置应用程序用户模型ID
+  app.setAppUserModelId("com.augment.device-manager");
+
+  // 设置应用程序路径
+  app.setPath(
+    "userData",
+    path.join(os.homedir(), "AppData", "Roaming", "Augment设备管理器")
+  );
+}
 
 // 获取共享模块路径的辅助函数
 function getSharedPath(relativePath) {
@@ -235,6 +253,20 @@ async function verifyActivationWithServer() {
   }
 }
 
+// WebSocket重连配置
+let wsReconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 10;
+const INITIAL_RECONNECT_DELAY = 1000; // 1秒
+
+// WebSocket连接状态管理
+let wsConnectionStatus = {
+  connected: false,
+  lastConnectedTime: null,
+  lastDisconnectedTime: null,
+  connectionAttempts: 0,
+  isReconnecting: false,
+};
+
 // 初始化WebSocket连接
 function initializeWebSocket() {
   try {
@@ -244,15 +276,32 @@ function initializeWebSocket() {
 
     wsClient.on("open", () => {
       console.log("WebSocket连接已建立");
+      wsReconnectAttempts = 0; // 重置重连计数
+
+      // 更新连接状态
+      wsConnectionStatus.connected = true;
+      wsConnectionStatus.lastConnectedTime = new Date();
+      wsConnectionStatus.isReconnecting = false;
+
+      // 通知渲染进程连接状态变化
+      if (mainWindow) {
+        mainWindow.webContents.send("websocket-status-changed", {
+          connected: true,
+          timestamp: wsConnectionStatus.lastConnectedTime.toISOString(),
+        });
+      }
 
       // 注册客户端
       const deviceId = generateDeviceFingerprint();
-      wsClient.send(
-        JSON.stringify({
-          type: "register",
-          deviceId: deviceId,
-        })
-      );
+      console.log("生成的设备ID:", deviceId);
+
+      const registerMessage = {
+        type: "register",
+        deviceId: deviceId,
+      };
+      console.log("发送注册消息:", registerMessage);
+
+      wsClient.send(JSON.stringify(registerMessage));
     });
 
     wsClient.on("message", (data) => {
@@ -264,20 +313,88 @@ function initializeWebSocket() {
       }
     });
 
-    wsClient.on("close", () => {
-      console.log("WebSocket连接已断开，尝试重连...");
-      // 5秒后重连
-      setTimeout(initializeWebSocket, 5000);
+    wsClient.on("close", (code, reason) => {
+      console.log(`WebSocket连接已断开 (code: ${code}, reason: ${reason})`);
+
+      // 更新连接状态
+      wsConnectionStatus.connected = false;
+      wsConnectionStatus.lastDisconnectedTime = new Date();
+
+      // 通知渲染进程连接状态变化
+      if (mainWindow) {
+        mainWindow.webContents.send("websocket-status-changed", {
+          connected: false,
+          timestamp: wsConnectionStatus.lastDisconnectedTime.toISOString(),
+          reason: reason || `连接断开 (code: ${code})`,
+        });
+      }
+
+      scheduleReconnect();
     });
 
     wsClient.on("error", (error) => {
       console.error("WebSocket连接错误:", error);
+
+      // 更新连接状态
+      wsConnectionStatus.connected = false;
+      wsConnectionStatus.lastDisconnectedTime = new Date();
+
+      // 通知渲染进程连接错误
+      if (mainWindow) {
+        mainWindow.webContents.send("websocket-status-changed", {
+          connected: false,
+          timestamp: wsConnectionStatus.lastDisconnectedTime.toISOString(),
+          error: error.message || "WebSocket连接错误",
+        });
+      }
     });
   } catch (error) {
     console.error("WebSocket初始化失败:", error);
-    // 5秒后重试
-    setTimeout(initializeWebSocket, 5000);
+    scheduleReconnect();
   }
+}
+
+// 安排重连
+function scheduleReconnect() {
+  if (wsReconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    console.error("WebSocket重连次数已达上限，停止重连");
+    wsConnectionStatus.isReconnecting = false;
+
+    // 通知渲染进程重连失败
+    if (mainWindow) {
+      mainWindow.webContents.send("websocket-status-changed", {
+        connected: false,
+        reconnectFailed: true,
+        timestamp: new Date().toISOString(),
+        message: "WebSocket重连次数已达上限，请检查网络连接或服务器状态",
+      });
+    }
+    return;
+  }
+
+  wsReconnectAttempts++;
+  wsConnectionStatus.isReconnecting = true;
+  wsConnectionStatus.connectionAttempts++;
+
+  const delay = Math.min(
+    INITIAL_RECONNECT_DELAY * Math.pow(2, wsReconnectAttempts - 1),
+    30000
+  ); // 最大30秒
+
+  console.log(`${delay / 1000}秒后尝试第${wsReconnectAttempts}次重连...`);
+
+  // 通知渲染进程正在重连
+  if (mainWindow) {
+    mainWindow.webContents.send("websocket-status-changed", {
+      connected: false,
+      isReconnecting: true,
+      reconnectAttempt: wsReconnectAttempts,
+      nextRetryIn: delay,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  setTimeout(initializeWebSocket, delay);
 }
 
 // 处理服务器消息
@@ -303,6 +420,18 @@ function handleServerMessage(message) {
 
     case "activation_deleted":
       handleActivationDeleted(message);
+      break;
+
+    case "activation_disabled":
+      handleActivationDisabled(message);
+      break;
+
+    case "activation_enabled":
+      handleActivationEnabled(message);
+      break;
+
+    case "broadcast":
+      handleBroadcastMessage(message);
       break;
 
     default:
@@ -418,6 +547,80 @@ function handleActivationDeleted(message) {
       code: code,
       timestamp: message.timestamp,
     });
+  }
+}
+
+// 处理激活禁用消息
+function handleActivationDisabled(message) {
+  const { reason } = message;
+
+  console.log(`账户已被禁用: ${reason}`);
+
+  // 清除本地激活信息
+  clearLocalActivation();
+
+  // 通知渲染进程
+  if (mainWindow) {
+    mainWindow.webContents.send("activation-disabled", {
+      reason: reason,
+      timestamp: message.timestamp,
+    });
+  }
+}
+
+// 处理激活启用消息
+function handleActivationEnabled(message) {
+  const { reason } = message;
+
+  console.log(`账户已被启用: ${reason}`);
+
+  // 通知渲染进程
+  if (mainWindow) {
+    mainWindow.webContents.send("activation-enabled", {
+      reason: reason,
+      timestamp: message.timestamp,
+    });
+  }
+}
+
+// 处理广播消息
+function handleBroadcastMessage(message) {
+  const { message: content, timestamp, from, isHistorical } = message;
+
+  if (isHistorical) {
+    console.log(`收到历史广播消息: ${content}`);
+  } else {
+    console.log(`收到广播消息: ${content}`);
+  }
+
+  // 通知渲染进程显示广播消息
+  if (mainWindow) {
+    mainWindow.webContents.send("broadcast-message", {
+      message: content,
+      timestamp: timestamp,
+      from: from,
+      isHistorical: isHistorical,
+    });
+  }
+
+  // 只对非历史消息显示系统通知
+  if (!isHistorical) {
+    try {
+      if (Notification.isSupported()) {
+        const notification = new Notification({
+          title: "设备管理系统广播",
+          body: content,
+          icon: path.join(__dirname, "../public/logo.png"),
+          silent: false,
+          urgency: "normal",
+          timeoutType: "default",
+        });
+
+        notification.show();
+      }
+    } catch (error) {
+      console.log("系统通知显示失败:", error.message);
+    }
   }
 }
 
@@ -728,6 +931,102 @@ ipcMain.handle("perform-device-cleanup", async () => {
   }
 });
 
+// 验证操作权限
+ipcMain.handle("verify-operation-permission", async (event, operation) => {
+  try {
+    const configPath = path.join(APP_CONFIG.configPath, APP_CONFIG.configFile);
+
+    if (!(await fs.pathExists(configPath))) {
+      return {
+        success: false,
+        error: "设备未激活",
+        requireActivation: true,
+      };
+    }
+
+    const config = await fs.readJson(configPath);
+    if (!config.activation) {
+      return {
+        success: false,
+        error: "设备未激活",
+        requireActivation: true,
+      };
+    }
+
+    // 检查WebSocket连接状态（关键安全检查）
+    if (!wsConnectionStatus.connected) {
+      return {
+        success: false,
+        error:
+          "无法连接到管理服务器，为确保安全，清理功能已被禁用。请检查网络连接或联系管理员。",
+        requireConnection: true,
+        wsStatus: {
+          connected: false,
+          lastDisconnectedTime: wsConnectionStatus.lastDisconnectedTime,
+          connectionAttempts: wsConnectionStatus.connectionAttempts,
+          isReconnecting: wsConnectionStatus.isReconnecting,
+        },
+      };
+    }
+
+    const deviceId = generateDeviceFingerprint();
+
+    // 向服务器验证权限
+    try {
+      const response = await fetch(
+        serverConfig.getHttpUrl("/api/client/execute-operation"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            code: config.activation.code,
+            deviceId: deviceId,
+            operation: operation,
+            parameters: {},
+          }),
+          timeout: 5000,
+        }
+      );
+
+      const result = await response.json();
+
+      if (!result.success) {
+        return {
+          success: false,
+          error: result.error,
+          requireActivation: result.requireActivation || false,
+        };
+      }
+
+      return {
+        success: true,
+        permissions: result.permissions,
+        wsStatus: {
+          connected: true,
+          lastConnectedTime: wsConnectionStatus.lastConnectedTime,
+        },
+      };
+    } catch (networkError) {
+      // 网络错误时不允许操作（安全优先）
+      console.log("网络错误，拒绝操作:", networkError.message);
+      return {
+        success: false,
+        error: "无法验证操作权限：网络连接失败。为确保安全，操作已被拒绝。",
+        requireConnection: true,
+        networkError: networkError.message,
+      };
+    }
+  } catch (error) {
+    console.error("权限验证失败:", error);
+    return {
+      success: false,
+      error: "权限验证失败: " + error.message,
+    };
+  }
+});
+
 // 获取Augment扩展信息
 ipcMain.handle("get-augment-info", async () => {
   try {
@@ -841,9 +1140,23 @@ ipcMain.handle("open-external-link", async (event, url) => {
 // 显示消息对话框
 ipcMain.handle("show-message-box", async (event, options) => {
   try {
-    const result = await dialog.showMessageBox(mainWindow, options);
+    // 创建一个新的对话框窗口来确保标题正确显示
+    const dialogOptions = {
+      type: options.type || "info",
+      title: options.title || "Augment设备管理器",
+      message: options.message || "",
+      detail: options.detail || "",
+      buttons: options.buttons || ["确定"],
+      defaultId: options.defaultId || 0,
+      cancelId: options.cancelId || 0,
+      noLink: options.noLink || false,
+      normalizeAccessKeys: false,
+    };
+
+    const result = await dialog.showMessageBox(mainWindow, dialogOptions);
     return result;
   } catch (error) {
+    console.error("显示对话框失败:", error);
     return { response: 0 };
   }
 });
@@ -858,6 +1171,19 @@ ipcMain.handle("check-for-updates", async () => {
     console.error("检查更新失败:", error);
     return { success: false, error: error.message };
   }
+});
+
+// 获取WebSocket连接状态
+ipcMain.handle("get-websocket-status", async () => {
+  return {
+    connected: wsConnectionStatus.connected,
+    lastConnectedTime: wsConnectionStatus.lastConnectedTime,
+    lastDisconnectedTime: wsConnectionStatus.lastDisconnectedTime,
+    connectionAttempts: wsConnectionStatus.connectionAttempts,
+    isReconnecting: wsConnectionStatus.isReconnecting,
+    reconnectAttempts: wsReconnectAttempts,
+    maxReconnectAttempts: MAX_RECONNECT_ATTEMPTS,
+  };
 });
 
 // 测试服务器连接
