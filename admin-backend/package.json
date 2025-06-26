@@ -1,0 +1,22 @@
+{
+  "name": "augment-admin-backend",
+  "version": "1.0.0",
+  "description": "激活码管理后台",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node src/server-simple.js",
+    "start": "node src/server-simple.js",
+    "build": "echo 'Build completed'"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^9.0.1",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

@@ -1,0 +1,216 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage
+.grunt
+
+# Bower dependency directory
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons
+build/Release
+
+# Dependency directories
+jspm_packages/
+
+# TypeScript v1 declaration files
+typings/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.test
+.env.production
+.env.local
+
+# parcel-bundler cache
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+public
+
+# Vuepress build output
+.vuepress/dist
+
+# Serverless directories
+.serverless/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Electron
+out/
+dist/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Log files
+logs/
+*.log
+
+# Backup files
+*.backup
+*.bak
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test results
+test-results.json
+coverage/
+
+# Build artifacts
+build/
+dist/
+out/
+
+# Temporary files
+tmp/
+temp/
+
+# Package files
+*.tgz
+*.tar.gz
+
+# Local configuration
+config/local.json
+config/production.json
+
+# Admin backend specific
+admin-backend/data/
+admin-backend/logs/
+admin-backend/uploads/
+
+# Desktop client specific - 构建输出目录
+desktop-client/dist/
+desktop-client/build/
+desktop-client/build-output/
+desktop-client/exe-output/
+desktop-client/final-build/
+desktop-client/release/
+
+# Electron 构建文件
+*.exe
+*.exe.blockmap
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.snap
+*.msi
+*.nsis
+*.zip
+*.tar.gz
+*.tar.xz
+*.tar.bz2
+*.7z
+*.rar
+
+# Electron 特定文件
+app.asar
+*.asar
+builder-debug.yml
+builder-effective-config.yaml
+elevate.exe
+
+# Windows 系统文件
+*.dll
+*.pak
+*.bin
+*.dat
+*.json.tmp
+LICENSE.electron.txt
+LICENSES.chromium.html
+
+# 语言包目录
+locales/
+
+# Shared files
+shared/build/
+
+# Scripts output
+scripts/output/
+
+# 资源文件（构建生成的）
+resources/
+
+# 临时文件和错误输出
+nul
+*.tmp
+*.temp

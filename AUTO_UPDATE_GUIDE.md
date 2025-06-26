@@ -1,0 +1,144 @@
+# 自动更新功能使用指南
+
+## 功能概述
+
+现在你的 Augment 设备管理器已经支持自动更新功能！用户在启动应用时会自动检查更新，发现新版本时会弹框提示用户是否要更新。
+
+## 更新流程
+
+### 用户体验流程
+1. **启动检查**: 用户启动应用后3秒自动检查更新
+2. **发现更新**: 如有新版本，弹出对话框询问用户
+3. **用户选择**: 
+   - "立即更新" - 开始下载新版本
+   - "稍后提醒" - 下次启动时再次提醒
+   - "跳过此版本" - 跳过当前版本
+4. **下载进度**: 显示下载进度条
+5. **安装确认**: 下载完成后询问是否立即重启安装
+6. **自动安装**: 重启后自动安装新版本
+
+### 手动检查更新
+用户也可以在"关于"页面点击"检查更新"按钮手动检查。
+
+## 开发者发布流程
+
+### 1. 准备工作
+首先需要配置 GitHub 仓库信息：
+
+```bash
+# 编辑 desktop-client/package.json
+# 修改 publish 配置中的 owner 和 repo
+"publish": {
+  "provider": "github",
+  "owner": "你的GitHub用户名",
+  "repo": "你的仓库名"
+}
+```
+
+### 2. 发布新版本
+
+#### 方法一：使用脚本（推荐）
+```bash
+cd desktop-client
+
+# 更新版本号（补丁版本 1.0.0 -> 1.0.1）
+npm run version:patch
+
+# 更新版本号（次要版本 1.0.0 -> 1.1.0）
+npm run version:minor
+
+# 更新版本号（主要版本 1.0.0 -> 2.0.0）
+npm run version:major
+
+# 构建并发布到GitHub Releases
+npm run publish
+```
+
+#### 方法二：手动操作
+```bash
+cd desktop-client
+
+# 1. 手动更新 package.json 中的版本号
+# 2. 构建并发布
+npm run release
+```
+
+### 3. GitHub Token 配置
+
+发布到 GitHub Releases 需要配置访问令牌：
+
+```bash
+# 设置环境变量
+export GH_TOKEN="你的GitHub Personal Access Token"
+
+# 或者在 Windows 中
+set GH_TOKEN=你的GitHub Personal Access Token
+```
+
+GitHub Token 需要有 `repo` 权限。
+
+### 4. 发布检查清单
+
+发布前请确保：
+- [ ] 代码已提交到 Git
+- [ ] 版本号已更新
+- [ ] GitHub Token 已配置
+- [ ] 构建测试通过
+- [ ] 功能测试完成
+
+## 技术实现
+
+### 核心组件
+- **electron-updater**: 自动更新核心库
+- **GitHub Releases**: 作为更新服务器
+- **NSIS**: Windows 安装包格式
+
+### 配置文件
+```json
+{
+  "build": {
+    "publish": {
+      "provider": "github",
+      "owner": "your-username",
+      "repo": "your-repo"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
+```
+
+### 更新检查逻辑
+- 应用启动后3秒自动检查
+- 用户手动点击检查更新按钮
+- 检查频率：每次启动时检查
+
+## 注意事项
+
+1. **首次发布**: 第一个版本需要手动分发给用户
+2. **版本格式**: 必须使用语义化版本号 (如 1.0.0)
+3. **网络要求**: 用户需要能访问 GitHub
+4. **权限要求**: Windows 可能需要管理员权限安装
+5. **测试建议**: 发布前在测试环境验证更新流程
+
+## 故障排除
+
+### 常见问题
+1. **更新检查失败**: 检查网络连接和 GitHub 访问
+2. **下载失败**: 检查 GitHub Releases 是否正确发布
+3. **安装失败**: 检查用户权限和防病毒软件
+
+### 调试方法
+- 查看控制台日志
+- 检查 electron-updater 日志
+- 验证 GitHub Releases 文件
+
+## 版本历史
+
+- v1.0.0: 初始版本，支持基础功能
+- v1.0.1: 添加自动更新功能
+
+---
+
+现在你的应用已经具备完整的自动更新能力！用户将能够轻松获取最新版本的功能和修复。
