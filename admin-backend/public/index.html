@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Augment 激活码管理系统</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      .header {
+        text-align: center;
+        color: white;
+        margin-bottom: 30px;
+      }
+
+      .header h1 {
+        font-size: 2.5rem;
+        margin-bottom: 10px;
+      }
+
+      .header p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+      }
+
+      .login-form,
+      .dashboard {
+        background: white;
+        border-radius: 15px;
+        padding: 30px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #333;
+      }
+
+      .form-group input,
+      .form-group select,
+      .form-group textarea {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #e1e5e9;
+        border-radius: 8px;
+        font-size: 16px;
+        transition: border-color 0.3s;
+      }
+
+      .form-group input:focus,
+      .form-group select:focus,
+      .form-group textarea:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      .btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 16px;
+        cursor: pointer;
+        transition: transform 0.2s;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+
+      .stat-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+      }
+
+      .stat-card h3 {
+        font-size: 2rem;
+        margin-bottom: 5px;
+      }
+
+      .stat-card p {
+        opacity: 0.9;
+      }
+
+      .tabs {
+        display: flex;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #e1e5e9;
+      }
+
+      .tab {
+        padding: 12px 24px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        color: #666;
+        border-bottom: 2px solid transparent;
+      }
+
+      .tab.active {
+        color: #667eea;
+        border-bottom-color: #667eea;
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      .table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+
+      .table th,
+      .table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #e1e5e9;
+      }
+
+      .table th {
+        background: #f8f9fa;
+        font-weight: 600;
+      }
+
+      .status {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .status.active {
+        background: #d4edda;
+        color: #155724;
+      }
+
+      .status.used {
+        background: #cce5ff;
+        color: #004085;
+      }
+
+      .status.expired {
+        background: #f8d7da;
+        color: #721c24;
+      }
+
+      .status.revoked {
+        background: #6c757d;
+        color: white;
+      }
+
+      .btn-small {
+        padding: 4px 8px;
+        font-size: 12px;
+        margin: 0 2px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+      }
+
+      .btn-warning {
+        background: #ffc107;
+        color: #212529;
+      }
+
+      .btn-warning:hover {
+        background: #e0a800;
+      }
+
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+
+      .btn-danger:hover {
+        background: #c82333;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      .alert {
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+      }
+
+      .alert.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .alert.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .code-display {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        font-family: "Courier New", monospace;
+        font-size: 18px;
+        text-align: center;
+        margin: 15px 0;
+        border: 2px dashed #667eea;
+      }
+
+      /* 数据表格样式 */
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .data-table th,
+      .data-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #e1e5e9;
+      }
+
+      .data-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        color: #333;
+      }
+
+      .data-table tr:hover {
+        background: #f8f9fa;
+      }
+
+      /* 状态标签 */
+      .status-badge,
+      .action-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .status-active {
+        background: #d4edda;
+        color: #155724;
+      }
+
+      .status-used {
+        background: #cce5ff;
+        color: #004085;
+      }
+
+      .status-expired {
+        background: #f8d7da;
+        color: #721c24;
+      }
+
+      .status-revoked {
+        background: #fff3cd;
+        color: #856404;
+      }
+
+      .status-inactive {
+        background: #f8d7da;
+        color: #721c24;
+      }
+
+      .action-created {
+        background: #d1ecf1;
+        color: #0c5460;
+      }
+
+      .action-activated {
+        background: #d4edda;
+        color: #155724;
+      }
+
+      .action-failed {
+        background: #f8d7da;
+        color: #721c24;
+      }
+
+      .action-revoked {
+        background: #fff3cd;
+        color: #856404;
+      }
+
+      .action-verified {
+        background: #cce5ff;
+        color: #004085;
+      }
+
+      /* 小按钮样式 */
+      .btn-small {
+        padding: 4px 8px;
+        font-size: 12px;
+        margin: 0 2px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+
+      .btn-small:hover {
+        transform: translateY(-1px);
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+
+      .btn-warning {
+        background: #ffc107;
+        color: #212529;
+      }
+
+      .btn-success {
+        background: #28a745;
+        color: white;
+      }
+
+      /* 代码文本样式 */
+      .code-text {
+        font-family: "Courier New", monospace;
+        background: #f8f9fa;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+
+      .device-id {
+        font-family: "Courier New", monospace;
+        background: #e9ecef;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        color: #495057;
+      }
+
+      /* 提示框样式 */
+      .alert {
+        padding: 12px;
+        border-radius: 8px;
+        margin: 10px 0;
+      }
+
+      .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .alert-info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+
+      /* 文本颜色 */
+      .text-danger {
+        color: #dc3545 !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🔐 Augment 激活码管理系统</h1>
+        <p>专业的激活码生成与管理平台</p>
+      </div>
+
+      <!-- 登录表单 -->
+      <div id="loginForm" class="login-form">
+        <h2 style="text-align: center; margin-bottom: 30px">管理员登录</h2>
+        <div id="loginAlert"></div>
+        <form onsubmit="login(event)">
+          <div class="form-group">
+            <label for="username">用户名</label>
+            <input type="text" id="username" required />
+          </div>
+          <div class="form-group">
+            <label for="password">密码</label>
+            <input type="password" id="password" required />
+          </div>
+          <button type="submit" class="btn" style="width: 100%">登录</button>
+        </form>
+      </div>
+
+      <!-- 管理面板 -->
+      <div id="dashboard" class="dashboard hidden">
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+          "
+        >
+          <h2>管理面板</h2>
+          <button onclick="logout()" class="btn btn-secondary">退出登录</button>
+        </div>
+
+        <!-- 统计信息 -->
+        <div id="statsGrid" class="stats-grid">
+          <!-- 统计卡片将通过JavaScript动态生成 -->
+        </div>
+
+        <!-- 标签页 -->
+        <div class="tabs">
+          <button class="tab active" onclick="showTab('generate')">
+            生成激活码
+          </button>
+          <button class="tab" onclick="showTab('codes')">激活码列表</button>
+          <button class="tab" onclick="showTab('logs')">使用记录</button>
+          <button class="tab" onclick="showTab('users')">用户管理</button>
+          <button class="tab" onclick="showTab('control')">实时控制</button>
+        </div>
+
+        <!-- 生成激活码 -->
+        <div id="generateTab" class="tab-content active">
+          <h3>生成新激活码</h3>
+          <div id="generateAlert"></div>
+          <form onsubmit="generateCode(event)">
+            <div
+              style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px"
+            >
+              <div class="form-group">
+                <label for="deviceId">设备ID (可选)</label>
+                <input
+                  type="text"
+                  id="deviceId"
+                  placeholder="留空表示任意设备可用"
+                />
+              </div>
+              <div class="form-group">
+                <label for="expiryDays">有效期 (天)</label>
+                <select id="expiryDays">
+                  <option value="7">7天</option>
+                  <option value="30" selected>30天</option>
+                  <option value="90">90天</option>
+                  <option value="365">365天</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="notes">备注</label>
+              <textarea
+                id="notes"
+                rows="3"
+                placeholder="可选的备注信息"
+              ></textarea>
+            </div>
+            <button type="submit" class="btn">生成激活码</button>
+          </form>
+          <div id="generatedCode"></div>
+        </div>
+
+        <!-- 激活码列表 -->
+        <div id="codesTab" class="tab-content">
+          <h3>激活码列表</h3>
+          <button onclick="loadCodes()" class="btn" style="margin-bottom: 20px">
+            刷新列表
+          </button>
+          <div id="codesTable"></div>
+        </div>
+
+        <!-- 使用记录 -->
+        <div id="logsTab" class="tab-content">
+          <h3>使用记录</h3>
+          <button onclick="loadLogs()" class="btn" style="margin-bottom: 20px">
+            刷新记录
+          </button>
+          <div id="logsTable"></div>
+        </div>
+
+        <!-- 用户管理 -->
+        <div id="usersTab" class="tab-content">
+          <h3>用户管理</h3>
+          <button onclick="loadUsers()" class="btn" style="margin-bottom: 20px">
+            刷新用户
+          </button>
+          <div id="usersTable"></div>
+        </div>
+
+        <!-- 实时控制 -->
+        <div id="controlTab" class="tab-content">
+          <h3>实时控制</h3>
+          <div style="margin-bottom: 20px">
+            <button onclick="loadConnectedClients()" class="btn">
+              刷新客户端
+            </button>
+            <button onclick="broadcastMessage()" class="btn btn-secondary">
+              广播消息
+            </button>
+          </div>
+          <div id="connectedClientsTable"></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

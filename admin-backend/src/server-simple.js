@@ -207,6 +207,111 @@ app.get("/api/activation-codes", authenticateToken, async (req, res) => {
   }
 });
 
+// 删除激活码
+app.delete("/api/activation-codes/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const codeIndex = memoryStore.activationCodes.findIndex((c) => c.id == id);
+
+    if (codeIndex === -1) {
+      return res.status(404).json({ error: "激活码不存在" });
+    }
+
+    const deletedCode = memoryStore.activationCodes.splice(codeIndex, 1)[0];
+
+    // 记录删除日志
+    memoryStore.usageLogs.push({
+      id: memoryStore.usageLogs.length + 1,
+      activation_code: deletedCode.code,
+      device_id: "admin",
+      action: "deleted",
+      timestamp: new Date().toISOString(),
+      details: "管理员删除激活码",
+    });
+
+    saveData(memoryStore);
+
+    res.json({
+      success: true,
+      message: "激活码删除成功",
+    });
+  } catch (error) {
+    console.error("删除激活码错误:", error);
+    res.status(500).json({ error: "删除激活码失败" });
+  }
+});
+
+// 撤销激活码
+app.post(
+  "/api/activation-codes/:id/revoke",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const code = memoryStore.activationCodes.find((c) => c.id == id);
+
+      if (!code) {
+        return res.status(404).json({ error: "激活码不存在" });
+      }
+
+      code.status = "revoked";
+
+      // 记录撤销日志
+      memoryStore.usageLogs.push({
+        id: memoryStore.usageLogs.length + 1,
+        activation_code: code.code,
+        device_id: "admin",
+        action: "revoked",
+        timestamp: new Date().toISOString(),
+        details: "管理员撤销激活码",
+      });
+
+      saveData(memoryStore);
+
+      // 通知相关客户端
+      broadcastToClients({
+        type: "code_revoked",
+        code: code.code,
+      });
+
+      res.json({
+        success: true,
+        message: "激活码撤销成功",
+      });
+    } catch (error) {
+      console.error("撤销激活码错误:", error);
+      res.status(500).json({ error: "撤销激活码失败" });
+    }
+  }
+);
+
+// 更新激活码
+app.put("/api/activation-codes/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+    const code = memoryStore.activationCodes.find((c) => c.id == id);
+
+    if (!code) {
+      return res.status(404).json({ error: "激活码不存在" });
+    }
+
+    if (notes !== undefined) {
+      code.notes = notes;
+    }
+
+    saveData(memoryStore);
+
+    res.json({
+      success: true,
+      message: "激活码更新成功",
+    });
+  } catch (error) {
+    console.error("更新激活码错误:", error);
+    res.status(500).json({ error: "更新激活码失败" });
+  }
+});
+
 // 验证激活码（客户端调用）
 app.post("/api/validate-code", async (req, res) => {
   try {
@@ -283,6 +388,168 @@ app.get("/api/usage-logs", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("获取使用记录错误:", error);
     res.status(500).json({ error: "获取使用记录失败" });
+  }
+});
+
+// 获取连接的客户端
+app.get("/api/connected-clients", authenticateToken, async (req, res) => {
+  try {
+    const clients = Array.from(connectedClients.values()).map((client) => ({
+      id: client.id,
+      connectedAt: client.connectedAt,
+      activated: client.activated || false,
+      deviceInfo: client.deviceInfo || null,
+      lastActivity: client.lastActivity || client.connectedAt,
+    }));
+
+    res.json({
+      success: true,
+      data: clients,
+    });
+  } catch (error) {
+    console.error("获取连接客户端错误:", error);
+    res.status(500).json({ error: "获取连接客户端失败" });
+  }
+});
+
+// 控制客户端
+app.post("/api/control-client", authenticateToken, async (req, res) => {
+  try {
+    const { clientId, action } = req.body;
+
+    if (!clientId || !action) {
+      return res.status(400).json({ error: "客户端ID和操作不能为空" });
+    }
+
+    const client = connectedClients.get(clientId);
+    if (!client) {
+      return res.status(404).json({ error: "客户端不存在或已断开" });
+    }
+
+    // 发送控制消息
+    const message = {
+      type: "control",
+      action: action, // enable, disable
+      timestamp: new Date().toISOString(),
+    };
+
+    if (client.ws && client.ws.readyState === 1) {
+      client.ws.send(JSON.stringify(message));
+
+      // 记录控制日志
+      memoryStore.usageLogs.push({
+        id: memoryStore.usageLogs.length + 1,
+        activation_code: "system",
+        device_id: clientId,
+        action: `control_${action}`,
+        timestamp: new Date().toISOString(),
+        details: `管理员${action === "enable" ? "启用" : "禁用"}客户端`,
+      });
+
+      saveData(memoryStore);
+
+      res.json({
+        success: true,
+        message: `客户端${action === "enable" ? "启用" : "禁用"}成功`,
+      });
+    } else {
+      res.status(400).json({ error: "客户端连接已断开" });
+    }
+  } catch (error) {
+    console.error("控制客户端错误:", error);
+    res.status(500).json({ error: "控制客户端失败" });
+  }
+});
+
+// 断开客户端连接
+app.post("/api/disconnect-client", authenticateToken, async (req, res) => {
+  try {
+    const { clientId } = req.body;
+
+    if (!clientId) {
+      return res.status(400).json({ error: "客户端ID不能为空" });
+    }
+
+    const client = connectedClients.get(clientId);
+    if (!client) {
+      return res.status(404).json({ error: "客户端不存在或已断开" });
+    }
+
+    // 关闭WebSocket连接
+    if (client.ws && client.ws.readyState === 1) {
+      client.ws.close();
+    }
+
+    // 从连接列表中移除
+    connectedClients.delete(clientId);
+
+    // 记录断开日志
+    memoryStore.usageLogs.push({
+      id: memoryStore.usageLogs.length + 1,
+      activation_code: "system",
+      device_id: clientId,
+      action: "disconnected",
+      timestamp: new Date().toISOString(),
+      details: "管理员断开客户端连接",
+    });
+
+    saveData(memoryStore);
+
+    res.json({
+      success: true,
+      message: "客户端连接已断开",
+    });
+  } catch (error) {
+    console.error("断开客户端错误:", error);
+    res.status(500).json({ error: "断开客户端失败" });
+  }
+});
+
+// 广播消息
+app.post("/api/broadcast", authenticateToken, async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    if (!message) {
+      return res.status(400).json({ error: "消息内容不能为空" });
+    }
+
+    const broadcastData = {
+      type: "broadcast",
+      message: message,
+      timestamp: new Date().toISOString(),
+      from: "admin",
+    };
+
+    // 向所有连接的客户端广播消息
+    let sentCount = 0;
+    connectedClients.forEach((client) => {
+      if (client.ws && client.ws.readyState === 1) {
+        client.ws.send(JSON.stringify(broadcastData));
+        sentCount++;
+      }
+    });
+
+    // 记录广播日志
+    memoryStore.usageLogs.push({
+      id: memoryStore.usageLogs.length + 1,
+      activation_code: "system",
+      device_id: "admin",
+      action: "broadcast",
+      timestamp: new Date().toISOString(),
+      details: `管理员广播消息给${sentCount}个客户端: ${message}`,
+    });
+
+    saveData(memoryStore);
+
+    res.json({
+      success: true,
+      message: `消息已发送给${sentCount}个在线客户端`,
+      sentCount: sentCount,
+    });
+  } catch (error) {
+    console.error("广播消息错误:", error);
+    res.status(500).json({ error: "广播消息失败" });
   }
 });
 

@@ -26,8 +26,13 @@
     "files": [
       "src/**/*",
       "public/**/*",
-      "shared/**/*",
       "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../shared",
+        "to": "shared"
+      }
     ],
     "publish": {
       "provider": "github",
@@ -40,10 +45,12 @@
       "icon": "public/logo.png"
     },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "icon": "public/logo.png"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "icon": "public/logo.png"
     },
     "nsis": {
       "oneClick": false,

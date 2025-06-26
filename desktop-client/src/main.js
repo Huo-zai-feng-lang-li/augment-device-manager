@@ -1,5 +1,7 @@
 // 设置控制台编码
-process.stdout.setEncoding("utf8");
+if (process.stdout && process.stdout.setEncoding) {
+  process.stdout.setEncoding("utf8");
+}
 if (process.platform === "win32") {
   process.stdout.write("\x1b]0;Augment设备管理器客户端\x07");
 }
@@ -19,11 +21,22 @@ const os = require("os");
 const WebSocket = require("ws");
 const serverConfig = require("./config");
 
+// 获取共享模块路径的辅助函数
+function getSharedPath(relativePath) {
+  if (app.isPackaged) {
+    // 打包后的路径
+    return path.join(process.resourcesPath, "shared", relativePath);
+  } else {
+    // 开发环境路径
+    return path.join(__dirname, "../../shared", relativePath);
+  }
+}
+
 // 导入共享模块
 const {
   generateDeviceFingerprint,
   validateActivationCode,
-} = require("../../shared/crypto/encryption");
+} = require(getSharedPath("crypto/encryption"));
 const DeviceManager = require("./device-manager");
 
 let mainWindow;
@@ -41,21 +54,50 @@ const APP_CONFIG = {
 // 创建主窗口
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 900,
-    height: 700,
+    width: 1200,
+    height: 800,
+    minWidth: 800,
+    minHeight: 600,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
       enableRemoteModule: true,
+      zoomFactor: 1.0,
     },
     title: APP_CONFIG.name,
     resizable: true,
     minimizable: true,
     maximizable: true,
+    icon: path.join(__dirname, "../public/logo.png"),
+    show: false, // 先不显示，等加载完成后再显示
   });
 
   // 加载主页面
   mainWindow.loadFile(path.join(__dirname, "../public/index.html"));
+
+  // 页面加载完成后显示窗口
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.show();
+
+    // 如果是首次启动，居中显示
+    if (!mainWindow.isMaximized()) {
+      mainWindow.center();
+    }
+  });
+
+  // 处理窗口缩放
+  mainWindow.webContents.on("zoom-changed", (event, zoomDirection) => {
+    const currentZoom = mainWindow.webContents.getZoomFactor();
+    let newZoom = currentZoom;
+
+    if (zoomDirection === "in") {
+      newZoom = Math.min(currentZoom + 0.1, 2.0);
+    } else if (zoomDirection === "out") {
+      newZoom = Math.max(currentZoom - 0.1, 0.5);
+    }
+
+    mainWindow.webContents.setZoomFactor(newZoom);
+  });
 
   // 开发模式下打开开发者工具
   if (process.env.NODE_ENV === "development") {
@@ -65,6 +107,15 @@ function createWindow() {
   // 窗口关闭事件
   mainWindow.on("closed", () => {
     mainWindow = null;
+  });
+
+  // 窗口最大化/还原事件
+  mainWindow.on("maximize", () => {
+    mainWindow.webContents.send("window-maximized", true);
+  });
+
+  mainWindow.on("unmaximize", () => {
+    mainWindow.webContents.send("window-maximized", false);
   });
 }
 
@@ -143,8 +194,7 @@ async function verifyActivationWithServer() {
       return; // 没有激活信息
     }
 
-    const deviceId =
-      require("../../shared/crypto/encryption").generateDeviceFingerprint();
+    const deviceId = generateDeviceFingerprint();
 
     // 向服务器验证
     const response = await fetch(
@@ -196,8 +246,7 @@ function initializeWebSocket() {
       console.log("WebSocket连接已建立");
 
       // 注册客户端
-      const deviceId =
-        require("../../shared/crypto/encryption").generateDeviceFingerprint();
+      const deviceId = generateDeviceFingerprint();
       wsClient.send(
         JSON.stringify({
           type: "register",
@@ -692,6 +741,56 @@ ipcMain.handle("get-augment-info", async () => {
     return {
       success: false,
       error: error.message,
+    };
+  }
+});
+
+// 获取系统信息
+ipcMain.handle("get-system-info", async () => {
+  try {
+    const os = require("os");
+
+    // 获取CPU使用率（简化版本）
+    const cpus = os.cpus();
+    let totalIdle = 0;
+    let totalTick = 0;
+
+    cpus.forEach((cpu) => {
+      for (type in cpu.times) {
+        totalTick += cpu.times[type];
+      }
+      totalIdle += cpu.times.idle;
+    });
+
+    const cpuUsage = Math.round(100 - (totalIdle / totalTick) * 100);
+
+    // 获取内存使用率
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const memoryUsage = Math.round(((totalMem - freeMem) / totalMem) * 100);
+
+    // 模拟磁盘使用率（实际项目中可以使用更精确的方法）
+    const diskUsage = Math.round(Math.random() * 30 + 50); // 50-80%之间的随机值
+
+    return {
+      cpu: Math.max(0, Math.min(100, cpuUsage || 0)),
+      memory: Math.max(0, Math.min(100, memoryUsage || 0)),
+      disk: Math.max(0, Math.min(100, diskUsage || 0)),
+      platform: os.platform(),
+      arch: os.arch(),
+      hostname: os.hostname(),
+      uptime: os.uptime(),
+    };
+  } catch (error) {
+    console.error("获取系统信息失败:", error);
+    return {
+      cpu: 0,
+      memory: 0,
+      disk: 0,
+      platform: "unknown",
+      arch: "unknown",
+      hostname: "unknown",
+      uptime: 0,
     };
   }
 });

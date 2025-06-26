@@ -78,7 +78,7 @@ dist
 
 # Gatsby files
 .cache/
-public
+# public (注释掉，因为我们需要desktop-client/public目录)
 
 # Vuepress build output
 .vuepress/dist
@@ -164,6 +164,10 @@ desktop-client/build-output/
 desktop-client/exe-output/
 desktop-client/final-build/
 desktop-client/release/
+
+# 保留desktop-client/public目录（前端界面文件）
+!desktop-client/public/
+!desktop-client/public/**/*
 
 # Electron 构建文件
 *.exe
