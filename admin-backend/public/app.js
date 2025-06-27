@@ -2,16 +2,68 @@
 let authToken = localStorage.getItem("authToken");
 let currentTab = "generate";
 let wsConnection = null;
+let statsUpdateInterval = null;
+let reconnectAttempts = 0;
+let maxReconnectAttempts = 5;
 
 // 页面加载完成后初始化
 document.addEventListener("DOMContentLoaded", function () {
+  // 添加页面加载动画
+  document.body.style.opacity = "0";
+  document.body.style.transition = "opacity 0.5s ease-in-out";
+
+  setTimeout(() => {
+    document.body.style.opacity = "1";
+  }, 100);
+
   if (authToken) {
     showDashboard();
     initWebSocket();
+    startStatsUpdate();
   } else {
     showLogin();
   }
+
+  // 添加键盘快捷键支持
+  document.addEventListener("keydown", handleKeyboardShortcuts);
 });
+
+// 键盘快捷键处理
+function handleKeyboardShortcuts(event) {
+  // Ctrl/Cmd + 数字键切换标签页
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    event.key >= "1" &&
+    event.key <= "5"
+  ) {
+    event.preventDefault();
+    const tabs = ["generate", "codes", "logs", "users", "control"];
+    const tabIndex = parseInt(event.key) - 1;
+    if (
+      tabs[tabIndex] &&
+      document.getElementById("dashboard").style.display !== "none"
+    ) {
+      showTab(tabs[tabIndex]);
+    }
+  }
+}
+
+// 开始定期更新统计信息
+function startStatsUpdate() {
+  if (statsUpdateInterval) {
+    clearInterval(statsUpdateInterval);
+  }
+
+  // 每30秒更新一次统计信息
+  statsUpdateInterval = setInterval(() => {
+    if (
+      authToken &&
+      document.getElementById("dashboard").style.display !== "none"
+    ) {
+      loadStats();
+    }
+  }, 30000);
+}
 
 // 显示登录表单
 function showLogin() {
@@ -21,10 +73,24 @@ function showLogin() {
 
 // 显示管理面板
 function showDashboard() {
-  document.getElementById("loginForm").classList.add("hidden");
-  document.getElementById("dashboard").classList.remove("hidden");
-  loadStats();
-  showTab(currentTab);
+  const loginForm = document.getElementById("loginForm");
+  const dashboard = document.getElementById("dashboard");
+
+  // 添加淡出动画
+  loginForm.style.opacity = "0";
+  loginForm.style.transform = "translateY(-20px)";
+
+  setTimeout(() => {
+    loginForm.classList.add("hidden");
+    dashboard.classList.remove("hidden");
+    dashboard.classList.add("animate-slide-in");
+
+    // 延迟加载数据，让动画更流畅
+    setTimeout(() => {
+      loadStats();
+      showTab(currentTab);
+    }, 200);
+  }, 300);
 }
 
 // 登录功能
@@ -34,6 +100,15 @@ async function login(event) {
   const username = document.getElementById("username").value;
   const password = document.getElementById("password").value;
   const alertDiv = document.getElementById("loginAlert");
+  const submitBtn = event.target.querySelector('button[type="submit"]');
+
+  // 显示加载状态
+  const originalBtnText = submitBtn.textContent;
+  submitBtn.textContent = "登录中...";
+  submitBtn.disabled = true;
+
+  // 清除之前的提示
+  alertDiv.innerHTML = "";
 
   try {
     const response = await fetch("/api/login", {
@@ -65,13 +140,96 @@ async function login(event) {
 
 // 退出登录
 function logout() {
+  // 清理定时器
+  if (statsUpdateInterval) {
+    clearInterval(statsUpdateInterval);
+    statsUpdateInterval = null;
+  }
+
   authToken = null;
   localStorage.removeItem("authToken");
+
   if (wsConnection) {
     wsConnection.close();
     wsConnection = null;
   }
-  showLogin();
+
+  // 添加退出动画
+  const dashboard = document.getElementById("dashboard");
+  dashboard.style.transition = "opacity 0.3s ease-out";
+  dashboard.style.opacity = "0";
+
+  setTimeout(() => {
+    showLogin();
+    dashboard.style.opacity = "1";
+  }, 300);
+}
+
+// 显示通知
+function showNotification(message, type = "info", duration = 5000) {
+  const notification = document.createElement("div");
+  notification.className = `notification notification-${type}`;
+  notification.innerHTML = `
+    <span>${message}</span>
+    <button onclick="this.parentElement.remove()" style="background: none; border: none; color: inherit; font-size: 18px; cursor: pointer; margin-left: 10px;">&times;</button>
+  `;
+
+  // 添加通知样式（如果还没有）
+  if (!document.getElementById("notificationStyles")) {
+    const style = document.createElement("style");
+    style.id = "notificationStyles";
+    style.textContent = `
+      .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 600;
+        z-index: 10000;
+        max-width: 400px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        animation: slideInRight 0.3s ease-out;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .notification-info { background: linear-gradient(135deg, #17a2b8, #138496); }
+      .notification-success { background: linear-gradient(135deg, #28a745, #1e7e34); }
+      .notification-warning { background: linear-gradient(135deg, #ffc107, #e0a800); color: #212529; }
+      .notification-error { background: linear-gradient(135deg, #dc3545, #c82333); }
+      @keyframes slideInRight {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  document.body.appendChild(notification);
+
+  // 自动移除通知
+  if (duration > 0) {
+    setTimeout(() => {
+      if (notification.parentElement) {
+        notification.style.animation = "slideInRight 0.3s ease-out reverse";
+        setTimeout(() => notification.remove(), 300);
+      }
+    }, duration);
+  }
+}
+
+// 显示提示信息
+function showAlert(container, message, type = "info") {
+  container.innerHTML = `<div class="alert ${type}">${message}</div>`;
+
+  // 3秒后自动清除提示
+  setTimeout(() => {
+    if (container.innerHTML.includes(message)) {
+      container.innerHTML = "";
+    }
+  }, 3000);
 }
 
 // 初始化WebSocket连接
@@ -83,6 +241,9 @@ function initWebSocket() {
 
   wsConnection.onopen = function () {
     console.log("WebSocket连接已建立");
+    reconnectAttempts = 0; // 重置重连计数
+    updateConnectionStatus(true);
+
     // 发送认证信息
     wsConnection.send(
       JSON.stringify({
@@ -93,23 +254,56 @@ function initWebSocket() {
   };
 
   wsConnection.onmessage = function (event) {
-    const data = JSON.parse(event.data);
-    handleWebSocketMessage(data);
+    try {
+      const data = JSON.parse(event.data);
+      handleWebSocketMessage(data);
+    } catch (error) {
+      console.error("解析WebSocket消息失败:", error);
+    }
   };
 
-  wsConnection.onclose = function () {
-    console.log("WebSocket连接已关闭");
-    // 5秒后重连
-    setTimeout(() => {
-      if (authToken) {
-        initWebSocket();
-      }
-    }, 5000);
+  wsConnection.onclose = function (event) {
+    console.log("WebSocket连接已关闭", event.code, event.reason);
+    updateConnectionStatus(false);
+
+    // 智能重连机制
+    if (authToken && reconnectAttempts < maxReconnectAttempts) {
+      reconnectAttempts++;
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // 指数退避，最大30秒
+      console.log(`${delay / 1000}秒后尝试第${reconnectAttempts}次重连...`);
+
+      setTimeout(() => {
+        if (authToken) {
+          initWebSocket();
+        }
+      }, delay);
+    } else if (reconnectAttempts >= maxReconnectAttempts) {
+      console.error("WebSocket重连次数已达上限");
+      showNotification("连接已断开，请刷新页面重试", "error");
+    }
   };
 
   wsConnection.onerror = function (error) {
     console.error("WebSocket错误:", error);
+    updateConnectionStatus(false);
   };
+}
+
+// 更新连接状态显示
+function updateConnectionStatus(isConnected) {
+  const statusElements = document.querySelectorAll(".connection-status");
+  statusElements.forEach((element) => {
+    element.className = `connection-status ${
+      isConnected ? "online" : "offline"
+    }`;
+  });
+
+  // 在页面顶部显示连接状态
+  const statusBar = document.getElementById("connectionStatusBar");
+  if (statusBar) {
+    statusBar.style.display = isConnected ? "none" : "block";
+    statusBar.textContent = isConnected ? "" : "⚠️ 连接已断开，正在尝试重连...";
+  }
 }
 
 // 处理WebSocket消息
@@ -229,32 +423,139 @@ async function loadStats() {
 // 渲染统计信息
 function renderStats(stats) {
   const statsGrid = document.getElementById("statsGrid");
-  statsGrid.innerHTML = `
-        <div class="stat-card">
-            <div class="stat-number">${stats.totalCodes}</div>
-            <div class="stat-label">总激活码</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">${stats.activeCodes}</div>
-            <div class="stat-label">可用激活码</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">${stats.usedCodes}</div>
-            <div class="stat-label">已使用</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">${stats.expiredCodes}</div>
-            <div class="stat-label">已过期</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">${stats.connectedClients || 0}</div>
-            <div class="stat-label">在线客户端</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">${stats.recentUsage}</div>
-            <div class="stat-label">24小时使用</div>
-        </div>
-    `;
+
+  // 计算使用率
+  const usageRate =
+    stats.totalCodes > 0
+      ? ((stats.usedCodes / stats.totalCodes) * 100).toFixed(1)
+      : 0;
+  const activeRate =
+    stats.totalCodes > 0
+      ? ((stats.activeCodes / stats.totalCodes) * 100).toFixed(1)
+      : 0;
+
+  // 获取当前时间用于显示最后更新时间
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("zh-CN", { hour12: false });
+
+  // 统计数据配置 - 极简专业风格
+  const statsData = [
+    {
+      icon: "📊",
+      number: stats.totalCodes,
+      label: "总激活码",
+      iconBg: "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+      trend: stats.totalCodes > 0 ? "+" + stats.totalCodes : "0",
+    },
+    {
+      icon: "✅",
+      number: stats.activeCodes,
+      label: "可用激活码",
+      iconBg: "linear-gradient(135deg, #10b981, #059669)",
+      trend: `${activeRate}%`,
+    },
+    {
+      icon: "🎯",
+      number: stats.usedCodes,
+      label: "已使用",
+      iconBg: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
+      trend: `${usageRate}%`,
+    },
+    {
+      icon: "⏰",
+      number: stats.expiredCodes,
+      label: "已过期",
+      iconBg: "linear-gradient(135deg, #f59e0b, #d97706)",
+      trend: stats.expiredCodes > 0 ? "需清理" : "正常",
+    },
+    {
+      icon: "🌐",
+      number: stats.connectedClients || 0,
+      label: "在线客户端",
+      iconBg:
+        stats.connectedClients > 0
+          ? "linear-gradient(135deg, #10b981, #059669)"
+          : "linear-gradient(135deg, #64748b, #475569)",
+      trend: stats.connectedClients > 0 ? "在线" : "离线",
+    },
+    {
+      icon: "📈",
+      number: stats.recentUsage,
+      label: "24小时使用",
+      iconBg: "linear-gradient(135deg, #06b6d4, #0891b2)",
+      trend: stats.recentUsage > 0 ? "活跃" : "静默",
+    },
+  ];
+
+  // 如果有服务器信息，添加服务器状态卡片
+  if (stats.serverInfo) {
+    statsData.push({
+      icon: "🖥️",
+      number:
+        stats.serverInfo.uptimeSeconds > 3600
+          ? Math.floor(stats.serverInfo.uptimeSeconds / 3600) + "h"
+          : Math.floor(stats.serverInfo.uptimeSeconds / 60) + "m",
+      label: "服务器运行时间",
+      iconBg: "linear-gradient(135deg, #64748b, #475569)",
+      trend: stats.serverInfo.memoryPercent + "%内存",
+    });
+  }
+
+  // 渲染统计卡片 - 极简专业风格
+  statsGrid.innerHTML = statsData
+    .map(
+      (stat, index) => `
+    <div class="stat-card" style="animation-delay: ${index * 0.1}s;">
+      <div class="stat-icon" style="background: ${stat.iconBg};">
+        <span style="color: white;">${stat.icon}</span>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+        <h3>${stat.number}</h3>
+        <span style="font-size: 0.75rem; color: var(--primary-500); background: var(--primary-100); padding: 0.25rem 0.5rem; border-radius: var(--radius-md);">${
+          stat.trend
+        }</span>
+      </div>
+      <p>${stat.label}</p>
+    </div>
+  `
+    )
+    .join("");
+
+  // 添加最后更新时间显示
+  const updateTime = document.getElementById("statsUpdateTime");
+  if (updateTime) {
+    updateTime.textContent = `最后更新: ${timeStr}`;
+  } else {
+    const timeDisplay = document.createElement("div");
+    timeDisplay.id = "statsUpdateTime";
+    timeDisplay.style.cssText =
+      "text-align: center; margin-top: 10px; font-size: 12px; opacity: 0.7;";
+    timeDisplay.textContent = `最后更新: ${timeStr}`;
+    statsGrid.parentNode.insertBefore(timeDisplay, statsGrid.nextSibling);
+  }
+
+  // 添加数字动画效果
+  animateNumbers();
+}
+
+// 数字动画效果
+function animateNumbers() {
+  const statNumbers = document.querySelectorAll(".stat-card h3");
+  statNumbers.forEach((element) => {
+    const finalNumber = parseInt(element.textContent);
+    if (finalNumber > 0) {
+      let currentNumber = 0;
+      const increment = Math.ceil(finalNumber / 20);
+      const timer = setInterval(() => {
+        currentNumber += increment;
+        if (currentNumber >= finalNumber) {
+          currentNumber = finalNumber;
+          clearInterval(timer);
+        }
+        element.textContent = currentNumber;
+      }, 50);
+    }
+  });
 }
 
 // 生成激活码
@@ -309,12 +610,62 @@ async function generateCode(event) {
   }
 }
 
+// 显示通知
+function showNotification(message, type = "info", duration = 3000) {
+  const notification = document.createElement("div");
+  notification.className = `notification notification-${type}`;
+  notification.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <span style="font-size: 1.25rem;">
+        ${type === "success" ? "✓" : type === "error" ? "⚠" : "ℹ"}
+      </span>
+      <span>${message}</span>
+    </div>
+    <button onclick="this.parentElement.remove()" style="background: none; border: none; color: inherit; font-size: 1.25rem; cursor: pointer; opacity: 0.7;">×</button>
+  `;
+
+  // 添加样式
+  notification.style.cssText = `
+    position: fixed;
+    top: 2rem;
+    right: 2rem;
+    padding: 1rem 1.5rem;
+    border-radius: var(--radius-lg);
+    color: white;
+    font-weight: 500;
+    z-index: 10000;
+    max-width: 400px;
+    box-shadow: var(--shadow-xl);
+    animation: slideInRight 0.3s ease-out;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: ${
+      type === "success"
+        ? "var(--success)"
+        : type === "error"
+        ? "var(--error)"
+        : "var(--info)"
+    };
+  `;
+
+  document.body.appendChild(notification);
+
+  // 自动移除
+  setTimeout(() => {
+    if (notification.parentElement) {
+      notification.style.animation = "slideOutRight 0.3s ease-out";
+      setTimeout(() => notification.remove(), 300);
+    }
+  }, duration);
+}
+
 // 复制到剪贴板
 function copyToClipboard(text) {
   navigator.clipboard
     .writeText(text)
     .then(() => {
-      alert("激活码已复制到剪贴板！");
+      showNotification("激活码已复制到剪贴板！", "success");
     })
     .catch((err) => {
       console.error("复制失败:", err);
@@ -325,7 +676,7 @@ function copyToClipboard(text) {
       textArea.select();
       document.execCommand("copy");
       document.body.removeChild(textArea);
-      alert("激活码已复制到剪贴板！");
+      showNotification("激活码已复制到剪贴板！", "success");
     });
 }
 

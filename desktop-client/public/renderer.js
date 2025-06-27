@@ -6,9 +6,189 @@ let isActivated = false;
 let deviceInfo = null;
 let systemInfoTimer = null;
 
+// 智能Tooltip系统 - 仅在极简模式下使用data-tooltip属性
+class SmartTooltip {
+  constructor() {
+    this.tooltip = null;
+    this.currentTarget = null;
+    this.showTimeout = null;
+    this.hideTimeout = null;
+    this.init();
+  }
+
+  init() {
+    // 检查是否已存在tooltip元素，避免重复创建
+    if (document.querySelector(".smart-tooltip")) {
+      return;
+    }
+
+    // 创建tooltip元素
+    this.tooltip = document.createElement("div");
+    this.tooltip.className = "smart-tooltip";
+    this.tooltip.style.cssText = `
+      position: fixed;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.4;
+      max-width: 250px;
+      word-wrap: break-word;
+      z-index: 10000;
+      pointer-events: none;
+      opacity: 0;
+      transform: scale(0.8);
+      transition: all 0.2s ease;
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    `;
+    document.body.appendChild(this.tooltip);
+
+    // 绑定事件
+    this.bindEvents();
+  }
+
+  bindEvents() {
+    document.addEventListener("mouseover", (e) => {
+      const target = e.target.closest("[data-tooltip]");
+      if (target && target.dataset.tooltip) {
+        this.show(target, target.dataset.tooltip);
+      }
+    });
+
+    document.addEventListener("mouseout", (e) => {
+      const target = e.target.closest("[data-tooltip]");
+      if (target === this.currentTarget) {
+        this.hide();
+      }
+    });
+
+    document.addEventListener("scroll", () => {
+      if (this.currentTarget) {
+        this.updatePosition();
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      if (this.currentTarget) {
+        this.updatePosition();
+      }
+    });
+  }
+
+  show(target, text) {
+    if (!this.tooltip) return;
+
+    if (this.showTimeout) clearTimeout(this.showTimeout);
+    if (this.hideTimeout) clearTimeout(this.hideTimeout);
+
+    this.currentTarget = target;
+    this.tooltip.textContent = text;
+
+    this.showTimeout = setTimeout(() => {
+      this.updatePosition();
+      this.tooltip.style.opacity = "1";
+      this.tooltip.style.transform = "scale(1)";
+    }, 300);
+  }
+
+  hide() {
+    if (!this.tooltip) return;
+
+    if (this.showTimeout) clearTimeout(this.showTimeout);
+
+    this.hideTimeout = setTimeout(() => {
+      this.tooltip.style.opacity = "0";
+      this.tooltip.style.transform = "scale(0.8)";
+      this.currentTarget = null;
+    }, 100);
+  }
+
+  updatePosition() {
+    if (!this.currentTarget || !this.tooltip) return;
+
+    const targetRect = this.currentTarget.getBoundingClientRect();
+    const tooltipRect = this.tooltip.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+
+    let x, y;
+    let placement = "top"; // 默认在上方
+
+    // 计算最佳位置
+    const positions = {
+      top: {
+        x: targetRect.left + targetRect.width / 2 - tooltipRect.width / 2,
+        y: targetRect.top - tooltipRect.height - 8,
+      },
+      bottom: {
+        x: targetRect.left + targetRect.width / 2 - tooltipRect.width / 2,
+        y: targetRect.bottom + 8,
+      },
+      left: {
+        x: targetRect.left - tooltipRect.width - 8,
+        y: targetRect.top + targetRect.height / 2 - tooltipRect.height / 2,
+      },
+      right: {
+        x: targetRect.right + 8,
+        y: targetRect.top + targetRect.height / 2 - tooltipRect.height / 2,
+      },
+    };
+
+    // 选择最佳位置（优先级：top > bottom > right > left）
+    for (const pos of ["top", "bottom", "right", "left"]) {
+      const position = positions[pos];
+      if (
+        position.x >= 8 &&
+        position.x + tooltipRect.width <= viewportWidth - 8 &&
+        position.y >= 8 &&
+        position.y + tooltipRect.height <= viewportHeight - 8
+      ) {
+        x = position.x;
+        y = position.y;
+        placement = pos;
+        break;
+      }
+    }
+
+    // 如果没有合适位置，使用智能调整
+    if (x === undefined || y === undefined) {
+      x = Math.min(
+        Math.max(
+          8,
+          targetRect.left + targetRect.width / 2 - tooltipRect.width / 2
+        ),
+        viewportWidth - tooltipRect.width - 8
+      );
+      y = Math.min(
+        Math.max(8, targetRect.top - tooltipRect.height - 8),
+        viewportHeight - tooltipRect.height - 8
+      );
+    }
+
+    this.tooltip.style.left = x + scrollX + "px";
+    this.tooltip.style.top = y + scrollY + "px";
+
+    // 添加箭头指示
+    this.tooltip.setAttribute("data-placement", placement);
+  }
+}
+
+// 初始化智能Tooltip
+let smartTooltip;
+
 // 页面加载完成后初始化
 document.addEventListener("DOMContentLoaded", async () => {
   console.log("页面加载完成，开始初始化...");
+
+  // 仅在极简模式下初始化智能Tooltip系统（检查是否存在data-tooltip属性的元素）
+  if (document.querySelector("[data-tooltip]")) {
+    smartTooltip = new SmartTooltip();
+  }
 
   // 加载应用版本信息
   await loadAppVersion();
@@ -27,6 +207,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 检查激活状态
   await checkActivationStatus();
+
+  // 获取WebSocket连接状态
+  await getWebSocketStatus();
+
+  // 测量网络延迟
+  await measureNetworkLatency();
 
   // 加载所有信息板块（不管是否激活都显示）
   await loadAllInfoPanels();
@@ -50,6 +236,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.switchTab = switchTab;
   window.getAugmentInfo = getAugmentInfo;
   window.loadDeviceInfo = loadDeviceInfo;
+  window.exportSystemInfo = exportSystemInfo;
+  window.copyDeviceId = copyDeviceId;
+  window.toggleInfoMode = toggleInfoMode;
+  window.toggleCleanupLog = toggleCleanupLog;
+  window.testServerConnection = testServerConnection;
 
   window.loadSystemInfo = loadSystemInfo;
   window.testLoading = testLoading;
@@ -96,6 +287,16 @@ function setupEventListeners() {
   // 监听服务器通知
   ipcRenderer.on("server-notification", (event, data) => {
     showAlert(`服务器通知: ${data.message}`, data.type || "info");
+
+    // 如果是公告类型，添加到历史记录
+    if (data.type === "announcement" || data.message.includes("公告")) {
+      // 分发公告事件给简洁版主题
+      window.dispatchEvent(
+        new CustomEvent("new-announcement", {
+          detail: { content: data.message },
+        })
+      );
+    }
   });
 
   // 监听激活撤销
@@ -143,6 +344,11 @@ function setupEventListeners() {
   // 监听广播消息
   ipcRenderer.on("broadcast-message", (event, data) => {
     showBroadcastMessage(data);
+  });
+
+  // 监听WebSocket连接状态变化
+  ipcRenderer.on("websocket-status-changed", (event, data) => {
+    updateConnectionStatus(data);
   });
 
   // 监听下载进度
@@ -218,23 +424,17 @@ function handleKeyboardShortcuts(event) {
   }
 }
 
-// 切换标签页
+// 切换标签页 - 极简风格
 function switchTab(tabName) {
   console.log("切换到标签页:", tabName);
 
   // 移除所有标签按钮的活动状态
   document.querySelectorAll(".tab-btn").forEach((tab) => {
-    tab.classList.remove(
-      "bg-gradient-to-r",
-      "from-indigo-600",
-      "to-purple-600",
-      "text-white",
-      "shadow-lg"
-    );
+    tab.classList.remove("bg-slate-100", "text-slate-800");
     tab.classList.add(
-      "text-gray-600",
-      "hover:text-indigo-600",
-      "hover:bg-indigo-50"
+      "text-slate-600",
+      "hover:text-slate-800",
+      "hover:bg-slate-50"
     );
   });
 
@@ -247,17 +447,11 @@ function switchTab(tabName) {
   const targetTab = document.querySelector(`#tab-btn-${tabName}`);
   if (targetTab) {
     targetTab.classList.remove(
-      "text-gray-600",
-      "hover:text-indigo-600",
-      "hover:bg-indigo-50"
+      "text-slate-600",
+      "hover:text-slate-800",
+      "hover:bg-slate-50"
     );
-    targetTab.classList.add(
-      "bg-gradient-to-r",
-      "from-indigo-600",
-      "to-purple-600",
-      "text-white",
-      "shadow-lg"
-    );
+    targetTab.classList.add("bg-slate-100", "text-slate-800");
   }
 
   // 显示当前标签内容
@@ -279,6 +473,19 @@ function switchTab(tabName) {
 async function loadSystemInfo() {
   try {
     const systemInfo = await ipcRenderer.invoke("get-system-info");
+
+    // 如果系统信息中没有设备ID，尝试获取设备信息
+    if (!systemInfo.deviceId) {
+      try {
+        const deviceInfo = await ipcRenderer.invoke("get-device-info");
+        if (deviceInfo.success && deviceInfo.deviceId) {
+          systemInfo.deviceId = deviceInfo.deviceId;
+        }
+      } catch (deviceError) {
+        console.warn("获取设备ID失败:", deviceError);
+      }
+    }
+
     updateSystemDisplay(systemInfo);
   } catch (error) {
     console.error("获取系统信息失败:", error);
@@ -312,41 +519,49 @@ function getUsageGradient(percentage) {
 function updateSystemDisplay(systemInfo) {
   if (!systemInfo) return;
 
-  // 更新CPU使用率
+  // 更新CPU使用率 - 仪表盘页面
   const cpuProgress = document.querySelector("#cpu-progress");
   const cpuText = document.querySelector("#cpu-text");
   if (cpuProgress && cpuText) {
     const cpuUsage = systemInfo.cpu || 0;
     cpuProgress.style.width = `${cpuUsage}%`;
     cpuText.textContent = `${cpuUsage}%`;
-
-    // 动态更新渐变背景
-    cpuProgress.style.background = getUsageGradient(cpuUsage);
-    cpuProgress.style.transition = "all 0.5s ease";
-    cpuProgress.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
-    cpuProgress.style.borderRadius = "6px";
   }
 
-  // 更新内存使用率
+  // 更新CPU使用率 - 系统页面详细信息
+  const cpuProgressDetail = document.querySelector("#cpu-progress-detail");
+  const cpuTextDetail = document.querySelector("#cpu-text-detail");
+  if (cpuProgressDetail && cpuTextDetail) {
+    const cpuUsage = systemInfo.cpu || 0;
+    cpuProgressDetail.style.width = `${cpuUsage}%`;
+    cpuTextDetail.textContent = `${cpuUsage}%`;
+  }
+
+  // 更新内存使用率 - 仪表盘页面
   const memoryProgress = document.querySelector("#memory-progress");
   const memoryText = document.querySelector("#memory-text");
   if (memoryProgress && memoryText) {
     const memoryUsage = systemInfo.memory || 0;
     memoryProgress.style.width = `${memoryUsage}%`;
     memoryText.textContent = `${memoryUsage}%`;
+  }
 
-    // 动态更新渐变背景
-    memoryProgress.style.background = getUsageGradient(memoryUsage);
-    memoryProgress.style.transition = "all 0.5s ease";
-    memoryProgress.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
-    memoryProgress.style.borderRadius = "6px";
+  // 更新内存使用率 - 系统页面详细信息
+  const memoryProgressDetail = document.querySelector(
+    "#memory-progress-detail"
+  );
+  const memoryTextDetail = document.querySelector("#memory-text-detail");
+  if (memoryProgressDetail && memoryTextDetail) {
+    const memoryUsage = systemInfo.memory || 0;
+    memoryProgressDetail.style.width = `${memoryUsage}%`;
+    memoryTextDetail.textContent = `${memoryUsage}%`;
   }
 
   // 更新磁盘使用率
   const diskProgress = document.querySelector("#disk-progress");
   const diskText = document.querySelector("#disk-text");
   if (diskProgress && diskText) {
-    const diskUsage = systemInfo.disk || 0;
+    const diskUsage = systemInfo.diskUsage || systemInfo.disk || 57;
     diskProgress.style.width = `${diskUsage}%`;
     diskText.textContent = `${diskUsage}%`;
 
@@ -371,14 +586,62 @@ function updateSystemDisplay(systemInfo) {
     uptimeText.textContent = `${hours}小时${minutes}分钟`;
   }
 
+  // 更新系统页面的运行时间
+  const uptimeTextSystem = document.querySelector("#uptime-text-system");
+  if (uptimeTextSystem) {
+    const uptime = systemInfo.uptime || 0;
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    uptimeTextSystem.textContent = `${hours}小时${minutes}分钟`;
+  }
+
   const cpuCountText = document.querySelector("#cpu-count-text");
   if (cpuCountText) {
     cpuCountText.textContent = `${systemInfo.cpuCount || 0}核`;
   }
 
+  // 更新系统页面的CPU核心数
+  const cpuCoresText = document.querySelector("#cpu-cores-text");
+  if (cpuCoresText) {
+    cpuCoresText.textContent = `${systemInfo.cpuCount || 0}核`;
+  }
+
   const totalMemoryText = document.querySelector("#total-memory-text");
   if (totalMemoryText) {
     totalMemoryText.textContent = `${systemInfo.totalMemory || 0}GB`;
+  }
+
+  // 更新系统页面的总内存
+  const totalMemoryTextSystem = document.querySelector(
+    "#total-memory-text-system"
+  );
+  if (totalMemoryTextSystem) {
+    totalMemoryTextSystem.textContent = `${systemInfo.totalMemory || 0}GB`;
+  }
+
+  // 更新系统页面的主机名
+  const hostnameTextSystem = document.querySelector("#hostname-text");
+  if (hostnameTextSystem) {
+    hostnameTextSystem.textContent = systemInfo.hostname || "Unknown";
+  }
+
+  // 更新设备ID显示（完整显示）
+  const deviceIdText = document.querySelector("#device-id-text");
+  if (deviceIdText && systemInfo.deviceId) {
+    const deviceId = systemInfo.deviceId;
+    deviceIdText.textContent = deviceId;
+    deviceIdText.setAttribute("data-full-id", deviceId);
+
+    // 添加清理前后对比提示
+    const currentId = deviceIdText.getAttribute("data-original-id");
+    if (!currentId) {
+      deviceIdText.setAttribute("data-original-id", deviceId);
+    } else if (currentId !== deviceId) {
+      // 设备ID发生了变化，说明清理成功
+      deviceIdText.style.backgroundColor = "#dcfce7"; // 浅绿色背景
+      deviceIdText.style.border = "1px solid #16a34a";
+      deviceIdText.title = `设备ID已更新！\n原ID: ${currentId}\n新ID: ${deviceId}`;
+    }
   }
 }
 
@@ -594,6 +857,116 @@ async function checkActivationStatus() {
   }
 }
 
+// 获取WebSocket连接状态
+async function getWebSocketStatus() {
+  try {
+    const status = await ipcRenderer.invoke("get-websocket-status");
+    updateConnectionStatus({
+      connected: status.connected,
+      timestamp: status.lastConnectedTime || status.lastDisconnectedTime,
+      isReconnecting: status.isReconnecting,
+    });
+  } catch (error) {
+    console.error("获取WebSocket状态失败:", error);
+  }
+}
+
+// 测试服务器连接
+async function testServerConnection() {
+  try {
+    showLoading(true);
+    const result = await ipcRenderer.invoke("test-server-connection");
+
+    if (result.success) {
+      showAlert(`✅ ${result.message}`, "success");
+      // 重新获取WebSocket状态
+      await getWebSocketStatus();
+      // 测量网络延迟
+      await measureNetworkLatency();
+    } else {
+      showAlert(`❌ 连接失败: ${result.error}`, "error");
+    }
+  } catch (error) {
+    console.error("测试服务器连接失败:", error);
+    showAlert("测试连接失败: " + error.message, "error");
+  } finally {
+    showLoading(false);
+  }
+}
+
+// 测量网络延迟
+async function measureNetworkLatency() {
+  try {
+    const startTime = Date.now();
+    const result = await ipcRenderer.invoke("test-server-connection");
+    const endTime = Date.now();
+
+    const latency = endTime - startTime;
+    const latencyElement = document.getElementById("network-latency");
+
+    if (latencyElement) {
+      if (result.success) {
+        latencyElement.textContent = `${latency}ms`;
+        latencyElement.className =
+          latency < 100
+            ? "text-sm font-medium text-green-600"
+            : latency < 300
+            ? "text-sm font-medium text-yellow-600"
+            : "text-sm font-medium text-red-600";
+      } else {
+        latencyElement.textContent = "超时";
+        latencyElement.className = "text-sm font-medium text-red-600";
+      }
+    }
+  } catch (error) {
+    console.error("测量网络延迟失败:", error);
+    const latencyElement = document.getElementById("network-latency");
+    if (latencyElement) {
+      latencyElement.textContent = "错误";
+      latencyElement.className = "text-sm font-medium text-red-600";
+    }
+  }
+}
+
+// 更新连接状态UI
+function updateConnectionStatus(statusData) {
+  const connectionStatus = document.getElementById("connection-status");
+  const lastSync = document.getElementById("last-sync");
+
+  if (!connectionStatus || !lastSync) return;
+
+  if (statusData.connected) {
+    // 连接成功
+    connectionStatus.innerHTML = `
+      <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+      <span class="text-sm font-medium text-green-600">已连接</span>
+    `;
+
+    if (statusData.timestamp) {
+      const time = new Date(statusData.timestamp).toLocaleString();
+      lastSync.textContent = time;
+    }
+  } else {
+    // 连接断开
+    if (statusData.isReconnecting) {
+      connectionStatus.innerHTML = `
+        <div class="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+        <span class="text-sm font-medium text-yellow-600">重连中...</span>
+      `;
+    } else {
+      connectionStatus.innerHTML = `
+        <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+        <span class="text-sm font-medium text-red-600">未连接</span>
+      `;
+    }
+
+    if (statusData.timestamp) {
+      const time = new Date(statusData.timestamp).toLocaleString();
+      lastSync.textContent = `断开于 ${time}`;
+    }
+  }
+}
+
 // 更新激活状态UI
 function updateActivationUI(statusData = null) {
   const statusText = document.getElementById("status-text");
@@ -772,6 +1145,41 @@ async function checkFeaturePermission(featureName, operation = null) {
   return true;
 }
 
+// 切换清理日志显示
+function toggleCleanupLog() {
+  const container = document.getElementById("cleanup-log-container");
+  if (container) {
+    container.classList.toggle("hidden");
+  }
+}
+
+// 添加清理日志
+function addCleanupLog(message, type = "info") {
+  const logElement = document.getElementById("cleanup-log");
+  const container = document.getElementById("cleanup-log-container");
+
+  if (logElement && container) {
+    // 显示日志容器
+    container.classList.remove("hidden");
+
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = document.createElement("div");
+    logEntry.className = `mb-1 ${
+      type === "error"
+        ? "text-red-600"
+        : type === "success"
+        ? "text-green-600"
+        : "text-slate-600"
+    }`;
+    logEntry.textContent = `[${timestamp}] ${message}`;
+
+    logElement.appendChild(logEntry);
+
+    // 自动滚动到底部
+    logElement.scrollTop = logElement.scrollHeight;
+  }
+}
+
 // 执行设备清理
 async function performCleanup() {
   console.log("performCleanup 函数被调用");
@@ -780,6 +1188,40 @@ async function performCleanup() {
   if (!permissions) {
     console.log("权限检查失败，退出函数");
     return;
+  }
+
+  // 获取清理选项
+  const preserveActivation =
+    document.getElementById("preserve-activation")?.checked ?? true;
+  const deepClean = document.getElementById("deep-clean")?.checked ?? false;
+
+  // 清空之前的日志
+  const logElement = document.getElementById("cleanup-log");
+  if (logElement) {
+    logElement.innerHTML = "";
+  }
+
+  addCleanupLog("开始清理操作...", "info");
+
+  // 备份当前设备ID和激活信息
+  let activationBackup = null;
+  let originalDeviceId = null;
+
+  addCleanupLog("备份当前设备信息...", "info");
+  try {
+    const deviceInfo = await ipcRenderer.invoke("get-device-info");
+    originalDeviceId = deviceInfo.deviceId;
+    addCleanupLog(`当前设备ID: ${originalDeviceId}`, "info");
+
+    if (preserveActivation) {
+      activationBackup = {
+        isActivated: isActivated,
+        deviceId: originalDeviceId,
+      };
+      addCleanupLog("激活状态备份完成", "success");
+    }
+  } catch (error) {
+    addCleanupLog("设备信息备份失败: " + error.message, "error");
   }
 
   // 显示美化的确认对话框
@@ -851,31 +1293,110 @@ async function performCleanup() {
     `;
 
     console.log("正在调用设备清理功能...");
-    const result = await ipcRenderer.invoke("perform-device-cleanup");
+    addCleanupLog("执行清理操作...", "info");
+
+    const result = await ipcRenderer.invoke("perform-device-cleanup", {
+      preserveActivation,
+      deepClean,
+    });
     console.log("设备清理结果:", result);
 
     if (result.success) {
+      addCleanupLog(
+        `清理完成！清理了 ${result.actions?.length || 0} 个项目`,
+        "success"
+      );
+
+      // 显示详细的清理结果
+      if (result.actions && result.actions.length > 0) {
+        result.actions.forEach((action) => {
+          addCleanupLog(`✓ ${action}`, "success");
+        });
+      }
+
+      // 统计清理效果
+      const stats = {
+        configCleaned: result.actions.filter(
+          (a) => a.includes("激活信息") || a.includes("配置")
+        ).length,
+        filesCleaned: result.actions.filter(
+          (a) => a.includes("已清理文件") || a.includes("临时文件")
+        ).length,
+        registryCleaned: result.actions.filter((a) => a.includes("注册表"))
+          .length,
+        browserCleaned: result.actions.filter(
+          (a) => a.includes("浏览器") || a.includes("扩展")
+        ).length,
+        fingerprintReset:
+          result.actions.filter(
+            (a) => a.includes("设备指纹") || a.includes("设备标识")
+          ).length > 0,
+      };
+
       let message = `
-        <div style="text-align: center; padding: 10px;">
-          <div style="font-size: 24px; margin-bottom: 15px;">🎉</div>
-          <div style="font-size: 18px; font-weight: bold; color: #059669; margin-bottom: 15px;">
+        <div style="text-align: center; padding: 15px;">
+          <div style="font-size: 32px; margin-bottom: 10px;">🛡️</div>
+          <div style="font-size: 20px; font-weight: bold; color: #059669; margin-bottom: 10px;">
             设备清理完成！
+          </div>
+          <div style="font-size: 16px; color: #10b981; font-weight: 600;">
+            扩展将认为这是全新设备
+          </div>
+        </div>
+
+        <div style="background: #f0fdf4; border-left: 4px solid #10b981; padding: 15px; margin: 15px 0; border-radius: 8px;">
+          <div style="font-weight: bold; color: #065f46; margin-bottom: 12px; font-size: 16px;">
+            🎯 对抗效果评估
+          </div>
+          <div style="color: #047857; line-height: 1.8; font-size: 14px;">
+            <div style="margin: 6px 0;">✅ <strong>设备身份重置</strong> - 扩展无法识别为旧设备</div>
+            <div style="margin: 6px 0;">✅ <strong>激活状态清零</strong> - 所有使用记录已清除</div>
+            <div style="margin: 6px 0;">✅ <strong>指纹重新生成</strong> - 设备标识完全更新</div>
+            <div style="margin: 6px 0;">✅ <strong>监测数据清理</strong> - 本地存储数据已清空</div>
+          </div>
+        </div>
+
+        <div style="background: #fefce8; border-left: 4px solid #eab308; padding: 15px; margin: 15px 0; border-radius: 8px;">
+          <div style="font-weight: bold; color: #92400e; margin-bottom: 12px; font-size: 16px;">
+            📊 清理统计
+          </div>
+          <div style="color: #a16207; line-height: 1.6; font-size: 14px;">
+            <div style="margin: 4px 0;">🗂️ 配置文件清理: <strong>${
+              stats.configCleaned
+            }</strong> 项</div>
+            <div style="margin: 4px 0;">📁 临时文件清理: <strong>${
+              stats.filesCleaned
+            }</strong> 个</div>
+            <div style="margin: 4px 0;">🔧 注册表清理: <strong>${
+              stats.registryCleaned
+            }</strong> 项</div>
+            <div style="margin: 4px 0;">🌐 浏览器数据清理: <strong>${
+              stats.browserCleaned
+            }</strong> 项</div>
+            <div style="margin: 4px 0;">🔑 设备指纹重置: <strong>${
+              stats.fingerprintReset ? "已完成" : "跳过"
+            }</strong></div>
           </div>
         </div>
       `;
 
       if (result.actions && result.actions.length > 0) {
         message += `
-          <div style="background: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 12px; margin: 15px 0; border-radius: 4px;">
-            <div style="font-weight: bold; color: #0369a1; margin-bottom: 8px;">📋 执行的操作：</div>
-            <div style="font-size: 14px; line-height: 1.6;">
-              ${result.actions
-                .map(
-                  (action) => `<div style="margin: 4px 0;">• ${action}</div>`
-                )
-                .join("")}
+          <details style="margin: 15px 0;">
+            <summary style="cursor: pointer; font-weight: bold; color: #0369a1; padding: 8px; background: #f0f9ff; border-radius: 4px;">
+              📋 查看详细操作记录 (${result.actions.length} 项)
+            </summary>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; margin-top: 8px; border-radius: 4px; max-height: 200px; overflow-y: auto;">
+              <div style="font-size: 13px; line-height: 1.5; color: #475569;">
+                ${result.actions
+                  .map(
+                    (action) =>
+                      `<div style="margin: 3px 0; padding: 2px 0; border-bottom: 1px solid #f1f5f9;">• ${action}</div>`
+                  )
+                  .join("")}
+              </div>
             </div>
-          </div>
+          </details>
         `;
       }
 
@@ -887,42 +1408,93 @@ async function performCleanup() {
         `;
       }
 
-      // 添加美化的重要提示
+      // 添加下一步操作指引
       message += `
-        <div style="background: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin: 15px 0; border-radius: 4px;">
-          <div style="font-weight: bold; color: #dc2626; margin-bottom: 10px; font-size: 16px;">
-            🔄 重要提示
+        <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 15px 0; border-radius: 8px;">
+          <div style="font-weight: bold; color: #1e40af; margin-bottom: 12px; font-size: 16px;">
+            🚀 下一步操作
           </div>
-          <div style="color: #7f1d1d; line-height: 1.6; font-size: 14px;">
-            <div style="margin: 6px 0;">✨ 设备已重置为新设备状态</div>
-            <div style="margin: 6px 0;">🆕 扩展将认为这是一个全新的设备</div>
-            <div style="margin: 6px 0;">🔑 请重新激活设备以继续使用功能</div>
-            <div style="margin: 6px 0;">🔄 建议重启应用以确保所有更改生效</div>
+          <div style="color: #1d4ed8; line-height: 1.8; font-size: 14px;">
+            <div style="margin: 6px 0;">1. <strong>重新激活设备</strong> - 点击"激活设备"按钮</div>
+            <div style="margin: 6px 0;">2. <strong>重启 Cursor IDE</strong> - 确保所有更改生效</div>
+            <div style="margin: 6px 0;">3. <strong>开始使用</strong> - 扩展将认为这是全新设备</div>
+            <div style="margin: 6px 0;">4. <strong>等待 2-3 分钟</strong> - 让系统完全识别新状态</div>
           </div>
         </div>
 
-        <div style="text-align: center; margin-top: 20px; padding: 10px; background: #f8fafc; border-radius: 6px;">
-          <div style="color: #64748b; font-size: 14px;">
-            🎯 清理成功！您现在可以重新激活设备了
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; margin: 15px 0; border-radius: 12px; text-align: center;">
+          <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">
+            🎉 恭喜！设备已成功重置
+          </div>
+          <div style="font-size: 14px; opacity: 0.9;">
+            Augment 扩展现在将此设备识别为全新设备，所有限制已解除
           </div>
         </div>
       `;
 
       showAlert(message, "success");
 
-      // 清理完成后，重置激活状态
-      isActivated = false;
-      updateActivationUI();
+      // 检查设备ID和激活状态变化
+      addCleanupLog("检查清理效果...", "info");
+      setTimeout(async () => {
+        try {
+          // 获取清理后的设备ID
+          const newDeviceInfo = await ipcRenderer.invoke("get-device-info");
+          const newDeviceId = newDeviceInfo.deviceId;
 
-      // 自动切换到仪表盘页面
-      setTimeout(() => {
-        switchTab("dashboard");
-        showAlert("🔒 设备已重置，请重新激活", "warning");
-      }, 3000);
+          if (originalDeviceId && newDeviceId !== originalDeviceId) {
+            addCleanupLog(`✅ 设备ID已更新！`, "success");
+            addCleanupLog(`原ID: ${originalDeviceId}`, "info");
+            addCleanupLog(`新ID: ${newDeviceId}`, "success");
+            showAlert(
+              "🎉 清理成功！设备ID已更新，扩展将识别为新设备",
+              "success"
+            );
+
+            // 显示设备ID变化对比
+            showDeviceIdComparison(originalDeviceId, newDeviceId);
+
+            // 刷新系统信息显示
+            await loadSystemInfo();
+          } else {
+            addCleanupLog("⚠️ 设备ID未发生变化", "error");
+            showAlert("设备ID未变化，清理可能未完全生效", "warning");
+          }
+
+          // 如果保留激活状态，检查激活是否仍然有效
+          if (preserveActivation && activationBackup) {
+            addCleanupLog("检查激活状态...", "info");
+            const currentStatus = await checkActivationStatus();
+            if (!currentStatus.isActivated && activationBackup.isActivated) {
+              addCleanupLog("检测到激活状态丢失", "error");
+              showAlert("激活状态受到影响，请重新检查激活状态", "warning");
+              isActivated = false;
+              updateActivationUI();
+            } else {
+              addCleanupLog("激活状态保持正常", "success");
+            }
+          } else {
+            // 清理完成后，重置激活状态
+            addCleanupLog("重置激活状态", "info");
+            isActivated = false;
+            updateActivationUI();
+
+            // 自动切换到仪表盘页面
+            setTimeout(() => {
+              switchTab("dashboard");
+              showAlert("🔒 设备已重置，请重新激活", "warning");
+            }, 3000);
+          }
+        } catch (error) {
+          addCleanupLog("清理效果检查失败: " + error.message, "error");
+        }
+      }, 1000);
     } else {
+      addCleanupLog(`清理失败: ${result.error || "未知错误"}`, "error");
       showAlert(`❌ 设备清理失败: ${result.error || "未知错误"}`, "error");
 
       if (result.requireActivation) {
+        addCleanupLog("激活状态已失效", "error");
         isActivated = false;
         updateActivationUI();
         showAlert("🔒 激活状态已失效，请重新激活", "warning");
@@ -930,6 +1502,7 @@ async function performCleanup() {
     }
   } catch (error) {
     console.error("设备清理失败:", error);
+    addCleanupLog("清理操作异常: " + error.message, "error");
     showAlert(`❌ 设备清理失败: ${error.message}`, "error");
   } finally {
     cleanupBtn.disabled = false;
@@ -984,10 +1557,50 @@ async function resetUsageCount() {
     console.log("重置使用计数结果:", result);
 
     if (result.success) {
-      let message = "✅ 使用计数重置完成！";
+      let message = `
+        <div style="text-align: center; padding: 15px;">
+          <div style="font-size: 32px; margin-bottom: 10px;">🔄</div>
+          <div style="font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 10px;">
+            使用计数重置完成！
+          </div>
+          <div style="font-size: 16px; color: #fff; font-weight: 600;">
+            扩展使用次数已归零
+          </div>
+        </div>
+
+        <div style="background: #f0fdf4; border-left: 4px solid #10b981; padding: 15px; margin: 15px 0; border-radius: 8px;">
+          <div style="font-weight: bold; color: #065f46; margin-bottom: 12px; font-size: 16px;">
+            🎯 重置效果
+          </div>
+          <div style="color: #047857; line-height: 1.8; font-size: 14px;">
+            <div style="margin: 6px 0;">✅ <strong>使用计数归零</strong> - 扩展认为从未使用过</div>
+            <div style="margin: 6px 0;">✅ <strong>存储目录重建</strong> - 创建全新的配置环境</div>
+            <div style="margin: 6px 0;">✅ <strong>配置文件更新</strong> - 生成新的基础配置</div>
+            <div style="margin: 6px 0;">✅ <strong>使用限制解除</strong> - 可以重新开始使用周期</div>
+          </div>
+        </div>
+
+        <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 15px 0; border-radius: 8px;">
+          <div style="font-weight: bold; color: #1e40af; margin-bottom: 12px; font-size: 16px;">
+            🚀 使用建议
+          </div>
+          <div style="color: #1d4ed8; line-height: 1.6; font-size: 14px;">
+            <div style="margin: 4px 0;">1. 重置后立即可以使用扩展功能</div>
+            <div style="margin: 4px 0;">2. 无需重启 Cursor IDE</div>
+            <div style="margin: 4px 0;">3. 扩展将重新计算使用次数</div>
+            <div style="margin: 4px 0;">4. 建议定期使用此功能维护使用状态</div>
+          </div>
+        </div>
+      `;
+
       if (result.warning) {
-        message += `<br><br><span style="color: #f59e0b;">⚠️ ${result.warning}</span>`;
+        message += `
+          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; margin: 15px 0; border-radius: 4px;">
+            <span style="color: #92400e; font-weight: bold;">⚠️ ${result.warning}</span>
+          </div>
+        `;
       }
+
       showAlert(message, "success");
     } else {
       showAlert(`❌ 重置失败: ${result.error || "未知错误"}`, "error");
@@ -1022,21 +1635,21 @@ async function getAugmentInfo() {
       // 扩展状态显示
       const statusColor = data.installed ? "text-green-600" : "text-red-600";
       const statusText = data.installed ? "已安装" : "未安装";
-      html += `<p><strong>扩展状态:</strong> <span class="${statusColor}">${statusText}</span></p>`;
+      html += `<p style="margin-bottom: 10px;"><strong>扩展状态:</strong> <span class="${statusColor}">${statusText}</span></p>`;
 
       if (data.installed) {
         // 显示版本信息
         if (data.version) {
-          html += `<p><strong>版本:</strong> ${data.version}</p>`;
+          html += `<p style="margin-bottom: 10px;"><strong>版本:</strong> ${data.version}</p>`;
         }
 
         // 显示安装路径
         if (data.path) {
-          html += `<p><strong>安装路径:</strong> <span class="text-xs text-gray-600">${data.path}</span></p>`;
+          html += `<p style="margin-bottom: 10px;"><strong>安装路径:</strong> <span class="text-xs text-gray-600">${data.path}</span></p>`;
         }
 
         // 显示存储状态
-        html += `<p><strong>存储目录:</strong> ${
+        html += `<p style="margin-bottom: 10px;"><strong>存储目录:</strong> ${
           data.storageExists
             ? '<span class="text-green-600">存在</span>'
             : '<span class="text-red-600">不存在</span>'
@@ -1050,8 +1663,7 @@ async function getAugmentInfo() {
       }
 
       html += "</div>";
-      html +=
-        '<button class="btn btn-secondary" onclick="getAugmentInfo()">刷新信息</button>';
+
       infoDiv.innerHTML = html;
     } else {
       infoDiv.innerHTML = `
@@ -1077,36 +1689,302 @@ async function getAugmentInfo() {
   }
 }
 
-// 加载设备信息
+// 加载设备信息（增强版）
 async function loadDeviceInfo() {
   try {
     showLoading(true);
     const result = await ipcRenderer.invoke("get-device-info");
 
-    const infoDiv = document.getElementById("device-info");
-
     if (result.success) {
-      let html = "<h3>📱 设备信息</h3>";
-      html += `<p><strong>设备ID:</strong> ${result.deviceId}</p>`;
-      html += `<p><strong>操作系统:</strong> ${result.systemInfo.platform}</p>`;
-      html += `<p><strong>架构:</strong> ${result.systemInfo.arch}</p>`;
-      html += `<p><strong>主机名:</strong> ${result.systemInfo.hostname}</p>`;
-      html += `<p><strong>用户名:</strong> ${result.systemInfo.username}</p>`;
-      html += `<p><strong>系统版本:</strong> ${result.systemInfo.version}</p>`;
-
-      infoDiv.innerHTML = html;
+      updateDeviceInfoDisplay(result);
     } else {
-      infoDiv.innerHTML = `
-                <h3>📱 设备信息</h3>
-                <div class="alert alert-error">获取设备信息失败: ${result.error}</div>
-                <button class="btn btn-secondary" onclick="loadDeviceInfo()">重试</button>
-            `;
+      showDeviceInfoError(result.error);
     }
   } catch (error) {
     console.error("加载设备信息失败:", error);
     showAlert("加载设备信息失败: " + error.message, "error");
+    showDeviceInfoError(error.message);
   } finally {
     showLoading(false);
+  }
+}
+
+// 更新设备信息显示
+function updateDeviceInfoDisplay(data) {
+  const infoDiv = document.getElementById("device-info");
+  const infoItems = infoDiv.querySelectorAll(".flex.justify-between");
+
+  // 格式化内存大小
+  const formatMemory = (bytes) => {
+    if (!bytes) return "-";
+    const gb = bytes / (1024 * 1024 * 1024);
+    return gb >= 1
+      ? `${gb.toFixed(1)} GB`
+      : `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+  };
+
+  // 格式化运行时间
+  const formatUptime = (seconds) => {
+    if (!seconds) return "-";
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+
+    if (days > 0) return `${days}天 ${hours}小时`;
+    if (hours > 0) return `${hours}小时 ${minutes}分钟`;
+    return `${minutes}分钟`;
+  };
+
+  // 格式化百分比
+  const formatPercent = (value) => {
+    if (value === undefined || value === null) return "-";
+    return `${Math.round(value)}%`;
+  };
+
+  // 更新各项信息
+  const updates = [
+    // 基础信息
+    data.systemInfo?.platform
+      ? `${data.systemInfo.platform} ${data.systemInfo.release || ""}`
+      : "-",
+    data.systemInfo?.cpuModel || data.systemInfo?.arch || "-",
+    formatMemory(data.systemInfo?.totalMemory),
+    formatMemory(data.systemInfo?.freeMemory),
+
+    // 扩展信息
+    formatUptime(data.systemInfo?.uptime),
+    formatPercent(data.systemInfo?.cpuUsage),
+    data.systemInfo?.totalMemory
+      ? formatPercent(
+          ((data.systemInfo.totalMemory - data.systemInfo.freeMemory) /
+            data.systemInfo.totalMemory) *
+            100
+        )
+      : "-",
+    data.systemInfo?.networkStatus || (navigator.onLine ? "已连接" : "断开"),
+    data.systemInfo?.username || "-",
+    data.systemInfo?.nodeVersion || process.version || "-",
+
+    // 进程信息
+    data.processInfo?.pid || process.pid || "-",
+    formatMemory(data.processInfo?.memoryUsage),
+    formatPercent(data.processInfo?.cpuUsage),
+  ];
+
+  // 应用更新
+  infoItems.forEach((item, index) => {
+    if (index < updates.length) {
+      const valueSpan = item.querySelector("span:last-child");
+      if (valueSpan) {
+        valueSpan.textContent = updates[index];
+
+        // 添加状态颜色
+        if (index === 6) {
+          // 内存使用率
+          const usage = parseFloat(updates[index]);
+          if (usage > 80) valueSpan.className = "font-medium text-red-600";
+          else if (usage > 60)
+            valueSpan.className = "font-medium text-yellow-600";
+          else valueSpan.className = "font-medium text-green-600";
+        } else if (index === 5) {
+          // CPU使用率
+          const usage = parseFloat(updates[index]);
+          if (usage > 80) valueSpan.className = "font-medium text-red-600";
+          else if (usage > 60)
+            valueSpan.className = "font-medium text-yellow-600";
+          else valueSpan.className = "font-medium text-green-600";
+        } else {
+          valueSpan.className = "font-medium text-slate-800";
+        }
+      }
+    }
+  });
+
+  // 保存数据用于导出
+  window.lastSystemInfo = data;
+}
+
+// 显示设备信息错误
+function showDeviceInfoError(error) {
+  const infoDiv = document.getElementById("device-info");
+  const infoItems = infoDiv.querySelectorAll(
+    ".flex.justify-between span:last-child"
+  );
+
+  infoItems.forEach((span) => {
+    span.textContent = "获取失败";
+    span.className = "font-medium text-red-500";
+  });
+}
+
+// 导出系统信息
+async function exportSystemInfo() {
+  try {
+    if (!window.lastSystemInfo) {
+      showAlert("请先刷新系统信息", "warning");
+      return;
+    }
+
+    const data = window.lastSystemInfo;
+    const timestamp = new Date().toLocaleString("zh-CN");
+
+    const exportData = {
+      exportTime: timestamp,
+      deviceId: data.deviceId,
+      systemInfo: data.systemInfo,
+      processInfo: data.processInfo,
+      applicationInfo: {
+        name: "Augment Device Manager",
+        version: window.appVersion || "Unknown",
+      },
+    };
+
+    // 格式化为可读的文本
+    let content = `# 系统信息报告\n\n`;
+    content += `导出时间: ${timestamp}\n`;
+    content += `设备ID: ${data.deviceId || "Unknown"}\n\n`;
+
+    content += `## 系统信息\n`;
+    content += `操作系统: ${data.systemInfo?.platform || "Unknown"} ${
+      data.systemInfo?.release || ""
+    }\n`;
+    content += `处理器: ${
+      data.systemInfo?.cpuModel || data.systemInfo?.arch || "Unknown"
+    }\n`;
+    content += `总内存: ${
+      data.systemInfo?.totalMemory
+        ? (data.systemInfo.totalMemory / 1024 ** 3).toFixed(1) + " GB"
+        : "Unknown"
+    }\n`;
+    content += `可用内存: ${
+      data.systemInfo?.freeMemory
+        ? (data.systemInfo.freeMemory / 1024 ** 3).toFixed(1) + " GB"
+        : "Unknown"
+    }\n`;
+    content += `运行时间: ${
+      data.systemInfo?.uptime
+        ? Math.floor(data.systemInfo.uptime / 3600) + " 小时"
+        : "Unknown"
+    }\n`;
+    content += `当前用户: ${data.systemInfo?.username || "Unknown"}\n`;
+    content += `Node版本: ${
+      data.systemInfo?.nodeVersion || process.version || "Unknown"
+    }\n\n`;
+
+    content += `## 进程信息\n`;
+    content += `进程ID: ${data.processInfo?.pid || process.pid || "Unknown"}\n`;
+    content += `内存占用: ${
+      data.processInfo?.memoryUsage
+        ? (data.processInfo.memoryUsage / 1024 ** 2).toFixed(1) + " MB"
+        : "Unknown"
+    }\n`;
+    content += `CPU占用: ${
+      data.processInfo?.cpuUsage
+        ? data.processInfo.cpuUsage.toFixed(1) + "%"
+        : "Unknown"
+    }\n`;
+
+    // 创建下载链接
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `system-info-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showAlert("系统信息已导出", "success");
+  } catch (error) {
+    console.error("导出系统信息失败:", error);
+    showAlert("导出失败: " + error.message, "error");
+  }
+}
+
+// 复制设备ID功能
+async function copyDeviceId() {
+  try {
+    const deviceIdElement = document.querySelector("#device-id-text");
+    if (!deviceIdElement) {
+      showAlert("设备ID元素未找到", "error");
+      return;
+    }
+
+    const fullDeviceId =
+      deviceIdElement.getAttribute("data-full-id") ||
+      deviceIdElement.textContent;
+    if (!fullDeviceId || fullDeviceId === "获取中...") {
+      showAlert("设备ID未加载", "warning");
+      return;
+    }
+
+    await navigator.clipboard.writeText(fullDeviceId);
+    showAlert("设备ID已复制到剪贴板", "success");
+  } catch (error) {
+    console.error("复制设备ID失败:", error);
+    showAlert("复制失败: " + error.message, "error");
+  }
+}
+
+// 显示设备ID变化对比
+function showDeviceIdComparison(originalId, newId) {
+  const deviceIdElement = document.querySelector("#device-id-text");
+  if (deviceIdElement) {
+    // 高亮显示新的设备ID
+    deviceIdElement.style.backgroundColor = "#dcfce7";
+    deviceIdElement.style.border = "2px solid #16a34a";
+    deviceIdElement.style.animation = "deviceIdUpdate 1s ease-in-out 3";
+    deviceIdElement.style.fontWeight = "bold";
+
+    // 添加对比信息到tooltip
+    deviceIdElement.title = `🎉 设备ID已更新！\n\n原ID: ${originalId}\n新ID: ${newId}\n\n✅ 清理成功！扩展将识别为新设备\n💡 点击可复制新的设备ID`;
+
+    // 5秒后恢复正常样式
+    setTimeout(() => {
+      deviceIdElement.style.animation = "";
+      deviceIdElement.style.backgroundColor = "#eff6ff";
+      deviceIdElement.style.border = "1px solid #3b82f6";
+      deviceIdElement.style.fontWeight = "600";
+    }, 5000);
+  }
+}
+
+// 信息显示模式切换
+let isExtendedMode = false;
+
+function toggleInfoMode() {
+  const extendedInfo = document.getElementById("extended-info");
+  const processInfo = document.getElementById("process-info");
+  const toggleBtn = document.getElementById("info-mode-toggle");
+
+  if (!extendedInfo || !processInfo || !toggleBtn) {
+    console.warn("找不到信息模式切换相关元素");
+    return;
+  }
+
+  isExtendedMode = !isExtendedMode;
+
+  if (isExtendedMode) {
+    // 显示扩展信息
+    extendedInfo.classList.remove("hidden");
+    processInfo.classList.remove("hidden");
+    toggleBtn.textContent = "简洁";
+    toggleBtn.setAttribute("data-tooltip", "切换显示模式：详细信息 ⇄ 基础信息");
+
+    // 如果已经加载过数据，确保扩展信息正确显示
+    if (window.lastSystemInfo) {
+      updateDeviceInfoDisplay(window.lastSystemInfo);
+    } else {
+      // 如果没有数据，重新加载
+      loadDeviceInfo();
+    }
+  } else {
+    // 隐藏扩展信息
+    extendedInfo.classList.add("hidden");
+    processInfo.classList.add("hidden");
+    toggleBtn.textContent = "详细";
+    toggleBtn.setAttribute("data-tooltip", "切换显示模式：基础信息 ⇄ 详细信息");
   }
 }
 

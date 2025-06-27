@@ -188,9 +188,27 @@ class DeviceManager {
         await fs.copy(configPath, backupPath);
         results.actions.push(`已备份配置目录到: ${backupPath}`);
 
+        // 保留服务器配置，只删除激活相关文件
+        const serverConfigPath = path.join(configPath, "server-config.json");
+        let serverConfig = null;
+
+        // 读取服务器配置
+        if (await fs.pathExists(serverConfigPath)) {
+          serverConfig = await fs.readJson(serverConfigPath);
+          results.actions.push("已保存服务器配置");
+        }
+
         // 清理配置目录
         await fs.remove(configPath);
-        results.actions.push("已清理设备激活信息和配置数据");
+
+        // 重新创建目录并恢复服务器配置
+        await fs.ensureDir(configPath);
+        if (serverConfig) {
+          await fs.writeJson(serverConfigPath, serverConfig, { spaces: 2 });
+          results.actions.push("已恢复服务器配置");
+        }
+
+        results.actions.push("已清理设备激活信息，保留服务器配置");
       } else {
         results.actions.push("未找到激活配置，跳过清理");
       }
@@ -550,7 +568,7 @@ class DeviceManager {
   // 重新生成设备指纹
   async regenerateDeviceFingerprint(results) {
     try {
-      // 清理缓存的指纹数据，确保下次生成新的设备标识
+      // 清理缓存的指纹数据，确保下次生成新的设备标识（增强版）
       const fingerprintPaths = [
         path.join(
           os.homedir(),
@@ -559,24 +577,153 @@ class DeviceManager {
         ),
         path.join(os.homedir(), ".augment", "fingerprint"),
         path.join(os.homedir(), ".cursor-augment", "device-id"),
+        path.join(
+          os.homedir(),
+          "AppData",
+          "Local",
+          "Cursor",
+          "User",
+          "globalStorage",
+          "augment.device-id"
+        ),
+        path.join(
+          os.homedir(),
+          "AppData",
+          "Roaming",
+          "Cursor",
+          "User",
+          "globalStorage",
+          "augment.device-id"
+        ),
+        path.join(
+          os.homedir(),
+          "AppData",
+          "Local",
+          "Cursor",
+          "logs",
+          "device-fingerprint"
+        ),
+        path.join(os.tmpdir(), "augment-hw-cache"),
+        path.join(os.tmpdir(), "cursor-hw-fingerprint"),
+        path.join(os.homedir(), ".cache", "augment-hardware"),
       ];
 
       for (const fingerprintPath of fingerprintPaths) {
         try {
           if (await fs.pathExists(fingerprintPath)) {
             await fs.remove(fingerprintPath);
-            results.actions.push(`已清理设备指纹缓存: ${fingerprintPath}`);
+            results.actions.push(
+              `已清理设备指纹缓存: ${path.basename(fingerprintPath)}`
+            );
           }
         } catch (error) {
-          results.errors.push(
-            `清理指纹缓存失败 ${fingerprintPath}: ${error.message}`
-          );
+          // 大部分路径可能不存在，这是正常的，只记录实际的错误
+          if (!error.message.includes("ENOENT")) {
+            results.errors.push(
+              `清理指纹缓存失败 ${path.basename(fingerprintPath)}: ${
+                error.message
+              }`
+            );
+          }
         }
       }
 
-      results.actions.push("设备指纹已重置，下次启动将生成新的设备标识");
+      // 额外清理可能的扩展存储
+      await this.clearExtensionStorage(results);
+
+      results.actions.push("设备指纹已完全重置，扩展将无法识别为旧设备");
     } catch (error) {
       results.errors.push(`重新生成设备指纹失败: ${error.message}`);
+    }
+  }
+
+  // 清理扩展存储（深度清理）
+  async clearExtensionStorage(results) {
+    try {
+      const extensionStoragePaths = [
+        // Cursor 扩展全局存储
+        path.join(
+          os.homedir(),
+          "AppData",
+          "Roaming",
+          "Cursor",
+          "User",
+          "globalStorage"
+        ),
+        path.join(
+          os.homedir(),
+          "AppData",
+          "Local",
+          "Cursor",
+          "User",
+          "globalStorage"
+        ),
+        // VSCode 兼容存储
+        path.join(
+          os.homedir(),
+          "AppData",
+          "Roaming",
+          "Code",
+          "User",
+          "globalStorage"
+        ),
+        path.join(
+          os.homedir(),
+          "AppData",
+          "Local",
+          "Code",
+          "User",
+          "globalStorage"
+        ),
+        // macOS 路径
+        path.join(
+          os.homedir(),
+          "Library",
+          "Application Support",
+          "Cursor",
+          "User",
+          "globalStorage"
+        ),
+        path.join(
+          os.homedir(),
+          "Library",
+          "Application Support",
+          "Code",
+          "User",
+          "globalStorage"
+        ),
+      ];
+
+      for (const storagePath of extensionStoragePaths) {
+        try {
+          if (await fs.pathExists(storagePath)) {
+            const files = await fs.readdir(storagePath);
+            const augmentFiles = files.filter(
+              (file) =>
+                file.includes("augment") ||
+                file.includes("device") ||
+                file.includes("license") ||
+                file.includes("activation")
+            );
+
+            for (const file of augmentFiles) {
+              try {
+                const filePath = path.join(storagePath, file);
+                await fs.remove(filePath);
+                results.actions.push(`已清理扩展存储: ${file}`);
+              } catch (error) {
+                // 忽略单个文件清理失败
+              }
+            }
+          }
+        } catch (error) {
+          // 忽略路径不存在的错误
+        }
+      }
+
+      results.actions.push("扩展存储数据已深度清理");
+    } catch (error) {
+      results.errors.push(`清理扩展存储失败: ${error.message}`);
     }
   }
 }

@@ -1,0 +1,12 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 3002,
+    "protocol": "http"
+  },
+  "client": {
+    "autoConnect": true,
+    "verifyInterval": 300000,
+    "reconnectDelay": 5000
+  }
+}

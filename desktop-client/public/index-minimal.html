@@ -33,29 +33,9 @@
         0%,
         100% {
           opacity: 1;
-          transform: scale(1);
         }
         50% {
-          opacity: 0.8;
-          transform: scale(1.05);
-        }
-      }
-
-      @keyframes deviceIdUpdate {
-        0% {
-          background-color: #dcfce7;
-          border-color: #16a34a;
-          transform: scale(1);
-        }
-        50% {
-          background-color: #bbf7d0;
-          border-color: #15803d;
-          transform: scale(1.02);
-        }
-        100% {
-          background-color: #dcfce7;
-          border-color: #16a34a;
-          transform: scale(1);
+          opacity: 0.6;
         }
       }
 
@@ -172,68 +152,7 @@
     <!-- 主容器 -->
     <div class="container mx-auto px-6 py-8 max-w-6xl">
       <!-- 头部 -->
-      <header class="text-center mb-12 animate-fadeIn relative">
-        <!-- 右上角按钮组 -->
-        <div class="absolute top-0 right-0 flex gap-3">
-          <!-- 公告历史按钮 -->
-          <button
-            onclick="toggleAnnouncementHistory()"
-            class="group relative p-3 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:shadow-md transition-all duration-300 hover:bg-white/90"
-            title="查看公告历史"
-          >
-            <svg
-              class="w-5 h-5 text-slate-600 group-hover:text-slate-800 transition-colors duration-300"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"
-              />
-              <path
-                d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z"
-              />
-            </svg>
-            <!-- 公告计数徽章 -->
-            <span
-              id="announcement-badge"
-              class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium hidden"
-            >
-              0
-            </span>
-          </button>
-
-          <!-- 主题切换按钮 -->
-          <button
-            id="theme-toggle-btn"
-            onclick="toggleTheme()"
-            class="group relative p-3 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:shadow-md transition-all duration-300 hover:bg-white/90"
-            title="切换到丰富风格"
-          >
-            <svg
-              class="w-5 h-5 text-slate-600 group-hover:text-slate-800 transition-colors duration-300"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M4 2a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V4a1 1 0 100-2H4zm2 3a1 1 0 000 2h8a1 1 0 100-2H6zM6 9a1 1 0 100 2h8a1 1 0 100-2H6zM6 13a1 1 0 100 2h5a1 1 0 100-2H6z"
-                clip-rule="evenodd"
-              ></path>
-            </svg>
-            <!-- 工具提示 -->
-            <div
-              class="absolute bottom-full right-0 mb-2 px-3 py-1 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap"
-            >
-              切换到丰富风格
-              <div
-                class="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-800"
-              ></div>
-            </div>
-          </button>
-        </div>
-
+      <header class="text-center mb-12 animate-fadeIn">
         <div class="flex items-center justify-center gap-3 mb-4">
           <div
             class="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-800 rounded-2xl flex items-center justify-center"
@@ -535,55 +454,12 @@
             <p class="text-sm text-slate-600 mb-4">
               清理Cursor相关的缓存文件和临时数据，释放磁盘空间。
             </p>
-
-            <!-- 清理选项 -->
-            <div class="mb-4 space-y-2">
-              <label class="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  id="preserve-activation"
-                  checked
-                  class="rounded border-slate-300"
-                />
-                <span class="text-slate-700">保留激活状态（推荐）</span>
-              </label>
-              <label class="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  id="deep-clean"
-                  class="rounded border-slate-300"
-                />
-                <span class="text-slate-700">深度清理（可能影响设备ID）</span>
-              </label>
-            </div>
-
             <button
               onclick="performCleanup()"
-              class="w-full px-4 py-2 bg-orange-500 text-white font-medium rounded-lg hover:bg-orange-600 transition-colors mb-4"
+              class="w-full px-4 py-2 bg-orange-500 text-white font-medium rounded-lg hover:bg-orange-600 transition-colors"
             >
               开始清理
             </button>
-
-            <!-- 清理日志显示区域 -->
-            <div id="cleanup-log-container" class="hidden">
-              <div class="bg-slate-50 rounded-lg p-3 border">
-                <div class="flex items-center justify-between mb-2">
-                  <h4 class="text-sm font-medium text-slate-700">清理日志</h4>
-                  <button
-                    onclick="toggleCleanupLog()"
-                    class="text-xs text-slate-500 hover:text-slate-700"
-                  >
-                    收起
-                  </button>
-                </div>
-                <div
-                  id="cleanup-log"
-                  class="text-xs text-slate-600 bg-white rounded border p-2 max-h-32 overflow-y-auto font-mono"
-                >
-                  等待清理操作...
-                </div>
-              </div>
-            </div>
           </div>
 
           <!-- 重置工具 -->
@@ -712,7 +588,6 @@
               </div>
             </div>
 
-            <!-- 性能指标 -->
             <div class="space-y-6">
               <div>
                 <div class="flex justify-between items-center mb-2">
@@ -762,87 +637,15 @@
                   <span
                     id="disk-text"
                     class="text-sm font-semibold text-slate-900"
-                    >57%</span
+                    >0%</span
                   >
                 </div>
                 <div class="w-full bg-slate-200 rounded-full h-3">
                   <div
                     id="disk-progress"
                     class="bg-gradient-to-r from-purple-400 to-purple-500 h-3 rounded-full transition-all duration-500"
-                    style="width: 57%"
+                    style="width: 0%"
                   ></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 系统详情 -->
-            <div class="mt-6 pt-6 border-t border-slate-200">
-              <div class="grid grid-cols-2 gap-4 text-sm">
-                <div class="text-center">
-                  <p class="text-slate-500 mb-1">主机名</p>
-                  <p id="hostname-text" class="font-medium text-slate-800">
-                    ZK
-                  </p>
-                </div>
-                <div class="text-center">
-                  <p class="text-slate-500 mb-1">运行时间</p>
-                  <p id="uptime-text-system" class="font-medium text-slate-800">
-                    23小时7分钟
-                  </p>
-                </div>
-                <div class="text-center">
-                  <p class="text-slate-500 mb-1">CPU核心</p>
-                  <p id="cpu-cores-text" class="font-medium text-slate-800">
-                    12核
-                  </p>
-                </div>
-                <div class="text-center">
-                  <p class="text-slate-500 mb-1">总内存</p>
-                  <p
-                    id="total-memory-text-system"
-                    class="font-medium text-slate-800"
-                  >
-                    15.81GB
-                  </p>
-                </div>
-              </div>
-
-              <!-- 设备ID -->
-              <div class="mt-4 pt-4 border-t border-slate-200">
-                <div class="text-center">
-                  <p class="text-slate-500 mb-2 font-medium">
-                    设备ID（清理成功标志）
-                  </p>
-                  <div class="flex items-center justify-center gap-2">
-                    <p
-                      id="device-id-text"
-                      class="font-mono text-sm text-slate-800 bg-blue-50 border border-blue-200 px-4 py-2 rounded-lg font-semibold select-all"
-                      style="word-break: break-all; max-width: 300px"
-                    >
-                      获取中...
-                    </p>
-                    <button
-                      onclick="copyDeviceId()"
-                      class="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-colors"
-                      data-tooltip="复制设备ID"
-                    >
-                      <svg
-                        class="w-5 h-5"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"
-                        />
-                        <path
-                          d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                  <p class="text-xs text-slate-400 mt-2">
-                    💡 清理成功后此ID会发生变化
-                  </p>
                 </div>
               </div>
             </div>
@@ -865,198 +668,38 @@
                   />
                 </svg>
               </div>
-              <div class="flex-1">
+              <div>
                 <h3 class="font-medium text-slate-800">设备信息</h3>
                 <p class="text-sm text-slate-500">硬件详情</p>
               </div>
-              <!-- 信息模式切换按钮 -->
-              <button
-                id="info-mode-toggle"
-                onclick="toggleInfoMode()"
-                class="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors"
-                data-tooltip="切换显示模式：基础信息 ⇄ 详细信息"
-              >
-                详细
-              </button>
             </div>
 
             <div id="device-info" class="space-y-3 text-sm">
-              <!-- 基础信息 -->
-              <div
-                class="flex justify-between"
-                data-tooltip="当前运行的操作系统版本"
-              >
+              <div class="flex justify-between">
                 <span class="text-slate-600">操作系统</span>
                 <span class="font-medium text-slate-800">-</span>
               </div>
-              <div
-                class="flex justify-between"
-                data-tooltip="CPU型号和架构信息"
-              >
+              <div class="flex justify-between">
                 <span class="text-slate-600">处理器</span>
                 <span class="font-medium text-slate-800">-</span>
               </div>
-              <div class="flex justify-between" data-tooltip="系统总内存容量">
+              <div class="flex justify-between">
                 <span class="text-slate-600">总内存</span>
                 <span class="font-medium text-slate-800">-</span>
               </div>
-              <div class="flex justify-between" data-tooltip="当前可用内存大小">
+              <div class="flex justify-between">
                 <span class="text-slate-600">可用内存</span>
                 <span class="font-medium text-slate-800">-</span>
               </div>
-
-              <!-- 扩展信息 -->
-              <div
-                id="extended-info"
-                class="border-t border-slate-200 pt-3 mt-4 hidden"
-              >
-                <div class="flex justify-between" data-tooltip="系统运行时间">
-                  <span class="text-slate-600">运行时间</span>
-                  <span class="font-medium text-slate-800">-</span>
-                </div>
-                <div class="flex justify-between" data-tooltip="当前CPU使用率">
-                  <span class="text-slate-600">CPU使用率</span>
-                  <span class="font-medium text-slate-800">-</span>
-                </div>
-                <div class="flex justify-between" data-tooltip="内存使用率">
-                  <span class="text-slate-600">内存使用率</span>
-                  <span class="font-medium text-slate-800">-</span>
-                </div>
-                <div class="flex justify-between" data-tooltip="网络连接状态">
-                  <span class="text-slate-600">网络状态</span>
-                  <span class="font-medium text-slate-800">-</span>
-                </div>
-                <div class="flex justify-between" data-tooltip="当前用户名">
-                  <span class="text-slate-600">当前用户</span>
-                  <span class="font-medium text-slate-800">-</span>
-                </div>
-                <div
-                  class="flex justify-between"
-                  data-tooltip="Node.js运行版本"
-                >
-                  <span class="text-slate-600">Node版本</span>
-                  <span class="font-medium text-slate-800">-</span>
-                </div>
-              </div>
-
-              <!-- 进程信息 -->
-              <div
-                id="process-info"
-                class="border-t border-slate-200 pt-3 mt-4 hidden"
-              >
-                <h4 class="font-medium text-slate-700 mb-2">进程信息</h4>
-                <div class="flex justify-between" data-tooltip="当前应用进程ID">
-                  <span class="text-slate-600">进程ID</span>
-                  <span class="font-medium text-slate-800">-</span>
-                </div>
-                <div class="flex justify-between" data-tooltip="应用内存占用">
-                  <span class="text-slate-600">应用内存</span>
-                  <span class="font-medium text-slate-800">-</span>
-                </div>
-                <div class="flex justify-between" data-tooltip="应用CPU占用">
-                  <span class="text-slate-600">应用CPU</span>
-                  <span class="font-medium text-slate-800">-</span>
-                </div>
-              </div>
             </div>
 
-            <div class="flex gap-2 mt-4">
-              <button
-                onclick="loadDeviceInfo()"
-                class="flex-1 px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors"
-                data-tooltip="刷新所有系统信息"
-              >
-                刷新信息
-              </button>
-              <button
-                onclick="exportSystemInfo()"
-                class="px-4 py-2 bg-slate-500 text-white font-medium rounded-lg hover:bg-slate-600 transition-colors"
-                data-tooltip="导出系统信息到文件"
-              >
-                导出
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 公告历史记录弹窗 -->
-    <div
-      id="announcement-history-modal"
-      class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 hidden transition-all duration-300"
-      onclick="closeAnnouncementHistory(event)"
-    >
-      <div
-        class="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden scale-95 transition-all duration-300"
-        onclick="event.stopPropagation()"
-      >
-        <!-- 弹窗头部 -->
-        <div
-          class="flex items-center justify-between p-6 border-b border-slate-200/50"
-        >
-          <div class="flex items-center gap-3">
-            <div
-              class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center"
+            <button
+              onclick="loadDeviceInfo()"
+              class="w-full mt-4 px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors"
             >
-              <svg
-                class="w-5 h-5 text-white"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"
-                />
-                <path
-                  d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z"
-                />
-              </svg>
-            </div>
-            <div>
-              <h3 class="text-lg font-semibold text-slate-800">公告历史记录</h3>
-              <p class="text-sm text-slate-500">
-                共 <span id="announcement-count">0</span> 条记录
-              </p>
-            </div>
+              刷新信息
+            </button>
           </div>
-          <button
-            onclick="closeAnnouncementHistory()"
-            class="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-          >
-            <svg
-              class="w-5 h-5 text-slate-400"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                clip-rule="evenodd"
-              />
-            </svg>
-          </button>
-        </div>
-
-        <!-- 弹窗内容 -->
-        <div class="p-6 overflow-y-auto max-h-[60vh]">
-          <div id="announcement-history-content">
-            <!-- 历史记录内容将在这里动态加载 -->
-          </div>
-        </div>
-
-        <!-- 弹窗底部 -->
-        <div
-          class="flex items-center justify-between p-6 border-t border-slate-200/50 bg-slate-50/50"
-        >
-          <div class="text-sm text-slate-500">
-            历史记录会自动保存最近100条公告
-          </div>
-          <button
-            onclick="clearAnnouncementHistory()"
-            class="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm font-medium"
-          >
-            清空历史
-          </button>
         </div>
       </div>
     </div>
@@ -1066,174 +709,6 @@
       <p class="text-slate-400 text-sm">© 2025 Augment Team. 保留所有权利.</p>
     </footer>
 
-    <script>
-      // 主题切换功能
-      function toggleTheme() {
-        // 切换到丰富风格 (index-original.html)
-        if (confirm("确定要切换到丰富风格吗？")) {
-          window.location.href = "index-original.html";
-        }
-      }
-
-      // 公告历史记录管理
-      let announcementHistory = JSON.parse(
-        localStorage.getItem("announcementHistory") || "[]"
-      );
-
-      // 显示公告历史记录
-      function toggleAnnouncementHistory() {
-        const modal = document.getElementById("announcement-history-modal");
-        const content = document.getElementById("announcement-history-content");
-        const count = document.getElementById("announcement-count");
-
-        // 更新计数
-        count.textContent = announcementHistory.length;
-
-        // 生成历史记录HTML
-        if (announcementHistory.length === 0) {
-          content.innerHTML = `
-            <div class="text-center py-12">
-              <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg class="w-8 h-8 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"/>
-                </svg>
-              </div>
-              <p class="text-slate-500">暂无公告历史记录</p>
-            </div>
-          `;
-        } else {
-          content.innerHTML = announcementHistory
-            .map(
-              (announcement, index) => `
-            <div class="mb-4 p-4 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
-              <div class="flex items-start justify-between mb-2">
-                <div class="flex items-center gap-2">
-                  <span class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">
-                    #${announcementHistory.length - index}
-                  </span>
-                  <span class="text-sm text-slate-500">${
-                    announcement.timestamp
-                  }</span>
-                </div>
-                <button
-                  onclick="removeAnnouncement(${index})"
-                  class="text-slate-400 hover:text-red-500 transition-colors"
-                  title="删除此条记录"
-                >
-                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                  </svg>
-                </button>
-              </div>
-              <div class="text-slate-700 leading-relaxed">${
-                announcement.content
-              }</div>
-            </div>
-          `
-            )
-            .join("");
-        }
-
-        // 显示弹窗
-        modal.classList.remove("hidden");
-        setTimeout(() => {
-          modal.classList.remove("opacity-0");
-          modal.querySelector(".bg-white\\/95").classList.remove("scale-95");
-        }, 10);
-      }
-
-      // 关闭公告历史记录
-      function closeAnnouncementHistory(event) {
-        if (event && event.target !== event.currentTarget) return;
-
-        const modal = document.getElementById("announcement-history-modal");
-        modal.classList.add("opacity-0");
-        modal.querySelector(".bg-white\\/95").classList.add("scale-95");
-
-        setTimeout(() => {
-          modal.classList.add("hidden");
-        }, 300);
-      }
-
-      // 添加公告到历史记录
-      function addAnnouncementToHistory(content) {
-        const announcement = {
-          content: content,
-          timestamp: new Date().toLocaleString("zh-CN"),
-          id: Date.now(),
-        };
-
-        announcementHistory.unshift(announcement);
-
-        // 限制历史记录数量为100条
-        if (announcementHistory.length > 100) {
-          announcementHistory = announcementHistory.slice(0, 100);
-        }
-
-        // 保存到本地存储
-        localStorage.setItem(
-          "announcementHistory",
-          JSON.stringify(announcementHistory)
-        );
-
-        // 更新徽章
-        updateAnnouncementBadge();
-      }
-
-      // 删除单条公告记录
-      function removeAnnouncement(index) {
-        if (confirm("确定要删除这条公告记录吗？")) {
-          announcementHistory.splice(index, 1);
-          localStorage.setItem(
-            "announcementHistory",
-            JSON.stringify(announcementHistory)
-          );
-          toggleAnnouncementHistory(); // 刷新显示
-          updateAnnouncementBadge();
-        }
-      }
-
-      // 清空公告历史
-      function clearAnnouncementHistory() {
-        if (confirm("确定要清空所有公告历史记录吗？此操作不可恢复。")) {
-          announcementHistory = [];
-          localStorage.setItem(
-            "announcementHistory",
-            JSON.stringify(announcementHistory)
-          );
-          toggleAnnouncementHistory(); // 刷新显示
-          updateAnnouncementBadge();
-        }
-      }
-
-      // 更新公告徽章
-      function updateAnnouncementBadge() {
-        const badge = document.getElementById("announcement-badge");
-        if (announcementHistory.length > 0) {
-          badge.textContent = announcementHistory.length;
-          badge.classList.remove("hidden");
-        } else {
-          badge.classList.add("hidden");
-        }
-      }
-
-      // 页面加载完成后的初始化
-      document.addEventListener("DOMContentLoaded", function () {
-        // 更新主题切换按钮的提示文本
-        const themeBtn = document.getElementById("theme-toggle-btn");
-        if (themeBtn) {
-          themeBtn.title = "切换到丰富风格";
-        }
-
-        // 初始化公告徽章
-        updateAnnouncementBadge();
-
-        // 监听来自renderer.js的公告
-        window.addEventListener("new-announcement", (event) => {
-          addAnnouncementToHistory(event.detail.content);
-        });
-      });
-    </script>
     <script src="renderer.js"></script>
   </body>
 </html>

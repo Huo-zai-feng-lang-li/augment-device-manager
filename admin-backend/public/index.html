@@ -11,134 +11,284 @@
         box-sizing: border-box;
       }
 
+      :root {
+        /* 极简专业色彩系统 */
+        --primary-50: #f8fafc;
+        --primary-100: #f1f5f9;
+        --primary-200: #e2e8f0;
+        --primary-300: #cbd5e1;
+        --primary-400: #94a3b8;
+        --primary-500: #64748b;
+        --primary-600: #475569;
+        --primary-700: #334155;
+        --primary-800: #1e293b;
+        --primary-900: #0f172a;
+
+        /* 功能色彩 */
+        --success: #10b981;
+        --success-light: #d1fae5;
+        --warning: #f59e0b;
+        --warning-light: #fef3c7;
+        --error: #ef4444;
+        --error-light: #fee2e2;
+        --info: #3b82f6;
+        --info-light: #dbeafe;
+
+        /* 渐变 */
+        --gradient-primary: linear-gradient(
+          135deg,
+          var(--primary-600) 0%,
+          var(--primary-800) 100%
+        );
+        --gradient-surface: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        --gradient-card: linear-gradient(145deg, #ffffff 0%, #f1f5f9 100%);
+
+        /* 阴影系统 */
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+          0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+          0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+        /* 边框半径 */
+        --radius-sm: 0.375rem;
+        --radius-md: 0.5rem;
+        --radius-lg: 0.75rem;
+        --radius-xl: 1rem;
+        --radius-2xl: 1.5rem;
+      }
+
       body {
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        background: var(--gradient-surface);
         min-height: 100vh;
+        color: var(--primary-800);
+        line-height: 1.6;
+        font-size: 14px;
+        font-weight: 400;
       }
 
       .container {
-        max-width: 1200px;
+        max-width: 1400px;
         margin: 0 auto;
-        padding: 20px;
+        padding: 2rem;
       }
 
       .header {
         text-align: center;
-        color: white;
-        margin-bottom: 30px;
+        margin-bottom: 3rem;
+        padding: 2rem 0;
       }
 
       .header h1 {
-        font-size: 2.5rem;
-        margin-bottom: 10px;
+        font-size: 2rem;
+        font-weight: 600;
+        color: var(--primary-900);
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.025em;
       }
 
       .header p {
-        font-size: 1.1rem;
-        opacity: 0.9;
+        font-size: 1rem;
+        color: var(--primary-600);
+        font-weight: 400;
       }
 
       .login-form,
       .dashboard {
-        background: white;
-        border-radius: 15px;
-        padding: 30px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-        margin-bottom: 20px;
+        background: var(--gradient-card);
+        backdrop-filter: blur(20px);
+        border-radius: var(--radius-2xl);
+        padding: 3rem;
+        box-shadow: var(--shadow-xl);
+        margin-bottom: 2rem;
+        border: 1px solid var(--primary-200);
+        transition: all 0.2s ease;
+      }
+
+      .login-form {
+        max-width: 420px;
+        margin: 0 auto;
       }
 
       .form-group {
-        margin-bottom: 20px;
+        margin-bottom: 1.5rem;
       }
 
       .form-group label {
         display: block;
-        margin-bottom: 8px;
-        font-weight: 600;
-        color: #333;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: var(--primary-700);
+        font-size: 0.875rem;
       }
 
       .form-group input,
       .form-group select,
       .form-group textarea {
         width: 100%;
-        padding: 12px;
-        border: 2px solid #e1e5e9;
-        border-radius: 8px;
-        font-size: 16px;
-        transition: border-color 0.3s;
+        padding: 0.875rem 1rem;
+        border: 1px solid var(--primary-300);
+        border-radius: var(--radius-lg);
+        font-size: 0.875rem;
+        transition: all 0.2s ease;
+        background: white;
+        color: var(--primary-800);
       }
 
       .form-group input:focus,
       .form-group select:focus,
       .form-group textarea:focus {
         outline: none;
-        border-color: #667eea;
+        border-color: var(--primary-500);
+        box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.1);
+        background: white;
       }
 
       .btn {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: var(--gradient-primary);
         color: white;
         border: none;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-size: 16px;
+        padding: 0.75rem 1.5rem;
+        border-radius: var(--radius-lg);
+        font-size: 0.875rem;
+        font-weight: 500;
         cursor: pointer;
-        transition: transform 0.2s;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        text-align: center;
+        gap: 0.5rem;
+        box-shadow: var(--shadow-sm);
       }
 
       .btn:hover {
-        transform: translateY(-2px);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-lg);
+        opacity: 0.9;
+      }
+
+      .btn:active {
+        transform: translateY(0);
       }
 
       .btn-secondary {
-        background: #6c757d;
+        background: var(--primary-500);
+        color: white;
+      }
+
+      .btn-secondary:hover {
+        background: var(--primary-600);
+      }
+
+      .btn-small {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.75rem;
+      }
+
+      .btn-danger {
+        background: var(--error);
+      }
+
+      .btn-danger:hover {
+        background: #dc2626;
+      }
+
+      .btn-success {
+        background: var(--success);
+      }
+
+      .btn-success:hover {
+        background: #059669;
       }
 
       .stats-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 20px;
-        margin-bottom: 30px;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 3rem;
       }
 
       .stat-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-        text-align: center;
+        background: white;
+        border: 1px solid var(--primary-200);
+        border-radius: var(--radius-xl);
+        padding: 2rem;
+        text-align: left;
+        transition: all 0.2s ease;
+        position: relative;
+        box-shadow: var(--shadow-sm);
+      }
+
+      .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-lg);
+        border-color: var(--primary-300);
       }
 
       .stat-card h3 {
         font-size: 2rem;
-        margin-bottom: 5px;
+        margin: 0.5rem 0;
+        font-weight: 600;
+        color: var(--primary-900);
       }
 
       .stat-card p {
-        opacity: 0.9;
+        font-size: 0.875rem;
+        color: var(--primary-600);
+        margin: 0;
+      }
+
+      .stat-card .stat-icon {
+        width: 3rem;
+        height: 3rem;
+        border-radius: var(--radius-lg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
       }
 
       .tabs {
         display: flex;
-        margin-bottom: 20px;
-        border-bottom: 2px solid #e1e5e9;
+        background: white;
+        border-radius: var(--radius-xl);
+        padding: 0.5rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--primary-200);
+        gap: 0.25rem;
       }
 
       .tab {
-        padding: 12px 24px;
-        background: none;
+        flex: 1;
+        padding: 0.875rem 1.5rem;
+        background: transparent;
         border: none;
+        border-radius: var(--radius-lg);
+        font-size: 0.875rem;
+        font-weight: 500;
         cursor: pointer;
-        font-size: 16px;
-        color: #666;
-        border-bottom: 2px solid transparent;
+        transition: all 0.2s ease;
+        color: var(--primary-600);
+        text-align: center;
       }
 
       .tab.active {
-        color: #667eea;
-        border-bottom-color: #667eea;
+        background: var(--gradient-primary);
+        color: white;
+        box-shadow: var(--shadow-sm);
+      }
+
+      .tab:hover:not(.active) {
+        background: var(--primary-100);
+        color: var(--primary-700);
       }
 
       .tab-content {
@@ -147,113 +297,300 @@
 
       .tab-content.active {
         display: block;
+        animation: fadeIn 0.3s ease-out;
       }
 
-      .table {
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .data-table {
         width: 100%;
         border-collapse: collapse;
-        margin-top: 20px;
+        background: white;
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--primary-200);
       }
 
-      .table th,
-      .table td {
-        padding: 12px;
+      .data-table th,
+      .data-table td {
+        padding: 1rem;
         text-align: left;
-        border-bottom: 1px solid #e1e5e9;
+        border-bottom: 1px solid var(--primary-200);
+        font-size: 0.875rem;
       }
 
-      .table th {
-        background: #f8f9fa;
+      .data-table th {
+        background: var(--primary-50);
         font-weight: 600;
+        color: var(--primary-700);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
       }
 
-      .status {
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: 600;
+      .data-table tbody tr:hover {
+        background: var(--primary-50);
       }
 
-      .status.active {
-        background: #d4edda;
-        color: #155724;
+      .status,
+      .status-badge {
+        padding: 0.375rem 0.75rem;
+        border-radius: var(--radius-md);
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
       }
 
-      .status.used {
-        background: #cce5ff;
-        color: #004085;
+      .status-active {
+        background: var(--success-light);
+        color: var(--success);
       }
 
-      .status.expired {
-        background: #f8d7da;
-        color: #721c24;
+      .status-used {
+        background: var(--info-light);
+        color: var(--info);
       }
 
-      .status.revoked {
-        background: #6c757d;
-        color: white;
+      .status-expired {
+        background: var(--error-light);
+        color: var(--error);
       }
 
-      .btn-small {
-        padding: 4px 8px;
-        font-size: 12px;
-        margin: 0 2px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        text-decoration: none;
-        display: inline-block;
+      .status-revoked {
+        background: var(--warning-light);
+        color: var(--warning);
       }
 
-      .btn-warning {
-        background: #ffc107;
-        color: #212529;
+      .code-text {
+        background: var(--primary-100);
+        color: var(--primary-800);
+        padding: 0.25rem 0.5rem;
+        border-radius: var(--radius-sm);
+        font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas,
+          "Courier New", monospace;
+        font-size: 0.75rem;
+        font-weight: 500;
       }
 
-      .btn-warning:hover {
-        background: #e0a800;
+      .device-id {
+        background: var(--primary-50);
+        color: var(--primary-700);
+        padding: 0.25rem 0.5rem;
+        border-radius: var(--radius-sm);
+        font-family: "SF Mono", Monaco, monospace;
+        font-size: 0.75rem;
       }
 
-      .btn-danger {
-        background: #dc3545;
-        color: white;
+      .datetime-text {
+        color: var(--primary-600);
+        font-size: 0.875rem;
       }
 
-      .btn-danger:hover {
-        background: #c82333;
+      .text-danger {
+        color: var(--error) !important;
+      }
+
+      /* 操作按钮容器 */
+      .action-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
       }
 
       .hidden {
         display: none;
       }
 
+      /* 提示框样式 */
       .alert {
-        padding: 12px;
-        border-radius: 8px;
-        margin-bottom: 20px;
+        padding: 1rem 1.5rem;
+        border-radius: var(--radius-lg);
+        margin-bottom: 1.5rem;
+        border: 1px solid;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
       }
 
+      .alert-success,
       .alert.success {
-        background: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
+        background: var(--success-light);
+        color: var(--success);
+        border-color: var(--success);
       }
 
+      .alert-success::before,
+      .alert.success::before {
+        content: "✓";
+        font-weight: bold;
+      }
+
+      .alert-error,
       .alert.error {
-        background: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
+        background: var(--error-light);
+        color: var(--error);
+        border-color: var(--error);
       }
 
+      .alert-error::before,
+      .alert.error::before {
+        content: "⚠";
+        font-weight: bold;
+      }
+
+      .alert-info {
+        background: var(--info-light);
+        color: var(--info);
+        border-color: var(--info);
+      }
+
+      .alert-info::before {
+        content: "ℹ";
+        font-weight: bold;
+      }
+
+      /* 代码显示样式 */
       .code-display {
-        background: #f8f9fa;
-        padding: 15px;
-        border-radius: 8px;
-        font-family: "Courier New", monospace;
-        font-size: 18px;
+        background: var(--gradient-card);
+        border: 1px solid var(--primary-300);
+        padding: 1.5rem;
+        border-radius: var(--radius-xl);
+        font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas,
+          "Courier New", monospace;
+        font-size: 1.125rem;
+        font-weight: 600;
         text-align: center;
-        margin: 15px 0;
-        border: 2px dashed #667eea;
+        margin: 1.5rem 0;
+        color: var(--primary-800);
+        letter-spacing: 0.1em;
+        position: relative;
+        box-shadow: var(--shadow-sm);
+        transition: all 0.2s ease;
+      }
+
+      .code-display::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(102, 126, 234, 0.1),
+          transparent
+        );
+        animation: shimmer 2s infinite;
+      }
+
+      @keyframes shimmer {
+        0% {
+          left: -100%;
+        }
+        100% {
+          left: 100%;
+        }
+      }
+
+      /* 微交互动画 */
+      @keyframes slideInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.7;
+        }
+      }
+
+      .animate-slide-in {
+        animation: slideInUp 0.4s ease-out;
+      }
+
+      .animate-pulse {
+        animation: pulse 2s infinite;
+      }
+
+      /* 加载状态 */
+      .loading {
+        position: relative;
+        pointer-events: none;
+        opacity: 0.6;
+      }
+
+      .loading::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 20px;
+        height: 20px;
+        margin: -10px 0 0 -10px;
+        border: 2px solid var(--primary-300);
+        border-top-color: var(--primary-600);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes slideInRight {
+        from {
+          opacity: 0;
+          transform: translateX(100%);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      @keyframes slideOutRight {
+        from {
+          opacity: 1;
+          transform: translateX(0);
+        }
+        to {
+          opacity: 0;
+          transform: translateX(100%);
+        }
+      }
+
+      .code-display:hover {
+        transform: scale(1.02);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
       }
 
       /* 数据表格样式 */
@@ -262,31 +599,43 @@
         border-collapse: collapse;
         margin-top: 20px;
         background: white;
-        border-radius: 8px;
+        border-radius: 12px;
         overflow: hidden;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        table-layout: fixed; /* 固定表格布局 */
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        table-layout: fixed;
       }
 
       .data-table th,
       .data-table td {
-        padding: 8px 12px;
+        padding: 16px 20px;
         text-align: left;
-        border-bottom: 1px solid #e1e5e9;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
         vertical-align: middle;
         word-wrap: break-word;
         overflow: hidden;
       }
 
       .data-table th {
-        background: #f8f9fa;
-        font-weight: 600;
-        color: #333;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        font-weight: 700;
+        color: #495057;
         white-space: nowrap;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .data-table tr {
+        transition: all 0.2s ease;
       }
 
       .data-table tr:hover {
-        background: #f8f9fa;
+        background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+        transform: scale(1.01);
+      }
+
+      .data-table tr:last-child td {
+        border-bottom: none;
       }
 
       /* 用户管理表格列宽 */
@@ -638,38 +987,68 @@
         position: relative;
       }
 
-      [title]:hover:after {
-        content: attr(title);
+      /* 智能Tooltip样式 */
+      .smart-tooltip {
         position: fixed;
-        top: var(--tooltip-y, 50%);
-        left: var(--tooltip-x, 50%);
-        transform: translateY(-100%);
         background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
         color: white;
         padding: 10px 14px;
         border-radius: 8px;
         font-size: 12px;
-        white-space: nowrap;
+        line-height: 1.4;
+        max-width: 320px;
+        word-wrap: break-word;
+        white-space: normal;
         z-index: 99999;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
         border: 1px solid rgba(255, 255, 255, 0.15);
         backdrop-filter: blur(10px);
-        animation: tooltipFadeIn 0.3s ease-out;
-        max-width: 320px;
-        word-wrap: break-word;
-        white-space: normal;
-        pointer-events: none;
         font-weight: 500;
-        line-height: 1.4;
+        pointer-events: none;
+        opacity: 0;
+        transform: scale(0.8);
+        transition: all 0.2s ease;
       }
 
-      [title]:hover:before {
+      .smart-tooltip.show {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      .smart-tooltip::before {
         content: "";
-        position: fixed;
+        position: absolute;
         border: 6px solid transparent;
         border-top-color: #2d3748;
-        z-index: 99998;
-        pointer-events: none;
+        bottom: -12px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      .smart-tooltip[data-placement="bottom"]::before {
+        top: -12px;
+        bottom: auto;
+        border-top-color: transparent;
+        border-bottom-color: #2d3748;
+      }
+
+      .smart-tooltip[data-placement="left"]::before {
+        top: 50%;
+        left: auto;
+        right: -12px;
+        bottom: auto;
+        transform: translateY(-50%);
+        border-top-color: transparent;
+        border-left-color: #2d3748;
+      }
+
+      .smart-tooltip[data-placement="right"]::before {
+        top: 50%;
+        left: -12px;
+        bottom: auto;
+        transform: translateY(-50%);
+        border-top-color: transparent;
+        border-right-color: #2d3748;
       }
 
       @keyframes tooltipFadeIn {
@@ -682,30 +1061,425 @@
           transform: translateY(0) scale(1);
         }
       }
+
+      /* 实时控制面板样式 */
+      .control-panel {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 25px;
+        margin-bottom: 25px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .client-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 20px;
+        margin-top: 25px;
+      }
+
+      .client-card {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        border-radius: 12px;
+        padding: 20px;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .client-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      }
+
+      .client-card:hover {
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        transform: translateY(-5px);
+      }
+
+      .client-card h4 {
+        margin-bottom: 12px;
+        color: #333;
+        font-weight: 700;
+        font-size: 16px;
+      }
+
+      .client-info {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 18px;
+        line-height: 1.5;
+      }
+
+      .command-form {
+        display: flex;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .command-input {
+        flex: 1;
+        padding: 10px 14px;
+        border: 2px solid #e1e5e9;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: border-color 0.3s ease;
+      }
+
+      .command-input:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      .send-btn {
+        padding: 10px 18px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+      }
+
+      .send-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+      }
+
+      .connection-status {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 10px;
+        position: relative;
+      }
+
+      .connection-status.online {
+        background: #28a745;
+        box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
+      }
+
+      .connection-status.online::before {
+        content: "";
+        position: absolute;
+        top: -2px;
+        left: -2px;
+        right: -2px;
+        bottom: -2px;
+        border-radius: 50%;
+        border: 2px solid rgba(40, 167, 69, 0.3);
+        animation: pulse 2s infinite;
+      }
+
+      .connection-status.offline {
+        background: #dc3545;
+      }
+
+      /* 广播控制区域 */
+      .broadcast-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 25px;
+        margin-bottom: 25px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .broadcast-section::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(
+          45deg,
+          rgba(255, 255, 255, 0.1) 0%,
+          transparent 100%
+        );
+        pointer-events: none;
+      }
+
+      .broadcast-section h3 {
+        margin-bottom: 18px;
+        font-weight: 700;
+        position: relative;
+        z-index: 1;
+      }
+
+      .broadcast-form {
+        display: flex;
+        gap: 15px;
+        align-items: flex-end;
+        position: relative;
+        z-index: 1;
+      }
+
+      .broadcast-form .form-group {
+        flex: 1;
+        margin-bottom: 0;
+      }
+
+      .broadcast-form label {
+        color: rgba(255, 255, 255, 0.9);
+        font-weight: 600;
+      }
+
+      .broadcast-form input,
+      .broadcast-form select {
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(10px);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        transition: all 0.3s ease;
+      }
+
+      .broadcast-form input:focus,
+      .broadcast-form select:focus {
+        border-color: rgba(255, 255, 255, 0.6);
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      .broadcast-form input::placeholder {
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .broadcast-btn {
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        color: white;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        padding: 14px 28px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: 700;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .broadcast-btn::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.2),
+          transparent
+        );
+        transition: left 0.5s;
+      }
+
+      .broadcast-btn:hover::before {
+        left: 100%;
+      }
+
+      .broadcast-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+      }
+
+      /* 响应式设计 - 极简专业风格 */
+      @media (max-width: 1024px) {
+        .container {
+          max-width: 100%;
+          padding: 1.5rem;
+        }
+
+        .stats-grid {
+          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+          gap: 1rem;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .container {
+          padding: 1rem;
+        }
+
+        .header {
+          margin-bottom: 2rem;
+          padding: 1rem 0;
+        }
+
+        .header h1 {
+          font-size: 1.5rem;
+        }
+
+        .stats-grid {
+          grid-template-columns: 1fr;
+          gap: 1rem;
+        }
+
+        .tabs {
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .tab {
+          padding: 0.75rem 1rem;
+          font-size: 0.875rem;
+          text-align: left;
+        }
+
+        .login-form,
+        .dashboard {
+          padding: 2rem;
+        }
+
+        .data-table {
+          font-size: 0.75rem;
+          display: block;
+          overflow-x: auto;
+          white-space: nowrap;
+        }
+
+        .data-table th,
+        .data-table td {
+          padding: 0.75rem 0.5rem;
+        }
+
+        .action-container {
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .container {
+          padding: 0.75rem;
+        }
+
+        .header h1 {
+          font-size: 1.25rem;
+        }
+
+        .login-form,
+        .dashboard {
+          padding: 1.5rem;
+        }
+
+        .stat-card {
+          padding: 1.5rem;
+        }
+
+        .stat-card h3 {
+          font-size: 1.5rem;
+        }
+      }
     </style>
   </head>
   <body>
+    <!-- 连接状态栏 -->
+    <div
+      id="connectionStatusBar"
+      style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(135deg, #dc3545, #c82333);
+        color: white;
+        text-align: center;
+        padding: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        z-index: 9999;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      "
+    ></div>
+
     <div class="container">
       <div class="header">
         <h1>🔐 Augment 激活码管理系统</h1>
         <p>专业的激活码生成与管理平台</p>
+        <div style="margin-top: 15px; font-size: 14px; opacity: 0.8">
+          <span>💡 快捷键：Ctrl/Cmd + 1-5 切换标签页</span>
+        </div>
       </div>
 
       <!-- 登录表单 -->
-      <div id="loginForm" class="login-form">
-        <h2 style="text-align: center; margin-bottom: 30px">管理员登录</h2>
+      <div id="loginForm" class="login-form animate-slide-in">
+        <div style="text-align: center; margin-bottom: 2rem">
+          <div
+            style="
+              width: 4rem;
+              height: 4rem;
+              background: var(--gradient-primary);
+              border-radius: var(--radius-xl);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin: 0 auto 1rem;
+            "
+          >
+            <span style="font-size: 1.5rem">🔐</span>
+          </div>
+          <h2
+            style="
+              color: var(--primary-900);
+              font-weight: 600;
+              margin-bottom: 0.5rem;
+            "
+          >
+            管理员登录
+          </h2>
+          <p style="color: var(--primary-600); font-size: 0.875rem">
+            请输入您的凭据以访问管理系统
+          </p>
+        </div>
         <div id="loginAlert"></div>
         <form onsubmit="login(event)">
           <div class="form-group">
             <label for="username">用户名</label>
-            <input type="text" id="username" required />
+            <input
+              type="text"
+              id="username"
+              required
+              placeholder="请输入用户名"
+            />
           </div>
           <div class="form-group">
             <label for="password">密码</label>
-            <input type="password" id="password" required />
+            <input
+              type="password"
+              id="password"
+              required
+              placeholder="请输入密码"
+            />
           </div>
-          <button type="submit" class="btn" style="width: 100%">登录</button>
+          <button type="submit" class="btn" style="width: 100%; padding: 1rem">
+            <span>登录系统</span>
+          </button>
         </form>
+        <div
+          style="
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.75rem;
+            color: var(--primary-500);
+          "
+        >
+          默认账户：admin / admin123
+        </div>
       </div>
 
       <!-- 管理面板 -->
@@ -822,31 +1596,181 @@
 
     <script src="app.js"></script>
     <script>
-      // 动态定位工具提示框
-      document.addEventListener("mouseover", function (e) {
-        if (
-          e.target.hasAttribute("title") &&
-          e.target.getAttribute("title").trim()
-        ) {
-          const tooltip = e.target;
+      // 智能Tooltip系统
+      class SmartTooltip {
+        constructor() {
+          this.tooltip = null;
+          this.currentTarget = null;
+          this.showTimeout = null;
+          this.hideTimeout = null;
+          this.init();
+        }
 
-          tooltip.addEventListener("mousemove", function (event) {
-            const afterElement = window.getComputedStyle(tooltip, ":after");
-            if (
-              afterElement.content !== "none" &&
-              afterElement.content !== '""'
-            ) {
-              // 计算提示框位置
-              const x = event.clientX;
-              const y = event.clientY;
-              const offset = 15;
+        init() {
+          // 创建tooltip元素
+          this.tooltip = document.createElement("div");
+          this.tooltip.className = "smart-tooltip";
+          document.body.appendChild(this.tooltip);
 
-              // 设置CSS变量来控制位置
-              tooltip.style.setProperty("--tooltip-x", x + offset + "px");
-              tooltip.style.setProperty("--tooltip-y", y - offset + "px");
+          // 绑定事件
+          this.bindEvents();
+        }
+
+        bindEvents() {
+          document.addEventListener("mouseover", (e) => {
+            const target = e.target.closest("[title]");
+            if (target && target.title && this.shouldShowTooltip(target)) {
+              this.show(target, target.title);
+            }
+          });
+
+          document.addEventListener("mouseout", (e) => {
+            const target = e.target.closest("[title]");
+            if (target === this.currentTarget) {
+              this.hide();
+            }
+          });
+
+          document.addEventListener("scroll", () => {
+            if (this.currentTarget) {
+              this.updatePosition();
+            }
+          });
+
+          window.addEventListener("resize", () => {
+            if (this.currentTarget) {
+              this.updatePosition();
             }
           });
         }
+
+        shouldShowTooltip(element) {
+          // 检查是否需要显示tooltip
+          const title = element.title.trim();
+          if (!title) return false;
+
+          // 检查文本是否溢出或被截断
+          const textContent = element.textContent.trim();
+
+          // 对于代码元素，特殊处理
+          if (
+            element.classList.contains("code-text") ||
+            element.classList.contains("device-id")
+          ) {
+            // 只有当title和显示文本不同时才显示（说明文本被截断了）
+            return title !== textContent;
+          }
+
+          // 对于其他元素，检查是否有溢出
+          if (title === textContent) {
+            // 检查元素是否有文本溢出
+            const hasOverflow =
+              element.scrollWidth > element.clientWidth ||
+              element.scrollHeight > element.clientHeight;
+            return hasOverflow;
+          }
+
+          // 如果title和显示文本不同，说明有额外信息需要显示
+          return true;
+        }
+
+        show(target, text) {
+          if (this.showTimeout) clearTimeout(this.showTimeout);
+          if (this.hideTimeout) clearTimeout(this.hideTimeout);
+
+          this.currentTarget = target;
+          this.tooltip.textContent = text;
+
+          this.showTimeout = setTimeout(() => {
+            this.updatePosition();
+            this.tooltip.classList.add("show");
+          }, 300);
+        }
+
+        hide() {
+          if (this.showTimeout) clearTimeout(this.showTimeout);
+
+          this.hideTimeout = setTimeout(() => {
+            this.tooltip.classList.remove("show");
+            this.currentTarget = null;
+          }, 100);
+        }
+
+        updatePosition() {
+          if (!this.currentTarget) return;
+
+          const targetRect = this.currentTarget.getBoundingClientRect();
+          const tooltipRect = this.tooltip.getBoundingClientRect();
+          const viewportWidth = window.innerWidth;
+          const viewportHeight = window.innerHeight;
+          const scrollX = window.scrollX;
+          const scrollY = window.scrollY;
+
+          let x, y;
+          let placement = "top"; // 默认在上方
+
+          // 计算最佳位置
+          const positions = {
+            top: {
+              x: targetRect.left + targetRect.width / 2 - tooltipRect.width / 2,
+              y: targetRect.top - tooltipRect.height - 12,
+            },
+            bottom: {
+              x: targetRect.left + targetRect.width / 2 - tooltipRect.width / 2,
+              y: targetRect.bottom + 12,
+            },
+            left: {
+              x: targetRect.left - tooltipRect.width - 12,
+              y:
+                targetRect.top + targetRect.height / 2 - tooltipRect.height / 2,
+            },
+            right: {
+              x: targetRect.right + 12,
+              y:
+                targetRect.top + targetRect.height / 2 - tooltipRect.height / 2,
+            },
+          };
+
+          // 选择最佳位置（优先级：top > bottom > right > left）
+          for (const pos of ["top", "bottom", "right", "left"]) {
+            const position = positions[pos];
+            if (
+              position.x >= 8 &&
+              position.x + tooltipRect.width <= viewportWidth - 8 &&
+              position.y >= 8 &&
+              position.y + tooltipRect.height <= viewportHeight - 8
+            ) {
+              x = position.x;
+              y = position.y;
+              placement = pos;
+              break;
+            }
+          }
+
+          // 如果没有合适位置，使用智能调整
+          if (x === undefined || y === undefined) {
+            x = Math.min(
+              Math.max(
+                8,
+                targetRect.left + targetRect.width / 2 - tooltipRect.width / 2
+              ),
+              viewportWidth - tooltipRect.width - 8
+            );
+            y = Math.min(
+              Math.max(8, targetRect.top - tooltipRect.height - 12),
+              viewportHeight - tooltipRect.height - 8
+            );
+          }
+
+          this.tooltip.style.left = x + scrollX + "px";
+          this.tooltip.style.top = y + scrollY + "px";
+          this.tooltip.setAttribute("data-placement", placement);
+        }
+      }
+
+      // 初始化智能Tooltip
+      document.addEventListener("DOMContentLoaded", () => {
+        new SmartTooltip();
       });
     </script>
   </body>

@@ -6,9 +6,9 @@ const os = require("os");
 // 默认配置
 const DEFAULT_CONFIG = {
   server: {
-    host: "abc123-demo.ngrok.io", // 预设服务器地址
-    port: 443, // 预设端口
-    protocol: "https", // 预设协议
+    host: "127.0.0.1", // 预设服务器地址
+    port: 3002, // 预设端口
+    protocol: "http", // 预设协议
   },
   client: {
     autoConnect: true,
@@ -77,6 +77,128 @@ class ServerConfig {
     }
     if (process.env.AUGMENT_SERVER_PROTOCOL) {
       this.config.server.protocol = process.env.AUGMENT_SERVER_PROTOCOL;
+    }
+
+    // 尝试从注册表读取配置（Windows）
+    if (process.platform === "win32") {
+      this.loadFromRegistry();
+    }
+
+    // 尝试从内置配置恢复
+    this.loadFromEmbeddedConfig();
+
+    // 尝试从全局配置文件读取
+    this.loadFromGlobalConfig();
+  }
+
+  // 从Windows注册表读取配置
+  loadFromRegistry() {
+    try {
+      const { execSync } = require("child_process");
+
+      try {
+        const hostResult = execSync(
+          'reg query "HKEY_CURRENT_USER\\Software\\AugmentDeviceManager" /v ServerHost 2>nul',
+          { encoding: "utf8" }
+        );
+        const hostMatch = hostResult.match(/ServerHost\s+REG_SZ\s+(.+)/);
+        if (hostMatch) {
+          this.config.server.host = hostMatch[1].trim();
+        }
+      } catch (e) {}
+
+      try {
+        const portResult = execSync(
+          'reg query "HKEY_CURRENT_USER\\Software\\AugmentDeviceManager" /v ServerPort 2>nul',
+          { encoding: "utf8" }
+        );
+        const portMatch = portResult.match(
+          /ServerPort\s+REG_DWORD\s+0x([0-9a-fA-F]+)/
+        );
+        if (portMatch) {
+          this.config.server.port = parseInt(portMatch[1], 16);
+        }
+      } catch (e) {}
+
+      try {
+        const protocolResult = execSync(
+          'reg query "HKEY_CURRENT_USER\\Software\\AugmentDeviceManager" /v ServerProtocol 2>nul',
+          { encoding: "utf8" }
+        );
+        const protocolMatch = protocolResult.match(
+          /ServerProtocol\s+REG_SZ\s+(.+)/
+        );
+        if (protocolMatch) {
+          this.config.server.protocol = protocolMatch[1].trim();
+        }
+      } catch (e) {}
+    } catch (error) {
+      // 忽略注册表读取错误
+    }
+  }
+
+  // 从内置配置恢复
+  loadFromEmbeddedConfig() {
+    try {
+      const embeddedPaths = [
+        path.join(__dirname, "../public/server-config.json"),
+        path.join(__dirname, "embedded-config.json"),
+        path.join(process.cwd(), "server-config.json"),
+        path.join(process.cwd(), "resources", "server-config.json"),
+      ];
+
+      for (const configPath of embeddedPaths) {
+        if (fs.pathExistsSync(configPath)) {
+          const embeddedConfig = fs.readJsonSync(configPath);
+          if (embeddedConfig.server) {
+            this.config.server = {
+              ...this.config.server,
+              ...embeddedConfig.server,
+            };
+            console.log(`已从内置配置恢复服务器设置: ${configPath}`);
+            return true;
+          }
+        }
+      }
+    } catch (error) {
+      // 忽略内置配置读取错误
+    }
+    return false;
+  }
+
+  // 从全局配置文件读取
+  loadFromGlobalConfig() {
+    try {
+      const globalConfigPaths = [
+        path.join(
+          process.env.PROGRAMDATA || "C:\\ProgramData",
+          "AugmentDeviceManager",
+          "server-config.json"
+        ),
+        path.join(
+          os.homedir(),
+          "Documents",
+          "AugmentDeviceManager",
+          "server-config.json"
+        ),
+        path.join(process.cwd(), "server-config.json"),
+      ];
+
+      for (const configPath of globalConfigPaths) {
+        if (fs.pathExistsSync(configPath)) {
+          const globalConfig = fs.readJsonSync(configPath);
+          if (globalConfig.server) {
+            this.config.server = {
+              ...this.config.server,
+              ...globalConfig.server,
+            };
+            console.log(`已从全局配置加载服务器设置: ${configPath}`);
+            break;
+          }
+        }
+      }
+    } catch (error) {
+      // 忽略全局配置读取错误
     }
   }
 

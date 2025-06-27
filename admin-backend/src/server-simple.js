@@ -12,6 +12,8 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const WebSocket = require("ws");
 const http = require("http");
+const { exec } = require("child_process");
+const os = require("os");
 
 const {
   generateActivationCode,
@@ -902,6 +904,19 @@ app.get("/api/stats", authenticateToken, async (req, res) => {
   try {
     const codes = memoryStore.activationCodes;
     const logs = memoryStore.usageLogs;
+    const now = new Date();
+    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // 计算服务器运行时间
+    const uptime = process.uptime();
+    const uptimeHours = Math.floor(uptime / 3600);
+    const uptimeMinutes = Math.floor((uptime % 3600) / 60);
+
+    // 内存使用情况
+    const memUsage = process.memoryUsage();
+    const memUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+    const memTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
 
     const stats = {
       totalCodes: codes.length,
@@ -912,11 +927,22 @@ app.get("/api/stats", authenticateToken, async (req, res) => {
       totalUsage: logs.length,
       recentUsage: logs.filter((l) => {
         const logDate = new Date(l.timestamp);
-        const dayAgo = new Date();
-        dayAgo.setDate(dayAgo.getDate() - 1);
         return logDate > dayAgo;
       }).length,
+      weeklyUsage: logs.filter((l) => {
+        const logDate = new Date(l.timestamp);
+        return logDate > weekAgo;
+      }).length,
       connectedClients: connectedClients.size,
+      serverInfo: {
+        uptime: `${uptimeHours}小时${uptimeMinutes}分钟`,
+        uptimeSeconds: Math.floor(uptime),
+        memoryUsage: `${memUsedMB}MB / ${memTotalMB}MB`,
+        memoryPercent: Math.round((memUsedMB / memTotalMB) * 100),
+        nodeVersion: process.version,
+        platform: process.platform,
+        pid: process.pid,
+      },
     };
 
     res.json({
@@ -927,6 +953,30 @@ app.get("/api/stats", authenticateToken, async (req, res) => {
     console.error("获取统计信息错误:", error);
     res.status(500).json({ error: "获取统计信息失败" });
   }
+});
+
+// 健康检查端点（无需认证）
+app.get("/api/health", (req, res) => {
+  const uptime = process.uptime();
+  const memUsage = process.memoryUsage();
+
+  const health = {
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(uptime),
+    memory: {
+      used: Math.round(memUsage.heapUsed / 1024 / 1024),
+      total: Math.round(memUsage.heapTotal / 1024 / 1024),
+      percent: Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100),
+    },
+    connections: {
+      websocket: connectedClients.size,
+      total: connectedClients.size,
+    },
+    version: "1.0.0",
+  };
+
+  res.json(health);
 });
 
 // 获取连接的客户端列表
