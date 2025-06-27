@@ -8,6 +8,7 @@
 const { spawn, execSync } = require("child_process");
 const fs = require("fs").promises;
 const path = require("path");
+const fetch = require("node-fetch");
 
 console.log("🚀 超级一键打包 - 全自动远程控制版本");
 console.log("=====================================");
@@ -21,11 +22,12 @@ console.log("");
 
 let serverProcess = null;
 let ngrokProcess = null;
+let ngrokPath = null;
 
 async function main() {
   try {
     // 检查ngrok是否安装
-    await checkNgrok();
+    ngrokPath = await checkNgrok();
 
     // 1. 启动后端服务
     console.log("🌐 启动后端服务...");
@@ -69,31 +71,45 @@ async function main() {
 
 // 检查ngrok是否安装
 async function checkNgrok() {
+  const localNgrokPath = path.join(__dirname, "../tools/ngrok.exe");
   try {
-    execSync("ngrok version", { stdio: "ignore" });
-    console.log("✅ 检测到ngrok");
+    // 首先检查本地ngrok.exe
+    await fs.access(localNgrokPath);
+    console.log("✅ 检测到本地ngrok.exe");
+    return localNgrokPath;
   } catch (error) {
-    console.error("❌ 未检测到ngrok，请先安装：");
-    console.error("   1. 访问 https://ngrok.com/ 注册账号");
-    console.error("   2. 下载并安装ngrok");
-    console.error("   3. 配置认证令牌：ngrok authtoken YOUR_TOKEN");
-    process.exit(1);
+    // 如果本地没有，检查全局安装
+    try {
+      execSync("ngrok version", { stdio: "ignore" });
+      console.log("✅ 检测到全局ngrok");
+      return "ngrok";
+    } catch (globalError) {
+      console.error("❌ 未检测到ngrok，请先安装：");
+      console.error("   1. 访问 https://ngrok.com/ 注册账号");
+      console.error("   2. 下载并安装ngrok");
+      console.error("   3. 配置认证令牌：ngrok authtoken YOUR_TOKEN");
+      process.exit(1);
+    }
   }
 }
 
 // 启动后端服务
 function startServer() {
   return new Promise((resolve, reject) => {
-    const server = spawn("npm", ["run", "server-only"], {
+    const server = spawn("npm", ["run", "dev"], {
       shell: true,
       stdio: "pipe",
+      cwd: path.join(__dirname, "../admin-backend"),
     });
 
     server.stdout.on("data", (data) => {
       const output = data.toString();
+      console.log("后端输出:", output); // 调试输出
       if (
         output.includes("3002") &&
-        (output.includes("运行在") || output.includes("listening"))
+        (output.includes("运行在") ||
+          output.includes("listening") ||
+          output.includes("WebSocket"))
       ) {
         console.log("✅ 后端服务已启动");
         resolve(server);
@@ -112,7 +128,7 @@ function startServer() {
 // 启动ngrok
 function startNgrok() {
   return new Promise((resolve, reject) => {
-    const ngrok = spawn("ngrok", ["http", "3002"], {
+    const ngrok = spawn(ngrokPath, ["http", "3002"], {
       shell: true,
       stdio: "pipe",
     });

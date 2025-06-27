@@ -226,3 +226,7 @@ resources/
 nul
 *.tmp
 *.temp
+
+# 允许tools目录下的ngrok文件
+!tools/ngrok.exe
+!tools/ngrok.zip
