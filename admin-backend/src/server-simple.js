@@ -19,7 +19,7 @@ const {
   generateActivationCode,
   validateActivationCode,
   generateDeviceFingerprint,
-} = require("../../shared/crypto/encryption");
+} = require("../../shared/crypto/encryption-simple");
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -556,21 +556,70 @@ app.post("/api/validate-code", async (req, res) => {
       activationCode.used_by_device &&
       activationCode.used_by_device !== deviceId
     ) {
-      // 记录失败日志
-      memoryStore.usageLogs.push({
-        id: memoryStore.usageLogs.length + 1,
-        activation_code: code,
-        device_id: deviceId,
-        action: "failed",
-        timestamp: new Date().toISOString(),
-        details: "激活码已绑定其他设备",
-      });
-      saveData(memoryStore);
+      // 检查是否是设备清理后的重新绑定情况
+      // 如果激活码状态是 "used" 且最近验证过，允许更新设备绑定
+      const lastVerified = activationCode.last_verified_at
+        ? new Date(activationCode.last_verified_at)
+        : null;
+      const now = new Date();
+      const timeSinceLastVerified = lastVerified
+        ? (now - lastVerified) / 1000 / 60
+        : Infinity; // 分钟
 
-      return res.status(400).json({
-        success: false,
-        error: "激活码已绑定其他设备",
-      });
+      if (activationCode.status === "used" && timeSinceLastVerified < 1440) {
+        // 24小时内验证过的激活码，允许更新设备绑定（设备清理场景）
+        console.log(
+          `允许设备ID更新: ${activationCode.used_by_device} -> ${deviceId}`
+        );
+
+        // 记录设备更新日志
+        memoryStore.usageLogs.push({
+          id: memoryStore.usageLogs.length + 1,
+          activation_code: code,
+          device_id: deviceId,
+          action: "device_updated",
+          timestamp: new Date().toISOString(),
+          details: `设备ID从 ${activationCode.used_by_device} 更新为 ${deviceId}`,
+        });
+
+        // 更新设备绑定
+        activationCode.used_by_device = deviceId;
+        activationCode.last_verified_at = new Date().toISOString();
+        saveData(memoryStore);
+
+        // 记录成功日志
+        memoryStore.usageLogs.push({
+          id: memoryStore.usageLogs.length + 1,
+          activation_code: code,
+          device_id: deviceId,
+          action: "reactivated",
+          timestamp: new Date().toISOString(),
+          details: "设备清理后重新激活成功",
+        });
+        saveData(memoryStore);
+
+        return res.json({
+          success: true,
+          message: "设备清理后重新激活成功",
+          expiresAt: activationCode.expires_at,
+        });
+      } else {
+        // 记录失败日志
+        memoryStore.usageLogs.push({
+          id: memoryStore.usageLogs.length + 1,
+          activation_code: code,
+          device_id: deviceId,
+          action: "failed",
+          timestamp: new Date().toISOString(),
+          details: "激活码已绑定其他设备",
+        });
+        saveData(memoryStore);
+
+        return res.status(400).json({
+          success: false,
+          error: "激活码已绑定其他设备",
+        });
+      }
     }
 
     // 验证通过，更新使用状态
@@ -665,11 +714,40 @@ app.post("/api/verify-activation", async (req, res) => {
       activationCode.used_by_device &&
       activationCode.used_by_device !== deviceId
     ) {
-      return res.json({
-        success: false,
-        valid: false,
-        reason: "激活码已绑定其他设备",
-      });
+      // 检查是否允许设备ID更新（24小时内验证过的激活码）
+      const lastVerified = activationCode.last_verified_at
+        ? new Date(activationCode.last_verified_at)
+        : null;
+      const now = new Date();
+      const timeSinceLastVerified = lastVerified
+        ? (now - lastVerified) / 1000 / 60
+        : Infinity; // 分钟
+
+      if (timeSinceLastVerified < 1440) {
+        // 24小时内验证过，允许设备ID更新
+        console.log(
+          `验证时允许设备ID更新: ${activationCode.used_by_device} -> ${deviceId}`
+        );
+
+        // 记录设备更新日志
+        memoryStore.usageLogs.push({
+          id: memoryStore.usageLogs.length + 1,
+          activation_code: code,
+          device_id: deviceId,
+          action: "device_updated_on_verify",
+          timestamp: new Date().toISOString(),
+          details: `验证时设备ID从 ${activationCode.used_by_device} 更新为 ${deviceId}`,
+        });
+
+        // 更新设备绑定
+        activationCode.used_by_device = deviceId;
+      } else {
+        return res.json({
+          success: false,
+          valid: false,
+          reason: "激活码已绑定其他设备",
+        });
+      }
     }
 
     // 更新最后验证时间

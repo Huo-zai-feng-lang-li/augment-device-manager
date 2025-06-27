@@ -7,7 +7,7 @@ let reconnectAttempts = 0;
 let maxReconnectAttempts = 5;
 
 // 页面加载完成后初始化
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", async function () {
   // 添加页面加载动画
   document.body.style.opacity = "0";
   document.body.style.transition = "opacity 0.5s ease-in-out";
@@ -17,9 +17,34 @@ document.addEventListener("DOMContentLoaded", function () {
   }, 100);
 
   if (authToken) {
-    showDashboard();
-    initWebSocket();
-    startStatsUpdate();
+    // 验证令牌有效性
+    try {
+      const response = await fetch("/api/stats", {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        // 令牌无效，清除并显示登录页面
+        console.log("令牌已过期，需要重新登录");
+        authToken = null;
+        localStorage.removeItem("authToken");
+        showLogin();
+      } else {
+        // 令牌有效，显示管理面板
+        showDashboard();
+        initWebSocket();
+        startStatsUpdate();
+      }
+    } catch (error) {
+      console.error("验证令牌失败:", error);
+      // 网络错误时也清除令牌
+      authToken = null;
+      localStorage.removeItem("authToken");
+      showLogin();
+    }
   } else {
     showLogin();
   }
@@ -222,14 +247,62 @@ function showNotification(message, type = "info", duration = 5000) {
 
 // 显示提示信息
 function showAlert(container, message, type = "info") {
-  container.innerHTML = `<div class="alert ${type}">${message}</div>`;
+  const alertElement = document.createElement("div");
+  alertElement.className = `alert ${type}`;
+  alertElement.innerHTML = message;
+  alertElement.style.transition = "transform 0.2s ease, box-shadow 0.2s ease";
 
-  // 3秒后自动清除提示
-  setTimeout(() => {
-    if (container.innerHTML.includes(message)) {
-      container.innerHTML = "";
+  // 清空容器并添加新提示
+  container.innerHTML = "";
+  container.appendChild(alertElement);
+
+  let autoHideTimer = null;
+  let isHovered = false;
+
+  // 启动自动消失定时器
+  function startAutoHideTimer() {
+    if (autoHideTimer) {
+      clearTimeout(autoHideTimer);
     }
-  }, 3000);
+    if (!isHovered) {
+      autoHideTimer = setTimeout(() => {
+        if (!isHovered && container.contains(alertElement)) {
+          alertElement.style.opacity = "0";
+          alertElement.style.transform = "translateY(-10px)";
+          setTimeout(() => {
+            if (container.contains(alertElement)) {
+              container.removeChild(alertElement);
+            }
+          }, 300);
+        }
+      }, 3000);
+    }
+  }
+
+  // 鼠标悬停事件
+  alertElement.addEventListener("mouseenter", () => {
+    isHovered = true;
+    if (autoHideTimer) {
+      clearTimeout(autoHideTimer);
+      autoHideTimer = null;
+    }
+    // 添加悬停效果
+    alertElement.style.transform = "scale(1.02)";
+    alertElement.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.2)";
+  });
+
+  // 鼠标离开事件
+  alertElement.addEventListener("mouseleave", () => {
+    isHovered = false;
+    // 移除悬停效果
+    alertElement.style.transform = "scale(1)";
+    alertElement.style.boxShadow = "none";
+    // 重新启动自动消失定时器
+    startAutoHideTimer();
+  });
+
+  // 启动自动消失定时器
+  startAutoHideTimer();
 }
 
 // 初始化WebSocket连接
@@ -337,15 +410,63 @@ function showAlert(container, message, type = "info") {
       ? "alert-error"
       : "alert-info";
 
-  container.innerHTML = `
-        <div class="alert ${alertClass}">
-            ${message}
-        </div>
-    `;
+  const alertElement = document.createElement("div");
+  alertElement.className = `alert ${alertClass}`;
+  alertElement.innerHTML = message;
+  alertElement.style.transition =
+    "transform 0.2s ease, box-shadow 0.2s ease, opacity 0.3s ease";
 
-  setTimeout(() => {
-    container.innerHTML = "";
-  }, 5000);
+  // 清空容器并添加新提示
+  container.innerHTML = "";
+  container.appendChild(alertElement);
+
+  let autoHideTimer = null;
+  let isHovered = false;
+
+  // 启动自动消失定时器
+  function startAutoHideTimer() {
+    if (autoHideTimer) {
+      clearTimeout(autoHideTimer);
+    }
+    if (!isHovered) {
+      autoHideTimer = setTimeout(() => {
+        if (!isHovered && container.contains(alertElement)) {
+          alertElement.style.opacity = "0";
+          alertElement.style.transform = "translateY(-10px)";
+          setTimeout(() => {
+            if (container.contains(alertElement)) {
+              container.removeChild(alertElement);
+            }
+          }, 300);
+        }
+      }, 3000);
+    }
+  }
+
+  // 鼠标悬停事件
+  alertElement.addEventListener("mouseenter", () => {
+    isHovered = true;
+    if (autoHideTimer) {
+      clearTimeout(autoHideTimer);
+      autoHideTimer = null;
+    }
+    // 添加悬停效果
+    alertElement.style.transform = "scale(1.02)";
+    alertElement.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.2)";
+  });
+
+  // 鼠标离开事件
+  alertElement.addEventListener("mouseleave", () => {
+    isHovered = false;
+    // 移除悬停效果
+    alertElement.style.transform = "scale(1)";
+    alertElement.style.boxShadow = "none";
+    // 重新启动自动消失定时器
+    startAutoHideTimer();
+  });
+
+  // 启动自动消失定时器
+  startAutoHideTimer();
 }
 
 // API请求封装
@@ -357,14 +478,24 @@ async function apiRequest(url, options = {}) {
     },
   };
 
-  const response = await fetch(url, { ...defaultOptions, ...options });
+  try {
+    const response = await fetch(url, { ...defaultOptions, ...options });
 
-  if (response.status === 401) {
-    logout();
-    throw new Error("认证失败，请重新登录");
+    if (response.status === 401 || response.status === 403) {
+      console.log("认证失败，令牌可能已过期");
+      logout();
+      throw new Error("访问令牌无效，请重新登录");
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error("API请求失败:", error);
+    throw error;
   }
-
-  return response.json();
 }
 
 // 切换标签页
@@ -614,6 +745,8 @@ async function generateCode(event) {
 function showNotification(message, type = "info", duration = 3000) {
   const notification = document.createElement("div");
   notification.className = `notification notification-${type}`;
+  notification.style.transition =
+    "transform 0.2s ease, box-shadow 0.2s ease, opacity 0.3s ease";
   notification.innerHTML = `
     <div style="display: flex; align-items: center; gap: 0.75rem;">
       <span style="font-size: 1.25rem;">
@@ -623,6 +756,51 @@ function showNotification(message, type = "info", duration = 3000) {
     </div>
     <button onclick="this.parentElement.remove()" style="background: none; border: none; color: inherit; font-size: 1.25rem; cursor: pointer; opacity: 0.7;">×</button>
   `;
+
+  let autoHideTimer = null;
+  let isHovered = false;
+
+  // 启动自动消失定时器
+  function startAutoHideTimer() {
+    if (autoHideTimer) {
+      clearTimeout(autoHideTimer);
+    }
+    if (!isHovered) {
+      autoHideTimer = setTimeout(() => {
+        if (!isHovered && notification.parentNode) {
+          notification.style.opacity = "0";
+          notification.style.transform = "translateX(100%)";
+          setTimeout(() => {
+            if (notification.parentNode) {
+              notification.remove();
+            }
+          }, 300);
+        }
+      }, 3000);
+    }
+  }
+
+  // 鼠标悬停事件
+  notification.addEventListener("mouseenter", () => {
+    isHovered = true;
+    if (autoHideTimer) {
+      clearTimeout(autoHideTimer);
+      autoHideTimer = null;
+    }
+    // 添加悬停效果
+    notification.style.transform = "scale(1.02)";
+    notification.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.2)";
+  });
+
+  // 鼠标离开事件
+  notification.addEventListener("mouseleave", () => {
+    isHovered = false;
+    // 移除悬停效果
+    notification.style.transform = "scale(1)";
+    notification.style.boxShadow = "none";
+    // 重新启动自动消失定时器
+    startAutoHideTimer();
+  });
 
   // 添加样式
   notification.style.cssText = `
@@ -640,6 +818,7 @@ function showNotification(message, type = "info", duration = 3000) {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.3s ease;
     background: ${
       type === "success"
         ? "var(--success)"
@@ -651,13 +830,8 @@ function showNotification(message, type = "info", duration = 3000) {
 
   document.body.appendChild(notification);
 
-  // 自动移除
-  setTimeout(() => {
-    if (notification.parentElement) {
-      notification.style.animation = "slideOutRight 0.3s ease-out";
-      setTimeout(() => notification.remove(), 300);
-    }
-  }, duration);
+  // 启动自动消失定时器
+  startAutoHideTimer();
 }
 
 // 复制到剪贴板

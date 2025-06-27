@@ -56,6 +56,9 @@ npm run server-only
 
 # 仅启动客户端
 npm run client
+
+# Augment设备管理器清理功能全面测试报告
+cd desktop-client && node detailed-test-report.js
 ```
 
 ## 📊 项目架构

@@ -212,7 +212,7 @@ async function verifyActivationWithServer() {
       return; // 没有激活信息
     }
 
-    const deviceId = generateDeviceFingerprint();
+    const deviceId = await generateDeviceFingerprint();
 
     // 向服务器验证
     const response = await fetch(
@@ -274,7 +274,7 @@ function initializeWebSocket() {
     console.log("连接WebSocket服务器:", wsUrl);
     wsClient = new WebSocket(wsUrl);
 
-    wsClient.on("open", () => {
+    wsClient.on("open", async () => {
       console.log("WebSocket连接已建立");
       wsReconnectAttempts = 0; // 重置重连计数
 
@@ -292,16 +292,27 @@ function initializeWebSocket() {
       }
 
       // 注册客户端
-      const deviceId = generateDeviceFingerprint();
-      console.log("生成的设备ID:", deviceId);
+      try {
+        const deviceId = await generateDeviceFingerprint();
+        console.log("生成的设备ID:", deviceId);
 
-      const registerMessage = {
-        type: "register",
-        deviceId: deviceId,
-      };
-      console.log("发送注册消息:", registerMessage);
+        const registerMessage = {
+          type: "register",
+          deviceId: deviceId,
+        };
+        console.log("发送注册消息:", registerMessage);
 
-      wsClient.send(JSON.stringify(registerMessage));
+        wsClient.send(JSON.stringify(registerMessage));
+      } catch (error) {
+        console.error("生成设备ID失败:", error);
+        // 使用降级方案
+        const fallbackId = require("crypto").randomBytes(32).toString("hex");
+        const registerMessage = {
+          type: "register",
+          deviceId: fallbackId,
+        };
+        wsClient.send(JSON.stringify(registerMessage));
+      }
     });
 
     wsClient.on("message", (data) => {
@@ -656,13 +667,18 @@ function sendResponseToServer(type, data) {
 // 获取设备信息（增强版）
 ipcMain.handle("get-device-info", async () => {
   try {
-    const deviceId = generateDeviceFingerprint();
+    const deviceId = await generateDeviceFingerprint();
 
     // 获取CPU使用率（异步）
     const systemCpuUsage = await getSystemCPUUsage();
     const processCpuUsage = getProcessCPUUsage();
 
-    // 基础系统信息
+    // 获取内存使用情况（确保数值类型）
+    const memoryUsage = process.memoryUsage();
+    const totalMemory = os.totalmem();
+    const freeMemory = os.freemem();
+
+    // 基础系统信息（确保所有值都可序列化）
     const systemInfo = {
       platform: os.platform(),
       arch: os.arch(),
@@ -671,45 +687,52 @@ ipcMain.handle("get-device-info", async () => {
       version: os.release(),
       release: os.release(),
 
-      // 内存信息
-      totalMemory: os.totalmem(),
-      freeMemory: os.freemem(),
+      // 内存信息（转换为数字）
+      totalMemory: Number(totalMemory),
+      freeMemory: Number(freeMemory),
+      memoryUsagePercent: Math.round(
+        ((totalMemory - freeMemory) / totalMemory) * 100
+      ),
 
       // CPU信息
       cpuModel: os.cpus()[0]?.model || "Unknown",
       cpuCores: os.cpus().length,
-      cpuUsage: systemCpuUsage,
+      cpuUsage: Number(systemCpuUsage) || 0,
 
       // 系统运行时间
-      uptime: os.uptime(),
+      uptime: Number(os.uptime()),
 
       // Node.js版本
       nodeVersion: process.version,
 
       // 网络状态（简单检测）
-      networkStatus: "已连接", // 基础状态，可以后续增强
+      networkStatus: "已连接",
 
-      // 磁盘使用率（简化计算）
-      diskUsage: await getDiskUsage(),
+      // 磁盘使用率
+      diskUsage: Number(await getDiskUsage()) || 0,
     };
 
-    // 进程信息
+    // 进程信息（确保所有值都可序列化）
     const processInfo = {
       pid: process.pid,
-      memoryUsage: process.memoryUsage().heapUsed,
-      cpuUsage: processCpuUsage,
+      memoryUsage: Number(memoryUsage.heapUsed),
+      memoryTotal: Number(memoryUsage.heapTotal),
+      memoryExternal: Number(memoryUsage.external),
+      cpuUsage: Number(processCpuUsage) || 0,
     };
 
     return {
       success: true,
-      deviceId,
+      deviceId: String(deviceId),
       systemInfo,
       processInfo,
     };
   } catch (error) {
+    console.error("获取设备信息失败:", error);
     return {
       success: false,
       error: error.message,
+      deviceId: "error-" + Date.now(),
     };
   }
 });
@@ -774,11 +797,13 @@ async function getDiskUsage() {
         if (lines.length > 0) {
           const parts = lines[0].trim().split(/\s+/);
           if (parts.length >= 3) {
-            const freeSpace = parseInt(parts[1]);
-            const totalSpace = parseInt(parts[2]);
-            const usedSpace = totalSpace - freeSpace;
-            const usage = (usedSpace / totalSpace) * 100;
-            return Math.round(usage);
+            const freeSpace = parseInt(parts[1]) || 0;
+            const totalSpace = parseInt(parts[2]) || 1;
+            if (totalSpace > 0) {
+              const usedSpace = totalSpace - freeSpace;
+              const usage = (usedSpace / totalSpace) * 100;
+              return Math.max(0, Math.min(100, Math.round(usage)));
+            }
           }
         }
       } catch (error) {
@@ -810,7 +835,7 @@ async function getDiskUsage() {
 // 验证激活码
 ipcMain.handle("validate-activation-code", async (event, code) => {
   try {
-    const deviceId = generateDeviceFingerprint();
+    const deviceId = await generateDeviceFingerprint();
 
     // 首先进行本地格式验证
     const localValidation = validateActivationCode(code, deviceId);
@@ -908,7 +933,7 @@ ipcMain.handle("check-activation-status", async () => {
 
         // 实时验证服务端状态
         try {
-          const deviceId = generateDeviceFingerprint();
+          const deviceId = await generateDeviceFingerprint();
           const response = await fetch(
             serverConfig.getHttpUrl("/api/verify-activation"),
             {
@@ -992,7 +1017,7 @@ async function verifyActivationForOperation() {
 
     // 验证服务端状态
     try {
-      const deviceId = generateDeviceFingerprint();
+      const deviceId = await generateDeviceFingerprint();
       const response = await fetch(
         serverConfig.getHttpUrl("/api/verify-activation"),
         {
@@ -1044,10 +1069,11 @@ ipcMain.handle("perform-device-cleanup", async (event, options = {}) => {
       throw new Error("设备管理器未初始化");
     }
 
-    // 传递清理选项给设备管理器
+    // 传递清理选项给设备管理器 - 所有选项默认为true
     const cleanupOptions = {
       preserveActivation: options.preserveActivation ?? true,
-      deepClean: options.deepClean ?? false,
+      deepClean: options.deepClean ?? true,
+      cleanCursorExtension: options.cleanCursorExtension ?? true,
       ...options,
     };
 
@@ -1105,7 +1131,7 @@ ipcMain.handle("verify-operation-permission", async (event, operation) => {
       };
     }
 
-    const deviceId = generateDeviceFingerprint();
+    const deviceId = await generateDeviceFingerprint();
 
     // 向服务器验证权限
     try {
@@ -1436,10 +1462,16 @@ ipcMain.handle("get-app-version", async () => {
 async function saveActivationInfo(code, data) {
   const configPath = path.join(APP_CONFIG.configPath, APP_CONFIG.configFile);
 
+  // 确保目录存在
+  await fs.ensureDir(APP_CONFIG.configPath);
+
+  // 获取设备ID（等待异步操作完成）
+  const deviceId = await generateDeviceFingerprint();
+
   const config = {
     activation: {
       code: code,
-      deviceId: generateDeviceFingerprint(),
+      deviceId: deviceId,
       activatedAt: new Date().toISOString(),
       expiresAt: data.expiresAt,
       version: data.version,
@@ -1448,6 +1480,10 @@ async function saveActivationInfo(code, data) {
   };
 
   await fs.writeJson(configPath, config, { spaces: 2 });
+  console.log("激活信息已保存:", {
+    code,
+    deviceId: deviceId.substring(0, 16) + "...",
+  });
 }
 
 // 初始化自动更新

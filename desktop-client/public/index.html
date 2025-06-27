@@ -536,8 +536,8 @@
               清理Cursor相关的缓存文件和临时数据，释放磁盘空间。
             </p>
 
-            <!-- 清理选项 -->
-            <div class="mb-4 space-y-2">
+            <!-- 清理选项 - 隐藏但保持默认选中状态 -->
+            <div class="mb-4 space-y-2" style="display: none">
               <label class="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -551,9 +551,43 @@
                 <input
                   type="checkbox"
                   id="deep-clean"
+                  checked
                   class="rounded border-slate-300"
                 />
                 <span class="text-slate-700">深度清理（可能影响设备ID）</span>
+              </label>
+              <label class="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  id="clean-cursor-extension"
+                  checked
+                  class="rounded border-slate-300"
+                />
+                <span class="text-slate-700"
+                  >🎯 清理Cursor IDE扩展数据（让扩展认为是新设备）</span
+                >
+              </label>
+            </div>
+
+            <!-- 新增：Cursor IDE完全重置选项 -->
+            <div
+              class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg"
+            >
+              <label class="flex items-center gap-3 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="reset-cursor-completely"
+                  class="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                />
+                <div class="flex-1">
+                  <span class="text-slate-800 font-medium"
+                    >🔄 完全重置Cursor IDE用户身份</span
+                  >
+                  <p class="text-xs text-slate-600 mt-1">
+                    清理所有Cursor
+                    IDE数据，让IDE也认为是全新用户（包括遥测ID、用户设置等）
+                  </p>
+                </div>
               </label>
             </div>
 
