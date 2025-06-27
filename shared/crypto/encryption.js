@@ -13,6 +13,29 @@ const IV_LENGTH = 16; // 初始化向量长度
  */
 function generateDeviceFingerprint() {
   const os = require("os");
+  const fs = require("fs");
+  const path = require("path");
+
+  // 设备指纹缓存文件路径
+  const fingerprintCachePath = path.join(
+    os.homedir(),
+    ".augment-device-manager",
+    "device-fingerprint.cache"
+  );
+
+  // 尝试读取缓存的设备指纹
+  try {
+    if (fs.existsSync(fingerprintCachePath)) {
+      const cachedFingerprint = fs
+        .readFileSync(fingerprintCachePath, "utf8")
+        .trim();
+      if (cachedFingerprint && cachedFingerprint.length === 64) {
+        return cachedFingerprint;
+      }
+    }
+  } catch (error) {
+    // 缓存读取失败，继续生成新的指纹
+  }
 
   // 收集设备信息
   const deviceInfo = {
@@ -25,6 +48,9 @@ function generateDeviceFingerprint() {
       .join(""),
     totalmem: os.totalmem(),
     networkInterfaces: JSON.stringify(os.networkInterfaces()),
+    // 添加随机元素，确保每次清理后都能生成新的设备ID
+    randomSeed: crypto.randomBytes(16).toString("hex"),
+    timestamp: Date.now(),
   };
 
   // 生成指纹哈希
@@ -32,6 +58,17 @@ function generateDeviceFingerprint() {
     .createHash("sha256")
     .update(JSON.stringify(deviceInfo))
     .digest("hex");
+
+  // 缓存设备指纹
+  try {
+    const cacheDir = path.dirname(fingerprintCachePath);
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
+    fs.writeFileSync(fingerprintCachePath, fingerprint, "utf8");
+  } catch (error) {
+    // 缓存写入失败不影响功能
+  }
 
   return fingerprint;
 }

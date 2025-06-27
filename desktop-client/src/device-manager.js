@@ -575,6 +575,11 @@ class DeviceManager {
           ".augment-device-manager",
           "device-fingerprint"
         ),
+        path.join(
+          os.homedir(),
+          ".augment-device-manager",
+          "device-fingerprint.cache"
+        ),
         path.join(os.homedir(), ".augment", "fingerprint"),
         path.join(os.homedir(), ".cursor-augment", "device-id"),
         path.join(
