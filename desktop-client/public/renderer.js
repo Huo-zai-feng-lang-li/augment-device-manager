@@ -4,14 +4,7 @@ const { ipcRenderer } = require("electron");
 // 全局状态
 let isActivated = false;
 let deviceInfo = null;
-let wsConnected = false;
-let wsStatus = {
-  connected: false,
-  lastConnectedTime: null,
-  lastDisconnectedTime: null,
-  isReconnecting: false,
-  reconnectAttempts: 0,
-};
+let systemInfoTimer = null;
 
 // 页面加载完成后初始化
 document.addEventListener("DOMContentLoaded", async () => {
@@ -44,14 +37,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 初始化响应式处理
   initializeResponsive();
 
-  // 监听WebSocket状态变化
-  ipcRenderer.on("websocket-status-changed", (event, status) => {
-    console.log("WebSocket状态变化:", status);
-    updateWebSocketStatus(status);
-  });
-
-  // 初始化WebSocket状态
-  await loadWebSocketStatus();
+  // 启动系统信息定时刷新
+  startSystemInfoRefresh();
 
   console.log("初始化完成");
 
@@ -63,7 +50,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.switchTab = switchTab;
   window.getAugmentInfo = getAugmentInfo;
   window.loadDeviceInfo = loadDeviceInfo;
-  window.testServerConnection = testServerConnection;
+
   window.loadSystemInfo = loadSystemInfo;
   window.testLoading = testLoading;
 
@@ -97,11 +84,7 @@ async function loadAllInfoPanels() {
 
   try {
     // 并行加载所有信息板块
-    await Promise.allSettled([
-      getAugmentInfo(),
-      testServerConnection(),
-      loadDeviceInfo(),
-    ]);
+    await Promise.allSettled([getAugmentInfo(), loadDeviceInfo()]);
     console.log("信息板块加载完成");
   } catch (error) {
     console.error("加载信息板块时出错:", error);
@@ -286,6 +269,9 @@ function switchTab(tabName) {
   // 根据标签页加载对应数据
   if (tabName === "system") {
     loadSystemInfo();
+  } else if (tabName === "dashboard") {
+    // 仪表盘页面也需要加载系统信息
+    loadSystemInfo();
   }
 }
 
@@ -299,6 +285,29 @@ async function loadSystemInfo() {
   }
 }
 
+// 根据使用率获取渐变背景样式 - 柔和版本
+function getUsageGradient(percentage) {
+  if (percentage >= 90) {
+    // 危险：柔和红色渐变
+    return "linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%)";
+  } else if (percentage >= 80) {
+    // 警告：柔和橙色渐变
+    return "linear-gradient(135deg, #fb923c 0%, #f97316 50%, #ea580c 100%)";
+  } else if (percentage >= 70) {
+    // 注意：柔和黄色渐变
+    return "linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%)";
+  } else if (percentage >= 50) {
+    // 正常：柔和蓝色渐变
+    return "linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%)";
+  } else if (percentage >= 30) {
+    // 良好：柔和青色渐变
+    return "linear-gradient(135deg, #22d3ee 0%, #06b6d4 50%, #0891b2 100%)";
+  } else {
+    // 优秀：柔和绿色渐变
+    return "linear-gradient(135deg, #4ade80 0%, #22c55e 50%, #16a34a 100%)";
+  }
+}
+
 // 更新系统信息显示
 function updateSystemDisplay(systemInfo) {
   if (!systemInfo) return;
@@ -307,24 +316,69 @@ function updateSystemDisplay(systemInfo) {
   const cpuProgress = document.querySelector("#cpu-progress");
   const cpuText = document.querySelector("#cpu-text");
   if (cpuProgress && cpuText) {
-    cpuProgress.style.width = `${systemInfo.cpu || 0}%`;
-    cpuText.textContent = `${systemInfo.cpu || 0}%`;
+    const cpuUsage = systemInfo.cpu || 0;
+    cpuProgress.style.width = `${cpuUsage}%`;
+    cpuText.textContent = `${cpuUsage}%`;
+
+    // 动态更新渐变背景
+    cpuProgress.style.background = getUsageGradient(cpuUsage);
+    cpuProgress.style.transition = "all 0.5s ease";
+    cpuProgress.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+    cpuProgress.style.borderRadius = "6px";
   }
 
   // 更新内存使用率
   const memoryProgress = document.querySelector("#memory-progress");
   const memoryText = document.querySelector("#memory-text");
   if (memoryProgress && memoryText) {
-    memoryProgress.style.width = `${systemInfo.memory || 0}%`;
-    memoryText.textContent = `${systemInfo.memory || 0}%`;
+    const memoryUsage = systemInfo.memory || 0;
+    memoryProgress.style.width = `${memoryUsage}%`;
+    memoryText.textContent = `${memoryUsage}%`;
+
+    // 动态更新渐变背景
+    memoryProgress.style.background = getUsageGradient(memoryUsage);
+    memoryProgress.style.transition = "all 0.5s ease";
+    memoryProgress.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+    memoryProgress.style.borderRadius = "6px";
   }
 
   // 更新磁盘使用率
   const diskProgress = document.querySelector("#disk-progress");
   const diskText = document.querySelector("#disk-text");
   if (diskProgress && diskText) {
-    diskProgress.style.width = `${systemInfo.disk || 0}%`;
-    diskText.textContent = `${systemInfo.disk || 0}%`;
+    const diskUsage = systemInfo.disk || 0;
+    diskProgress.style.width = `${diskUsage}%`;
+    diskText.textContent = `${diskUsage}%`;
+
+    // 动态更新渐变背景
+    diskProgress.style.background = getUsageGradient(diskUsage);
+    diskProgress.style.transition = "all 0.5s ease";
+    diskProgress.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+    diskProgress.style.borderRadius = "6px";
+  }
+
+  // 更新系统详细信息
+  const hostnameText = document.querySelector("#hostname-text");
+  if (hostnameText) {
+    hostnameText.textContent = systemInfo.hostname || "-";
+  }
+
+  const uptimeText = document.querySelector("#uptime-text");
+  if (uptimeText) {
+    const uptime = systemInfo.uptime || 0;
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    uptimeText.textContent = `${hours}小时${minutes}分钟`;
+  }
+
+  const cpuCountText = document.querySelector("#cpu-count-text");
+  if (cpuCountText) {
+    cpuCountText.textContent = `${systemInfo.cpuCount || 0}核`;
+  }
+
+  const totalMemoryText = document.querySelector("#total-memory-text");
+  if (totalMemoryText) {
+    totalMemoryText.textContent = `${systemInfo.totalMemory || 0}GB`;
   }
 }
 
@@ -542,7 +596,6 @@ async function checkActivationStatus() {
 
 // 更新激活状态UI
 function updateActivationUI(statusData = null) {
-  const indicator = document.getElementById("status-indicator");
   const statusText = document.getElementById("status-text");
   const statusDetail = document.getElementById("status-detail");
   const activationForm = document.getElementById("activation-form");
@@ -555,11 +608,9 @@ function updateActivationUI(statusData = null) {
   const quickStatusText = document.getElementById("quick-status-text");
 
   if (isActivated) {
-    // 更新详细状态区域
-    indicator.className = "status-indicator status-activated";
-    indicator.textContent = ""; // 移除对号
+    // 更新状态文本
     statusText.textContent = "已激活";
-    statusText.className = "text-3xl font-bold text-green-600 mb-2"; // 设置绿色
+    statusText.className = "text-xl font-bold text-green-600 mb-2"; // 设置绿色
     statusDetail.textContent = "设备已成功激活，功能可正常使用";
     activationForm.classList.add("hidden");
     activatedInfo.classList.remove("hidden");
@@ -572,11 +623,9 @@ function updateActivationUI(statusData = null) {
       quickStatusText.textContent = "设备已激活";
     }
   } else {
-    // 更新详细状态区域
-    indicator.className = "status-indicator status-not-activated";
-    indicator.textContent = ""; // 移除叉号
+    // 更新状态文本
     statusText.textContent = "未激活";
-    statusText.className = "text-3xl font-bold text-red-600 mb-2"; // 保持红色
+    statusText.className = "text-xl font-bold text-red-600 mb-2"; // 保持红色
 
     if (statusData && statusData.reason) {
       statusDetail.textContent = statusData.reason;
@@ -589,8 +638,7 @@ function updateActivationUI(statusData = null) {
 
     // 更新顶部快速状态
     if (quickStatusIndicator) {
-      quickStatusIndicator.className =
-        "w-3 h-3 bg-red-500 rounded-full animate-pulse";
+      quickStatusIndicator.className = "w-3 h-3 bg-red-500 rounded-full";
     }
     if (quickStatusText) {
       quickStatusText.textContent = "设备未激活";
@@ -656,65 +704,6 @@ async function validateActivation() {
   }
 }
 
-// 加载WebSocket连接状态
-async function loadWebSocketStatus() {
-  try {
-    const status = await ipcRenderer.invoke("get-websocket-status");
-    updateWebSocketStatus(status);
-  } catch (error) {
-    console.error("获取WebSocket状态失败:", error);
-  }
-}
-
-// 更新WebSocket连接状态显示
-function updateWebSocketStatus(status) {
-  wsStatus = { ...wsStatus, ...status };
-  wsConnected = status.connected;
-
-  // 更新UI显示
-  updateConnectionStatusUI();
-
-  // 如果连接状态发生变化，更新清理按钮状态
-  updateCleanupButtonState();
-}
-
-// 更新连接状态UI显示
-function updateConnectionStatusUI() {
-  const statusElement = document.getElementById("connection-status");
-  if (!statusElement) return;
-
-  if (wsConnected) {
-    statusElement.innerHTML = `
-      <span style="color: #4CAF50;">🟢 已连接到管理服务器</span>
-      <small style="display: block; color: #666; margin-top: 2px;">
-        连接时间: ${
-          wsStatus.lastConnectedTime
-            ? new Date(wsStatus.lastConnectedTime).toLocaleString()
-            : "未知"
-        }
-      </small>
-    `;
-  } else if (wsStatus.isReconnecting) {
-    statusElement.innerHTML = `
-      <span style="color: #FF9800;">🟡 正在重连管理服务器...</span>
-      <small style="display: block; color: #666; margin-top: 2px;">
-        重连尝试: ${wsStatus.reconnectAttempts || 0}
-      </small>
-    `;
-  } else {
-    statusElement.innerHTML = `
-      <span style="color: #f44336;">🔴 离线模式 - 无法连接管理服务器</span>
-      <small style="display: block; color: #666; margin-top: 2px;">
-        断开时间: ${
-          wsStatus.lastDisconnectedTime
-            ? new Date(wsStatus.lastDisconnectedTime).toLocaleString()
-            : "未知"
-        }
-      </small>
-    `;
-  }
-}
-
 // 更新清理按钮状态
 function updateCleanupButtonState() {
   const cleanupBtn = document.querySelector(
@@ -722,11 +711,12 @@ function updateCleanupButtonState() {
   );
   if (!cleanupBtn) return;
 
-  if (!wsConnected) {
+  // 简化逻辑，只检查激活状态
+  if (!isActivated) {
     cleanupBtn.disabled = true;
     cleanupBtn.style.opacity = "0.5";
     cleanupBtn.style.cursor = "not-allowed";
-    cleanupBtn.title = "需要连接到管理服务器才能使用清理功能";
+    cleanupBtn.title = "需要激活设备后才能使用清理功能";
   } else {
     cleanupBtn.disabled = false;
     cleanupBtn.style.opacity = "1";
@@ -735,10 +725,10 @@ function updateCleanupButtonState() {
   }
 }
 
-// 检查功能权限（增强WebSocket连接检查）
+// 检查功能权限
 async function checkFeaturePermission(featureName, operation = null) {
   console.log(
-    `检查功能权限: ${featureName}, 操作: ${operation}, 激活状态: ${isActivated}, WebSocket连接: ${wsConnected}`
+    `检查功能权限: ${featureName}, 操作: ${operation}, 激活状态: ${isActivated}`
   );
 
   if (!isActivated) {
@@ -1120,40 +1110,6 @@ async function loadDeviceInfo() {
   }
 }
 
-// 测试服务器连接
-async function testServerConnection() {
-  try {
-    showLoading(true);
-    const result = await ipcRenderer.invoke("test-server-connection");
-
-    const resultDiv = document.getElementById("connection-result");
-
-    if (result.success) {
-      resultDiv.innerHTML = `
-                <div class="alert alert-success" style="margin-top: 15px;">
-                    <strong>✅ 服务器连接正常</strong><br>
-                    服务器地址: ${result.serverUrl}<br>
-                    响应状态: ${result.status}
-                </div>
-            `;
-    } else {
-      resultDiv.innerHTML = `
-                <div class="alert alert-error" style="margin-top: 15px;">
-                    <strong>❌ 服务器连接失败</strong><br>
-                    错误信息: ${result.error}<br>
-                    ${result.details ? result.details + "<br>" : ""}
-                    服务器地址: ${result.serverUrl}
-                </div>
-            `;
-    }
-  } catch (error) {
-    console.error("测试服务器连接失败:", error);
-    showAlert("测试服务器连接失败: " + error.message, "error");
-  } finally {
-    showLoading(false);
-  }
-}
-
 // 检查更新 (HTML调用的函数名)
 async function checkUpdate() {
   return await checkForUpdates();
@@ -1469,3 +1425,29 @@ function clearAnnouncementHistory() {
     }
   }
 }
+
+// 启动系统信息定时刷新
+function startSystemInfoRefresh() {
+  // 清除现有定时器
+  if (systemInfoTimer) {
+    clearInterval(systemInfoTimer);
+  }
+
+  // 立即加载一次
+  loadSystemInfo();
+
+  // 每5秒刷新一次系统信息
+  systemInfoTimer = setInterval(() => {
+    loadSystemInfo();
+  }, 5000);
+}
+
+// 停止系统信息定时刷新
+function stopSystemInfoRefresh() {
+  if (systemInfoTimer) {
+    clearInterval(systemInfoTimer);
+    systemInfoTimer = null;
+  }
+}
+
+// 移除了复杂的进度条动画样式，保持简洁

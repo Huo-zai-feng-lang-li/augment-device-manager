@@ -161,52 +161,18 @@
         background: #a1a1a1;
       }
 
-      /* 数据卡片动效 */
+      /* 数据卡片样式 - 移除悬停动效 */
       .data-card {
-        transition: all 0.3s ease;
         backdrop-filter: blur(10px);
+        /* 移除过渡动画 */
       }
 
+      /* 移除卡片悬停效果 */
       .data-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
-          0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        /* 移除所有悬停动画和过渡效果 */
       }
 
-      /* 状态指示器增强 */
-      .status-ring {
-        background: conic-gradient(
-          from 0deg,
-          #ef4444,
-          #f97316,
-          #eab308,
-          #22c55e,
-          #ef4444
-        );
-        padding: 3px;
-        border-radius: 50%;
-        animation: spin 3s linear infinite;
-      }
-
-      .status-ring.inactive {
-        background: conic-gradient(
-          from 0deg,
-          #ef4444,
-          #dc2626,
-          #b91c1c,
-          #ef4444
-        );
-      }
-
-      .status-ring.active {
-        background: conic-gradient(
-          from 0deg,
-          #22c55e,
-          #16a34a,
-          #15803d,
-          #22c55e
-        );
-      }
+      /* 移除了状态指示器相关样式 */
 
       /* 信息提示卡片 */
       .info-tooltip {
@@ -467,76 +433,128 @@
 
       <!-- 仪表盘标签页 -->
       <div id="dashboard-tab" class="tab-content active animate-slideUp">
-        <!-- 主要状态面板 -->
-        <div class="mb-8">
-          <div
-            class="bg-white/80 backdrop-blur-lg rounded-3xl p-8 shadow-xl border border-white/20 data-card"
-          >
-            <div class="flex items-center justify-between mb-6">
-              <div>
-                <h2 class="text-2xl font-bold text-gray-800 mb-2">
-                  设备激活状态
-                </h2>
-                <p class="text-gray-600">管理您的Cursor IDE设备授权</p>
-              </div>
-              <div class="relative">
+        <!-- 系统状态概览 -->
+        <div class="grid lg:grid-cols-3 gap-6 mb-8">
+          <!-- 系统监控卡片 -->
+          <div class="lg:col-span-2">
+            <div
+              class="bg-white/80 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/20 data-card"
+            >
+              <div class="flex items-center mb-6">
                 <div
-                  id="status-indicator"
-                  class="w-16 h-16 status-ring inactive"
+                  class="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mr-4"
                 >
-                  <div
-                    class="w-full h-full bg-white rounded-full flex items-center justify-center shadow-lg"
+                  <svg
+                    class="w-6 h-6 text-white"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                    xmlns="http://www.w3.org/2000/svg"
                   >
-                    <!-- 状态图标由JavaScript控制 -->
+                    <path
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    ></path>
+                  </svg>
+                </div>
+                <div>
+                  <h3 class="text-xl font-semibold text-gray-800">系统状态</h3>
+                  <p class="text-gray-600">实时系统性能监控</p>
+                </div>
+              </div>
+
+              <div class="space-y-6">
+                <!-- CPU使用率 -->
+                <div>
+                  <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm font-medium text-gray-700">CPU使用率</span>
+                    <span id="cpu-text" class="text-sm font-bold text-gray-900">0%</span>
+                  </div>
+                  <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div
+                      id="cpu-progress"
+                      class="h-3 rounded-full"
+                      style="width: 0%; background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%); transition: all 0.5s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+                    ></div>
+                  </div>
+                </div>
+
+                <!-- 内存使用率 -->
+                <div>
+                  <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm font-medium text-gray-700">内存使用率</span>
+                    <span id="memory-text" class="text-sm font-bold text-gray-900">0%</span>
+                  </div>
+                  <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div
+                      id="memory-progress"
+                      class="h-3 rounded-full"
+                      style="width: 0%; background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%); transition: all 0.5s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+                    ></div>
+                  </div>
+                </div>
+
+                <!-- 磁盘使用率 -->
+                <div>
+                  <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm font-medium text-gray-700">磁盘使用率</span>
+                    <span id="disk-text" class="text-sm font-bold text-gray-900">0%</span>
+                  </div>
+                  <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div
+                      id="disk-progress"
+                      class="h-3 rounded-full"
+                      style="width: 0%; background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%); transition: all 0.5s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+                    ></div>
+                  </div>
+                </div>
+
+                <!-- 系统信息 -->
+                <div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                  <div>
+                    <p class="text-xs text-gray-500">主机名</p>
+                    <p id="hostname-text" class="text-sm font-medium text-gray-800">-</p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500">运行时间</p>
+                    <p id="uptime-text" class="text-sm font-medium text-gray-800">-</p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500">CPU核心</p>
+                    <p id="cpu-count-text" class="text-sm font-medium text-gray-800">-</p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500">总内存</p>
+                    <p id="total-memory-text" class="text-sm font-medium text-gray-800">-</p>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            <div class="grid md:grid-cols-2 gap-8 items-center">
-              <div>
-                <div class="mb-6">
-                  <h3
-                    id="status-text"
-                    class="text-3xl font-bold text-red-600 mb-2"
-                  >
-                    未激活
-                  </h3>
-                  <p id="status-detail" class="text-gray-600 text-lg">
-                    请输入激活码以启用设备功能
-                  </p>
-                </div>
+          <!-- 设备激活状态卡片 -->
+          <div>
+            <div
+              class="bg-white/80 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/20 data-card h-full"
+            >
+              <div class="mb-4">
+                <h3 class="text-lg font-bold text-gray-800 mb-1">
+                  设备状态
+                </h3>
+                <p class="text-gray-600 text-sm">Cursor IDE授权</p>
+              </div>
 
-                <!-- 连接状态显示 -->
-                <div class="mb-6">
-                  <div
-                    id="connection-status"
-                    class="p-4 bg-gray-50 rounded-xl border"
-                  >
-                    <span style="color: #666">🔄 正在检查连接状态...</span>
-                  </div>
-                </div>
+              <div class="text-center mb-4">
+                <h4
+                  id="status-text"
+                  class="text-xl font-bold text-red-600 mb-2"
+                >
+                  未激活
+                </h4>
+                <p id="status-detail" class="text-gray-600 text-sm">
+                  请输入激活码以启用设备功能
+                </p>
+              </div>
 
-                <!-- 激活进度指示 -->
-                <div class="mb-6">
-                  <div class="flex justify-between items-center mb-2">
-                    <span class="text-sm font-medium text-gray-600"
-                      >激活进度</span
-                    >
-                    <span
-                      id="activation-progress-text"
-                      class="text-sm font-medium text-gray-600"
-                      >0%</span
-                    >
-                  </div>
-                  <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      id="activation-progress-bar"
-                      class="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full transition-all duration-500"
-                      style="width: 0%"
-                    ></div>
-                  </div>
-                </div>
+
 
                 <div id="activation-form">
                   <div class="space-y-4">
@@ -679,6 +697,163 @@
           </div>
         </div>
 
+        <!-- 功能操作区域 -->
+        <div class="grid md:grid-cols-2 gap-6 mb-8">
+          <!-- 快速操作 -->
+          <div
+            class="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-white/20 data-card"
+          >
+            <div class="flex items-center mb-6">
+              <div
+                class="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center mr-3"
+              >
+                <svg
+                  class="w-5 h-5 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                    clip-rule="evenodd"
+                  ></path>
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-lg font-semibold text-gray-800">快速操作</h3>
+                <p class="text-gray-600 text-sm">常用功能快捷入口</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                onclick="checkActivationStatus()"
+                class="flex items-center justify-center gap-2 bg-indigo-50 text-indigo-600 py-3 px-4 rounded-lg font-medium hover:bg-indigo-100 transition-all duration-200 border border-indigo-200"
+              >
+                <svg
+                  class="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+                    clip-rule="evenodd"
+                  ></path>
+                </svg>
+                <span class="text-sm">刷新状态</span>
+              </button>
+              <button
+                onclick="switchTab('tools')"
+                class="flex items-center justify-center gap-2 bg-purple-50 text-purple-600 py-3 px-4 rounded-lg font-medium hover:bg-purple-100 transition-all duration-200 border border-purple-200"
+              >
+                <svg
+                  class="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+                    clip-rule="evenodd"
+                  ></path>
+                </svg>
+                <span class="text-sm">管理工具</span>
+              </button>
+              <button
+                onclick="checkForUpdates()"
+                class="flex items-center justify-center gap-2 bg-green-50 text-green-600 py-3 px-4 rounded-lg font-medium hover:bg-green-100 transition-all duration-200 border border-green-200"
+              >
+                <svg
+                  class="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z"
+                    clip-rule="evenodd"
+                  ></path>
+                </svg>
+                <span class="text-sm">检查更新</span>
+              </button>
+              <button
+                onclick="switchTab('system')"
+                class="flex items-center justify-center gap-2 bg-orange-50 text-orange-600 py-3 px-4 rounded-lg font-medium hover:bg-orange-100 transition-all duration-200 border border-orange-200"
+              >
+                <svg
+                  class="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+                  ></path>
+                </svg>
+                <span class="text-sm">系统信息</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 连接状态 -->
+          <div
+            class="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-white/20 data-card"
+          >
+            <div class="flex items-center mb-6">
+              <div
+                class="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center mr-3"
+              >
+                <svg
+                  class="w-5 h-5 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M17.778 8.222c-4.296-4.296-11.26-4.296-15.556 0A1 1 0 01.808 6.808c5.076-5.077 13.308-5.077 18.384 0a1 1 0 01-1.414 1.414zM14.95 11.05a7 7 0 00-9.9 0 1 1 0 01-1.414-1.414 9 9 0 0112.728 0 1 1 0 01-1.414 1.414zM12.12 13.88a3 3 0 00-4.242 0 1 1 0 01-1.415-1.415 5 5 0 017.072 0 1 1 0 01-1.415 1.415zM9 16a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z"
+                    clip-rule="evenodd"
+                  ></path>
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-lg font-semibold text-gray-800">连接状态</h3>
+                <p class="text-gray-600 text-sm">服务器连接监控</p>
+              </div>
+            </div>
+            <div class="space-y-4">
+              <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span class="text-sm text-gray-600">服务器连接</span>
+                <div
+                  id="connection-status"
+                  class="flex items-center gap-2"
+                >
+                  <div
+                    class="w-2 h-2 bg-red-500 rounded-full animate-pulse"
+                  ></div>
+                  <span class="text-sm font-medium text-red-600"
+                    >未连接</span
+                  >
+                </div>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span class="text-sm text-gray-600">最后同步</span>
+                <span
+                  id="last-sync"
+                  class="text-sm font-medium text-gray-800"
+                  >从未</span
+                >
+              </div>
+              <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span class="text-sm text-gray-600">网络延迟</span>
+                <span
+                  id="network-latency"
+                  class="text-sm font-medium text-gray-800"
+                  >-</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 信息卡片网格 -->
         <div class="grid md:grid-cols-3 gap-6 mb-8">
           <!-- Augment扩展信息卡片 -->
@@ -794,76 +969,6 @@
                 <span id="app-version" class="text-sm font-medium text-gray-800"
                   >加载中...</span
                 >
-              </div>
-            </div>
-          </div>
-
-          <!-- 服务器连接状态卡片 -->
-          <div
-            class="bg-white/80 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-white/20 data-card"
-          >
-            <div class="flex items-center justify-between mb-4">
-              <div class="flex items-center gap-3">
-                <div
-                  class="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center"
-                >
-                  <svg
-                    class="w-6 h-6 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z"
-                      clip-rule="evenodd"
-                    ></path>
-                  </svg>
-                </div>
-                <div>
-                  <h3 class="text-lg font-semibold text-gray-800">
-                    服务器连接
-                  </h3>
-                  <p class="text-sm text-gray-600">网络状态检查</p>
-                </div>
-              </div>
-              <button
-                class="text-indigo-600 hover:text-indigo-800 transition-colors"
-                onclick="testServerConnection()"
-              >
-                <svg
-                  class="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
-                    clip-rule="evenodd"
-                  ></path>
-                </svg>
-              </button>
-            </div>
-            <div id="connection-result">
-              <div class="text-center py-4">
-                <div
-                  class="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-2"
-                >
-                  <svg
-                    class="w-4 h-4 text-gray-500"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z"
-                      clip-rule="evenodd"
-                    ></path>
-                  </svg>
-                </div>
-                <p class="text-sm text-gray-600">点击刷新按钮测试连接</p>
               </div>
             </div>
           </div>

@@ -73,7 +73,10 @@ async function detectNgrokUrl() {
     const response = await fetch("http://localhost:3002/api/health");
     if (response.ok) {
       console.log("✅ 检测到本地服务运行中");
-      // 但没有ngrok，返回null使用本地配置
+
+      // 临时演示：如果检测到本地服务，使用演示地址
+      console.log("💡 演示模式：使用模拟远程地址");
+      return "demo-server.ngrok.io";
     }
   } catch (error) {
     // 本地服务也没运行
@@ -109,10 +112,10 @@ async function buildWithLocalServer() {
 
 // 备份配置
 async function backupConfig() {
-  const configPath = path.join(__dirname, "desktop-client/src/config.js");
+  const configPath = path.join(__dirname, "../desktop-client/src/config.js");
   const backupPath = path.join(
     __dirname,
-    "desktop-client/src/config.js.backup"
+    "../desktop-client/src/config.js.backup"
   );
 
   const content = await fs.readFile(configPath, "utf8");
@@ -121,10 +124,10 @@ async function backupConfig() {
 
 // 恢复配置
 async function restoreConfig() {
-  const configPath = path.join(__dirname, "desktop-client/src/config.js");
+  const configPath = path.join(__dirname, "../desktop-client/src/config.js");
   const backupPath = path.join(
     __dirname,
-    "desktop-client/src/config.js.backup"
+    "../desktop-client/src/config.js.backup"
   );
 
   try {
@@ -139,7 +142,7 @@ async function restoreConfig() {
 
 // 设置服务器配置
 async function setServerConfig(host, port, protocol) {
-  const configPath = path.join(__dirname, "desktop-client/src/config.js");
+  const configPath = path.join(__dirname, "../desktop-client/src/config.js");
 
   let content = await fs.readFile(configPath, "utf8");
 
@@ -177,7 +180,7 @@ async function buildClient() {
 
   return new Promise((resolve, reject) => {
     const buildProcess = spawn("npm", ["run", "build"], {
-      cwd: path.join(__dirname, "desktop-client"),
+      cwd: path.join(__dirname, "../desktop-client"),
       stdio: "inherit",
       shell: true,
     });
@@ -199,7 +202,7 @@ async function buildClient() {
 
 // 清理构建文件
 async function cleanBuildFiles() {
-  const outputDir = path.join(__dirname, "desktop-client/build-output");
+  const outputDir = path.join(__dirname, "../desktop-client/build-output");
 
   try {
     // 先终止可能占用文件的进程

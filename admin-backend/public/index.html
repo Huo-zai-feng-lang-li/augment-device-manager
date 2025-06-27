@@ -265,33 +265,135 @@
         border-radius: 8px;
         overflow: hidden;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        table-layout: fixed; /* 固定表格布局 */
       }
 
       .data-table th,
       .data-table td {
-        padding: 12px;
+        padding: 8px 12px;
         text-align: left;
         border-bottom: 1px solid #e1e5e9;
+        vertical-align: middle;
+        word-wrap: break-word;
+        overflow: hidden;
       }
 
       .data-table th {
         background: #f8f9fa;
         font-weight: 600;
         color: #333;
+        white-space: nowrap;
       }
 
       .data-table tr:hover {
         background: #f8f9fa;
       }
 
+      /* 用户管理表格列宽 */
+      .users-table th:nth-child(1),
+      .users-table td:nth-child(1) {
+        width: 25%;
+      } /* 设备ID */
+      .users-table th:nth-child(2),
+      .users-table td:nth-child(2) {
+        width: 20%;
+      } /* 激活码 */
+      .users-table th:nth-child(3),
+      .users-table td:nth-child(3) {
+        width: 15%;
+      } /* 激活时间 */
+      .users-table th:nth-child(4),
+      .users-table td:nth-child(4) {
+        width: 15%;
+      } /* 过期时间 */
+      .users-table th:nth-child(5),
+      .users-table td:nth-child(5) {
+        width: 15%;
+      } /* 状态 */
+      .users-table th:nth-child(6),
+      .users-table td:nth-child(6) {
+        width: 10%;
+      } /* 操作 */
+
+      /* 激活码列表表格列宽 */
+      .codes-table th:nth-child(1),
+      .codes-table td:nth-child(1) {
+        width: 20%;
+      } /* 激活码 */
+      .codes-table th:nth-child(2),
+      .codes-table td:nth-child(2) {
+        width: 10%;
+      } /* 状态 */
+      .codes-table th:nth-child(3),
+      .codes-table td:nth-child(3) {
+        width: 25%;
+      } /* 绑定设备 */
+      .codes-table th:nth-child(4),
+      .codes-table td:nth-child(4) {
+        width: 12%;
+      } /* 创建时间 */
+      .codes-table th:nth-child(5),
+      .codes-table td:nth-child(5) {
+        width: 12%;
+      } /* 过期时间 */
+      .codes-table th:nth-child(6),
+      .codes-table td:nth-child(6) {
+        width: 8%;
+      } /* 备注 */
+      .codes-table th:nth-child(7),
+      .codes-table td:nth-child(7) {
+        width: 13%;
+      } /* 操作 */
+
+      /* 使用记录表格列宽 */
+      .logs-table th:nth-child(1),
+      .logs-table td:nth-child(1) {
+        width: 15%;
+      } /* 时间 */
+      .logs-table th:nth-child(2),
+      .logs-table td:nth-child(2) {
+        width: 20%;
+      } /* 激活码 */
+      .logs-table th:nth-child(3),
+      .logs-table td:nth-child(3) {
+        width: 25%;
+      } /* 设备ID */
+      .logs-table th:nth-child(4),
+      .logs-table td:nth-child(4) {
+        width: 10%;
+      } /* 操作 */
+      .logs-table th:nth-child(5),
+      .logs-table td:nth-child(5) {
+        width: 30%;
+      } /* 详情 */
+
       /* 状态标签 */
       .status-badge,
       .action-badge {
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
+        padding: 3px 6px;
+        border-radius: 3px;
+        font-size: 11px;
         font-weight: 600;
         text-transform: uppercase;
+        display: inline-block;
+        margin: 1px 2px;
+        white-space: nowrap;
+      }
+
+      /* 状态容器 */
+      .status-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        align-items: center;
+      }
+
+      /* 操作按钮容器 */
+      .action-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px;
+        align-items: center;
       }
 
       .status-active {
@@ -346,17 +448,21 @@
 
       /* 小按钮样式 */
       .btn-small {
-        padding: 4px 8px;
-        font-size: 12px;
-        margin: 0 2px;
+        padding: 3px 6px;
+        font-size: 11px;
+        margin: 1px;
         border: none;
-        border-radius: 4px;
+        border-radius: 3px;
         cursor: pointer;
-        transition: all 0.3s;
+        transition: all 0.2s;
+        white-space: nowrap;
+        min-width: 40px;
+        text-align: center;
       }
 
       .btn-small:hover {
         transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }
 
       .btn-secondary {
@@ -382,19 +488,51 @@
       /* 代码文本样式 */
       .code-text {
         font-family: "Courier New", monospace;
-        background: #f8f9fa;
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 12px;
+        background: #e3f2fd;
+        border: 1px solid #90caf9;
+        padding: 2px 4px;
+        border-radius: 3px;
+        font-size: 10px;
+        color: #1565c0;
+        font-weight: 600;
+        word-break: break-all;
+        max-width: 100%;
+        display: inline-block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .device-id {
         font-family: "Courier New", monospace;
-        background: #e9ecef;
-        padding: 2px 6px;
-        border-radius: 4px;
+        background: #f3e5f5;
+        border: 1px solid #ce93d8;
+        padding: 2px 4px;
+        border-radius: 3px;
+        font-size: 10px;
+        color: #7b1fa2;
+        font-weight: 600;
+        word-break: break-all;
+        max-width: 100%;
+        display: inline-block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* 代码容器样式 */
+      .code-container {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+
+      /* 时间显示样式 */
+      .datetime-text {
         font-size: 11px;
-        color: #495057;
+        color: #666;
+        white-space: nowrap;
       }
 
       /* 提示框样式 */
@@ -425,6 +563,124 @@
       /* 文本颜色 */
       .text-danger {
         color: #dc3545 !important;
+      }
+
+      /* 响应式设计 */
+      @media (max-width: 1200px) {
+        .container {
+          max-width: 100%;
+          padding: 15px;
+        }
+
+        .data-table {
+          font-size: 12px;
+        }
+
+        .users-table th:nth-child(1),
+        .users-table td:nth-child(1) {
+          width: 30%;
+        }
+        .users-table th:nth-child(2),
+        .users-table td:nth-child(2) {
+          width: 25%;
+        }
+        .users-table th:nth-child(3),
+        .users-table td:nth-child(3) {
+          width: 15%;
+        }
+        .users-table th:nth-child(4),
+        .users-table td:nth-child(4) {
+          width: 15%;
+        }
+        .users-table th:nth-child(5),
+        .users-table td:nth-child(5) {
+          width: 10%;
+        }
+        .users-table th:nth-child(6),
+        .users-table td:nth-child(6) {
+          width: 5%;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .tabs {
+          flex-wrap: wrap;
+        }
+
+        .tab {
+          font-size: 14px;
+          padding: 8px 16px;
+        }
+
+        .data-table {
+          font-size: 11px;
+        }
+
+        .btn-small {
+          font-size: 10px;
+          padding: 2px 4px;
+          min-width: 30px;
+        }
+
+        .code-text,
+        .device-id {
+          font-size: 9px;
+        }
+
+        .status-badge {
+          font-size: 9px;
+          padding: 2px 4px;
+        }
+      }
+
+      /* 美化工具提示 */
+      [title] {
+        position: relative;
+      }
+
+      [title]:hover:after {
+        content: attr(title);
+        position: fixed;
+        top: var(--tooltip-y, 50%);
+        left: var(--tooltip-x, 50%);
+        transform: translateY(-100%);
+        background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+        color: white;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        white-space: nowrap;
+        z-index: 99999;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(10px);
+        animation: tooltipFadeIn 0.3s ease-out;
+        max-width: 320px;
+        word-wrap: break-word;
+        white-space: normal;
+        pointer-events: none;
+        font-weight: 500;
+        line-height: 1.4;
+      }
+
+      [title]:hover:before {
+        content: "";
+        position: fixed;
+        border: 6px solid transparent;
+        border-top-color: #2d3748;
+        z-index: 99998;
+        pointer-events: none;
+      }
+
+      @keyframes tooltipFadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(8px) scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
       }
     </style>
   </head>
@@ -565,5 +821,33 @@
     </div>
 
     <script src="app.js"></script>
+    <script>
+      // 动态定位工具提示框
+      document.addEventListener("mouseover", function (e) {
+        if (
+          e.target.hasAttribute("title") &&
+          e.target.getAttribute("title").trim()
+        ) {
+          const tooltip = e.target;
+
+          tooltip.addEventListener("mousemove", function (event) {
+            const afterElement = window.getComputedStyle(tooltip, ":after");
+            if (
+              afterElement.content !== "none" &&
+              afterElement.content !== '""'
+            ) {
+              // 计算提示框位置
+              const x = event.clientX;
+              const y = event.clientY;
+              const offset = 15;
+
+              // 设置CSS变量来控制位置
+              tooltip.style.setProperty("--tooltip-x", x + offset + "px");
+              tooltip.style.setProperty("--tooltip-y", y - offset + "px");
+            }
+          });
+        }
+      });
+    </script>
   </body>
 </html>

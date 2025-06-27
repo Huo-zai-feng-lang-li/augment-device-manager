@@ -40,7 +40,10 @@ class Database {
                 used_at DATETIME,
                 used_by_device TEXT,
                 status TEXT DEFAULT 'active',
-                notes TEXT
+                notes TEXT,
+                revoked_at DATETIME,
+                revoke_reason TEXT,
+                last_verified_at DATETIME
             )
         `;
 
@@ -131,12 +134,33 @@ class Database {
   updateActivationCodeStatus(code, status, usedByDevice = null) {
     return new Promise((resolve, reject) => {
       const sql = `
-                UPDATE activation_codes 
+                UPDATE activation_codes
                 SET status = ?, used_at = CURRENT_TIMESTAMP, used_by_device = ?
                 WHERE code = ?
             `;
 
       this.db.run(sql, [status, usedByDevice, code], function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve({ changes: this.changes });
+        }
+      });
+    });
+  }
+
+  // 撤销激活码
+  revokeActivationCode(code, reason = "管理员撤销") {
+    return new Promise((resolve, reject) => {
+      const sql = `
+                UPDATE activation_codes
+                SET status = 'revoked',
+                    revoked_at = CURRENT_TIMESTAMP,
+                    revoke_reason = ?
+                WHERE code = ?
+            `;
+
+      this.db.run(sql, [reason, code], function (err) {
         if (err) {
           reject(err);
         } else {

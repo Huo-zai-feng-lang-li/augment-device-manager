@@ -128,12 +128,56 @@ const authenticateActivation = async (req, res, next) => {
       });
     }
 
-    // 验证激活状态
-    const validation = validateActivationCode(code, deviceId);
-    if (!validation.valid) {
+    // 检查激活码状态
+    if (activationCode.status === "revoked") {
       return res.status(403).json({
         success: false,
-        error: validation.reason,
+        error: "激活码已被撤销",
+        requireActivation: true,
+      });
+    }
+
+    if (activationCode.status === "inactive") {
+      return res.status(403).json({
+        success: false,
+        error: "激活码已被禁用",
+        requireActivation: true,
+      });
+    }
+
+    // 检查过期时间
+    const now = new Date();
+    const expiry = new Date(activationCode.expires_at);
+    if (now > expiry) {
+      // 自动标记为过期
+      activationCode.status = "expired";
+      saveData(memoryStore);
+
+      return res.status(403).json({
+        success: false,
+        error: "激活码已过期",
+        requireActivation: true,
+      });
+    }
+
+    // 检查设备绑定
+    if (
+      activationCode.used_by_device &&
+      activationCode.used_by_device !== deviceId
+    ) {
+      return res.status(403).json({
+        success: false,
+        error: "激活码已绑定其他设备",
+        requireActivation: true,
+      });
+    }
+
+    // 进行格式验证
+    const formatValidation = validateActivationCode(code, deviceId);
+    if (!formatValidation.valid) {
+      return res.status(403).json({
+        success: false,
+        error: formatValidation.reason,
         requireActivation: true,
       });
     }
@@ -401,39 +445,9 @@ app.post("/api/validate-code", async (req, res) => {
       return res.status(400).json({ error: "激活码和设备ID不能为空" });
     }
 
-    // 验证激活码
-    const validation = validateActivationCode(code, deviceId);
-
-    if (validation.valid) {
-      // 更新使用状态
-      const activationCode = memoryStore.activationCodes.find(
-        (c) => c.code === code
-      );
-      if (activationCode) {
-        activationCode.status = "used";
-        activationCode.used_at = new Date().toISOString();
-        activationCode.used_by_device = deviceId;
-      }
-
-      // 记录使用日志
-      memoryStore.usageLogs.push({
-        id: memoryStore.usageLogs.length + 1,
-        activation_code: code,
-        device_id: deviceId,
-        action: "activated",
-        timestamp: new Date().toISOString(),
-        details: "激活码验证成功",
-      });
-
-      // 保存数据到文件
-      saveData(memoryStore);
-
-      res.json({
-        success: true,
-        message: "激活成功",
-        expiresAt: validation.expiresAt,
-      });
-    } else {
+    // 先进行格式验证
+    const formatValidation = validateActivationCode(code, deviceId);
+    if (!formatValidation.valid) {
       // 记录失败日志
       memoryStore.usageLogs.push({
         id: memoryStore.usageLogs.length + 1,
@@ -441,17 +455,145 @@ app.post("/api/validate-code", async (req, res) => {
         device_id: deviceId,
         action: "failed",
         timestamp: new Date().toISOString(),
-        details: validation.reason,
+        details: formatValidation.reason,
       });
-
-      // 保存数据到文件
       saveData(memoryStore);
 
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
-        error: validation.reason,
+        error: formatValidation.reason,
       });
     }
+
+    // 从内存存储查询激活码状态
+    const activationCode = memoryStore.activationCodes.find(
+      (c) => c.code === code
+    );
+
+    if (!activationCode) {
+      // 记录失败日志
+      memoryStore.usageLogs.push({
+        id: memoryStore.usageLogs.length + 1,
+        activation_code: code,
+        device_id: deviceId,
+        action: "failed",
+        timestamp: new Date().toISOString(),
+        details: "激活码不存在",
+      });
+      saveData(memoryStore);
+
+      return res.status(400).json({
+        success: false,
+        error: "激活码不存在",
+      });
+    }
+
+    // 检查激活码状态
+    if (activationCode.status === "revoked") {
+      // 记录失败日志
+      memoryStore.usageLogs.push({
+        id: memoryStore.usageLogs.length + 1,
+        activation_code: code,
+        device_id: deviceId,
+        action: "failed",
+        timestamp: new Date().toISOString(),
+        details: "激活码已被撤销",
+      });
+      saveData(memoryStore);
+
+      return res.status(400).json({
+        success: false,
+        error: "激活码已被撤销",
+      });
+    }
+
+    if (activationCode.status === "inactive") {
+      // 记录失败日志
+      memoryStore.usageLogs.push({
+        id: memoryStore.usageLogs.length + 1,
+        activation_code: code,
+        device_id: deviceId,
+        action: "failed",
+        timestamp: new Date().toISOString(),
+        details: "激活码已被禁用",
+      });
+      saveData(memoryStore);
+
+      return res.status(400).json({
+        success: false,
+        error: "激活码已被禁用",
+      });
+    }
+
+    // 检查过期时间
+    const now = new Date();
+    const expiry = new Date(activationCode.expires_at);
+    if (now > expiry) {
+      // 自动标记为过期
+      activationCode.status = "expired";
+
+      // 记录失败日志
+      memoryStore.usageLogs.push({
+        id: memoryStore.usageLogs.length + 1,
+        activation_code: code,
+        device_id: deviceId,
+        action: "failed",
+        timestamp: new Date().toISOString(),
+        details: "激活码已过期",
+      });
+      saveData(memoryStore);
+
+      return res.status(400).json({
+        success: false,
+        error: "激活码已过期",
+      });
+    }
+
+    // 检查设备绑定（如果已被其他设备使用）
+    if (
+      activationCode.used_by_device &&
+      activationCode.used_by_device !== deviceId
+    ) {
+      // 记录失败日志
+      memoryStore.usageLogs.push({
+        id: memoryStore.usageLogs.length + 1,
+        activation_code: code,
+        device_id: deviceId,
+        action: "failed",
+        timestamp: new Date().toISOString(),
+        details: "激活码已绑定其他设备",
+      });
+      saveData(memoryStore);
+
+      return res.status(400).json({
+        success: false,
+        error: "激活码已绑定其他设备",
+      });
+    }
+
+    // 验证通过，更新使用状态
+    activationCode.status = "used";
+    activationCode.used_at = new Date().toISOString();
+    activationCode.used_by_device = deviceId;
+
+    // 记录使用日志
+    memoryStore.usageLogs.push({
+      id: memoryStore.usageLogs.length + 1,
+      activation_code: code,
+      device_id: deviceId,
+      action: "activated",
+      timestamp: new Date().toISOString(),
+      details: "激活码验证成功",
+    });
+
+    // 保存数据到文件
+    saveData(memoryStore);
+
+    res.json({
+      success: true,
+      message: "激活成功",
+      expiresAt: activationCode.expires_at,
+    });
   } catch (error) {
     console.error("验证激活码错误:", error);
     res.status(500).json({ error: "验证失败" });
@@ -1293,7 +1435,8 @@ function sendToClient(deviceId, message) {
 
 // 启动服务器
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`激活码管理后台运行在 http://0.0.0.0:${PORT}`);
+  // console.log(`激活码管理后台运行在 http://0.0.0.0:${PORT}`);
+  console.log(`激活码管理后台运行在 http://localhost:${PORT}`);
   console.log(`WebSocket服务运行在 ws://0.0.0.0:${PORT}/ws`);
   console.log("默认管理员账户: admin / admin123");
   console.log(`数据存储: ${DATA_FILE}`);

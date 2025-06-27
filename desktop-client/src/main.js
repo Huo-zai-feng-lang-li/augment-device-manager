@@ -1048,6 +1048,10 @@ ipcMain.handle("get-augment-info", async () => {
 ipcMain.handle("get-system-info", async () => {
   try {
     const os = require("os");
+    const fs = require("fs");
+    const { promisify } = require("util");
+    const { exec } = require("child_process");
+    const execAsync = promisify(exec);
 
     // 获取CPU使用率（简化版本）
     const cpus = os.cpus();
@@ -1068,8 +1072,60 @@ ipcMain.handle("get-system-info", async () => {
     const freeMem = os.freemem();
     const memoryUsage = Math.round(((totalMem - freeMem) / totalMem) * 100);
 
-    // 模拟磁盘使用率（实际项目中可以使用更精确的方法）
-    const diskUsage = Math.round(Math.random() * 30 + 50); // 50-80%之间的随机值
+    // 获取真实磁盘使用率
+    let diskUsage = 0;
+    try {
+      const platform = os.platform();
+      if (platform === "win32") {
+        // Windows系统
+        const { stdout } = await execAsync(
+          "wmic logicaldisk where size!=0 get size,freespace,caption /format:csv"
+        );
+        const lines = stdout.split("\n").filter((line) => line.includes(","));
+        if (lines.length > 1) {
+          const data = lines[1].split(",");
+          if (data.length >= 4) {
+            const freeSpace = parseInt(data[2]) || 0;
+            const totalSpace = parseInt(data[3]) || 1;
+            diskUsage = Math.round(
+              ((totalSpace - freeSpace) / totalSpace) * 100
+            );
+          }
+        }
+      } else if (platform === "darwin") {
+        // macOS系统
+        const { stdout } = await execAsync("df -h / | tail -1");
+        const parts = stdout.trim().split(/\s+/);
+        if (parts.length >= 5) {
+          const usagePercent = parts[4].replace("%", "");
+          diskUsage = parseInt(usagePercent) || 0;
+        }
+      } else {
+        // Linux系统
+        const { stdout } = await execAsync("df -h / | tail -1");
+        const parts = stdout.trim().split(/\s+/);
+        if (parts.length >= 5) {
+          const usagePercent = parts[4].replace("%", "");
+          diskUsage = parseInt(usagePercent) || 0;
+        }
+      }
+    } catch (diskError) {
+      console.error("获取磁盘使用率失败:", diskError);
+      // 使用fs.statfs作为备用方案（Node.js 19+）
+      try {
+        if (fs.statfs) {
+          const stats = await promisify(fs.statfs)("/");
+          const totalBlocks = stats.blocks;
+          const freeBlocks = stats.bavail;
+          diskUsage = Math.round(
+            ((totalBlocks - freeBlocks) / totalBlocks) * 100
+          );
+        }
+      } catch (statfsError) {
+        console.error("备用磁盘检测失败:", statfsError);
+        diskUsage = 0;
+      }
+    }
 
     return {
       cpu: Math.max(0, Math.min(100, cpuUsage || 0)),
@@ -1079,6 +1135,11 @@ ipcMain.handle("get-system-info", async () => {
       arch: os.arch(),
       hostname: os.hostname(),
       uptime: os.uptime(),
+      // 添加详细信息
+      totalMemory: Math.round((totalMem / 1024 / 1024 / 1024) * 100) / 100, // GB
+      freeMemory: Math.round((freeMem / 1024 / 1024 / 1024) * 100) / 100, // GB
+      cpuCount: cpus.length,
+      cpuModel: cpus[0]?.model || "Unknown",
     };
   } catch (error) {
     console.error("获取系统信息失败:", error);
@@ -1090,6 +1151,10 @@ ipcMain.handle("get-system-info", async () => {
       arch: "unknown",
       hostname: "unknown",
       uptime: 0,
+      totalMemory: 0,
+      freeMemory: 0,
+      cpuCount: 0,
+      cpuModel: "Unknown",
     };
   }
 });

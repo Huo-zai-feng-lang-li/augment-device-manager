@@ -119,10 +119,10 @@ function parseServerUrl(serverUrl) {
 
 // 备份原始配置
 async function backupOriginalConfig() {
-  const configPath = path.join(__dirname, "desktop-client/src/config.js");
+  const configPath = path.join(__dirname, "../desktop-client/src/config.js");
   const backupPath = path.join(
     __dirname,
-    "desktop-client/src/config.js.backup"
+    "../desktop-client/src/config.js.backup"
   );
 
   const content = await fs.readFile(configPath, "utf8");
@@ -132,10 +132,10 @@ async function backupOriginalConfig() {
 
 // 恢复原始配置
 async function restoreOriginalConfig() {
-  const configPath = path.join(__dirname, "desktop-client/src/config.js");
+  const configPath = path.join(__dirname, "../desktop-client/src/config.js");
   const backupPath = path.join(
     __dirname,
-    "desktop-client/src/config.js.backup"
+    "../desktop-client/src/config.js.backup"
   );
 
   try {
@@ -150,7 +150,7 @@ async function restoreOriginalConfig() {
 
 // 设置默认服务器
 async function setDefaultServer(host, port, protocol) {
-  const configPath = path.join(__dirname, "desktop-client/src/config.js");
+  const configPath = path.join(__dirname, "../desktop-client/src/config.js");
 
   let content = await fs.readFile(configPath, "utf8");
 
@@ -185,7 +185,7 @@ async function buildClient() {
 
   return new Promise((resolve, reject) => {
     const buildProcess = spawn("npm", ["run", "build"], {
-      cwd: path.join(__dirname, "desktop-client"),
+      cwd: path.join(__dirname, "../desktop-client"),
       stdio: "inherit",
       shell: true,
     });

@@ -9,7 +9,15 @@ pids
 *.pid
 *.seed
 *.pid.lock
-
+*.exe
+*.zip
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.snap
+*.msi
+*.nsis
 # Coverage directory used by tools like istanbul
 coverage/
 *.lcov

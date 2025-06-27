@@ -91,7 +91,10 @@ function startServer() {
 
     server.stdout.on("data", (data) => {
       const output = data.toString();
-      if (output.includes("localhost:3002")) {
+      if (
+        output.includes("3002") &&
+        (output.includes("运行在") || output.includes("listening"))
+      ) {
         console.log("✅ 后端服务已启动");
         resolve(server);
       }
@@ -116,7 +119,25 @@ function startNgrok() {
 
     ngrok.stdout.on("data", (data) => {
       const output = data.toString();
-      if (output.includes("started tunnel") || output.includes("Forwarding")) {
+      console.log("ngrok stdout:", output); // 调试输出
+      if (
+        output.includes("started tunnel") ||
+        output.includes("Forwarding") ||
+        output.includes("ngrok.io")
+      ) {
+        console.log("✅ ngrok隧道已建立");
+        resolve(ngrok);
+      }
+    });
+
+    ngrok.stderr.on("data", (data) => {
+      const output = data.toString();
+      console.log("ngrok stderr:", output); // 调试输出
+      if (
+        output.includes("started tunnel") ||
+        output.includes("Forwarding") ||
+        output.includes("ngrok.io")
+      ) {
         console.log("✅ ngrok隧道已建立");
         resolve(ngrok);
       }
@@ -150,10 +171,14 @@ async function getNgrokUrl() {
 // 使用服务器地址打包
 async function buildWithServer(serverUrl) {
   return new Promise((resolve, reject) => {
-    const build = spawn("node", ["build-with-server.js", serverUrl], {
-      shell: true,
-      stdio: "inherit",
-    });
+    const build = spawn(
+      "node",
+      [path.join(__dirname, "build-with-server.js"), serverUrl],
+      {
+        shell: true,
+        stdio: "inherit",
+      }
+    );
 
     build.on("close", (code) => {
       if (code === 0) {

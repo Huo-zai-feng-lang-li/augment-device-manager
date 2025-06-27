@@ -331,6 +331,14 @@ function copyToClipboard(text) {
 
 // 加载激活码列表
 async function loadCodes() {
+  // 添加加载状态
+  const refreshBtn = document.querySelector('button[onclick="loadCodes()"]');
+  const originalText = refreshBtn ? refreshBtn.innerHTML : "";
+  if (refreshBtn) {
+    refreshBtn.innerHTML = "🔄 刷新中...";
+    refreshBtn.disabled = true;
+  }
+
   try {
     const data = await apiRequest("/api/activation-codes");
     if (data.success) {
@@ -341,6 +349,12 @@ async function loadCodes() {
     document.getElementById("codesTable").innerHTML = `
             <div class="alert alert-error">加载失败: ${error.message}</div>
         `;
+  } finally {
+    // 恢复按钮状态
+    if (refreshBtn) {
+      refreshBtn.innerHTML = originalText;
+      refreshBtn.disabled = false;
+    }
   }
 }
 
@@ -354,7 +368,7 @@ function renderCodesTable(codes) {
   }
 
   const tableHTML = `
-        <table class="data-table">
+        <table class="data-table codes-table">
             <thead>
                 <tr>
                     <th>激活码</th>
@@ -368,44 +382,73 @@ function renderCodesTable(codes) {
             </thead>
             <tbody>
                 ${codes
-                  .map(
-                    (code) => `
+                  .map((code) => {
+                    // 截断长设备ID用于显示
+                    const deviceId = code.used_by_device;
+                    const shortDeviceId =
+                      deviceId && deviceId.length > 20
+                        ? deviceId.substring(0, 20) + "..."
+                        : deviceId;
+
+                    return `
                     <tr>
                         <td>
-                            <code class="code-text">${code.code}</code>
-                            <button onclick="copyToClipboard('${
-                              code.code
-                            }')" class="btn-small">复制</button>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                              <code class="code-text" title="${code.code}">${
+                      code.code
+                    }</code>
+                              <button onclick="copyToClipboard('${
+                                code.code
+                              }')" class="btn-small">复制</button>
+                            </div>
                         </td>
                         <td>
                             <span class="status-badge status-${code.status}">
                                 ${getStatusText(code.status)}
                             </span>
                         </td>
-                        <td>${code.used_by_device || "-"}</td>
-                        <td>${formatDateTime(code.created_at)}</td>
+                        <td>
+                            ${
+                              deviceId
+                                ? `<code class="device-id"${
+                                    shortDeviceId !== deviceId
+                                      ? ` title="${deviceId}"`
+                                      : ""
+                                  }>${shortDeviceId}</code>`
+                                : "-"
+                            }
+                        </td>
+                        <td>
+                            <span class="datetime-text">${formatDateTime(
+                              code.created_at
+                            )}</span>
+                        </td>
                         <td class="${
                           isExpired(code.expires_at) ? "text-danger" : ""
                         }">
-                            ${formatDateTime(code.expires_at)}
+                            <span class="datetime-text">${formatDateTime(
+                              code.expires_at
+                            )}</span>
                         </td>
                         <td>${code.notes || "-"}</td>
                         <td>
-                            <button onclick="editCode('${
-                              code.id
-                            }')" class="btn-small btn-secondary">编辑</button>
-                            <button onclick="deleteCode('${
-                              code.id
-                            }')" class="btn-small btn-danger">删除</button>
-                            ${
-                              code.status === "active"
-                                ? `<button onclick="revokeCode('${code.id}')" class="btn-small btn-warning">撤销</button>`
-                                : ""
-                            }
+                            <div class="action-container">
+                              <button onclick="editCode('${
+                                code.id
+                              }')" class="btn-small btn-secondary">编辑</button>
+                              <button onclick="deleteCode('${
+                                code.id
+                              }')" class="btn-small btn-danger">删除</button>
+                              ${
+                                code.status === "active"
+                                  ? `<button onclick="revokeCode('${code.id}')" class="btn-small btn-warning">撤销</button>`
+                                  : ""
+                              }
+                            </div>
                         </td>
                     </tr>
-                `
-                  )
+                `;
+                  })
                   .join("")}
             </tbody>
         </table>
@@ -416,6 +459,14 @@ function renderCodesTable(codes) {
 
 // 加载使用记录
 async function loadLogs() {
+  // 添加加载状态
+  const refreshBtn = document.querySelector('button[onclick="loadLogs()"]');
+  const originalText = refreshBtn ? refreshBtn.innerHTML : "";
+  if (refreshBtn) {
+    refreshBtn.innerHTML = "🔄 刷新中...";
+    refreshBtn.disabled = true;
+  }
+
   try {
     const data = await apiRequest("/api/usage-logs");
     if (data.success) {
@@ -426,6 +477,12 @@ async function loadLogs() {
     document.getElementById("logsTable").innerHTML = `
             <div class="alert alert-error">加载失败: ${error.message}</div>
         `;
+  } finally {
+    // 恢复按钮状态
+    if (refreshBtn) {
+      refreshBtn.innerHTML = originalText;
+      refreshBtn.disabled = false;
+    }
   }
 }
 
@@ -439,7 +496,7 @@ function renderLogsTable(logs) {
   }
 
   const tableHTML = `
-        <table class="data-table">
+        <table class="data-table logs-table">
             <thead>
                 <tr>
                     <th>时间</th>
@@ -451,23 +508,76 @@ function renderLogsTable(logs) {
             </thead>
             <tbody>
                 ${logs
-                  .map(
-                    (log) => `
+                  .map((log) => {
+                    // 截断长设备ID和激活码用于显示
+                    const deviceId = log.device_id;
+                    const shortDeviceId =
+                      deviceId && deviceId.length > 20
+                        ? deviceId.substring(0, 20) + "..."
+                        : deviceId;
+
+                    const activationCode = log.activation_code;
+                    const shortActivationCode =
+                      activationCode && activationCode.length > 15
+                        ? activationCode.substring(0, 15) + "..."
+                        : activationCode;
+
+                    return `
                     <tr>
-                        <td>${formatDateTime(log.timestamp)}</td>
-                        <td><code class="code-text">${
-                          log.activation_code
-                        }</code></td>
-                        <td><code class="device-id">${log.device_id}</code></td>
+                        <td>
+                            <span class="datetime-text">${formatDateTime(
+                              log.timestamp
+                            )}</span>
+                        </td>
+                        <td>
+                            ${
+                              activationCode
+                                ? `
+                              <div class="code-container">
+                                <code class="code-text"${
+                                  shortActivationCode !== activationCode
+                                    ? ` title="${activationCode}"`
+                                    : ""
+                                }>${shortActivationCode}</code>
+                                <button onclick="copyToClipboard('${activationCode.replace(
+                                  /'/g,
+                                  "\\'"
+                                )}')" class="btn-small">复制</button>
+                              </div>
+                            `
+                                : "-"
+                            }
+                        </td>
+                        <td>
+                            ${
+                              deviceId
+                                ? `
+                              <div class="code-container">
+                                <code class="device-id"${
+                                  shortDeviceId !== deviceId
+                                    ? ` title="${deviceId}"`
+                                    : ""
+                                }>${shortDeviceId}</code>
+                                <button onclick="copyToClipboard('${deviceId.replace(
+                                  /'/g,
+                                  "\\'"
+                                )}')" class="btn-small">复制</button>
+                              </div>
+                            `
+                                : "-"
+                            }
+                        </td>
                         <td>
                             <span class="action-badge action-${log.action}">
                                 ${getActionText(log.action)}
                             </span>
                         </td>
-                        <td>${log.details || "-"}</td>
+                        <td style="font-size: 11px; word-break: break-word;">${
+                          log.details || "-"
+                        }</td>
                     </tr>
-                `
-                  )
+                `;
+                  })
                   .join("")}
             </tbody>
         </table>
@@ -483,6 +593,7 @@ function getStatusText(status) {
     used: "已使用",
     expired: "已过期",
     revoked: "已撤销",
+    inactive: "已禁用",
   };
   return statusMap[status] || status;
 }
@@ -494,6 +605,13 @@ function getActionText(action) {
     failed: "失败",
     revoked: "撤销",
     verified: "验证",
+    deleted: "删除",
+    broadcast: "广播",
+    user_disable: "禁用用户",
+    user_enable: "启用用户",
+    operation_cleanup: "清理操作",
+    创建: "创建",
+    激活: "激活",
   };
   return actionMap[action] || action;
 }
@@ -706,6 +824,14 @@ async function disconnectClient(clientId) {
 
 // 加载用户管理数据
 async function loadUsers() {
+  // 添加加载状态
+  const refreshBtn = document.querySelector('button[onclick="loadUsers()"]');
+  const originalText = refreshBtn ? refreshBtn.innerHTML : "";
+  if (refreshBtn) {
+    refreshBtn.innerHTML = "🔄 刷新中...";
+    refreshBtn.disabled = true;
+  }
+
   try {
     // 使用新的用户API
     const usersData = await apiRequest("/api/users");
@@ -718,6 +844,12 @@ async function loadUsers() {
     document.getElementById("usersTable").innerHTML = `
       <div class="alert alert-error">加载失败: ${error.message}</div>
     `;
+  } finally {
+    // 恢复按钮状态
+    if (refreshBtn) {
+      refreshBtn.innerHTML = originalText;
+      refreshBtn.disabled = false;
+    }
   }
 }
 
@@ -731,7 +863,7 @@ function renderUsersTable(users) {
   }
 
   const tableHTML = `
-    <table class="data-table">
+    <table class="data-table users-table">
       <thead>
         <tr>
           <th>设备ID</th>
@@ -758,32 +890,78 @@ function renderUsersTable(users) {
                 ? "已过期"
                 : "未知";
 
+            // 截断长设备ID和激活码用于显示
+            const shortDeviceId =
+              user.deviceId.length > 20
+                ? user.deviceId.substring(0, 20) + "..."
+                : user.deviceId;
+            const shortActivationCode =
+              user.activationCode.length > 15
+                ? user.activationCode.substring(0, 15) + "..."
+                : user.activationCode;
+
             return `
             <tr>
-              <td><code class="device-id">${user.deviceId}</code></td>
-              <td><code class="code-text">${user.activationCode}</code></td>
-              <td>${formatDateTime(user.activatedAt)}</td>
-              <td>${formatDateTime(user.expiresAt)}</td>
               <td>
-                <span class="status-badge status-${statusClass}">
-                  ${user.isOnline ? "在线" : "离线"}
-                </span>
-                <span class="status-badge status-${user.status}">
-                  ${activationStatus}
-                </span>
+                <div class="code-container">
+                  <code class="device-id"${
+                    shortDeviceId !== user.deviceId
+                      ? ` title="${user.deviceId}"`
+                      : ""
+                  }>${shortDeviceId}</code>
+                  <button onclick="copyToClipboard('${user.deviceId.replace(
+                    /'/g,
+                    "\\'"
+                  )}')" class="btn-small">复制</button>
+                </div>
               </td>
               <td>
-                <button onclick="viewUserDetails('${
-                  user.deviceId
-                }')" class="btn-small btn-secondary">详情</button>
-                ${
-                  user.status === "used"
-                    ? `<button onclick="toggleUserStatus('${user.deviceId}', 'disable')" class="btn-small btn-warning">禁用</button>`
-                    : `<button onclick="toggleUserStatus('${user.deviceId}', 'enable')" class="btn-small btn-success">启用</button>`
-                }
-                <button onclick="sendUserNotification('${
-                  user.deviceId
-                }')" class="btn-small btn-secondary">通知</button>
+                <div class="code-container">
+                  <code class="code-text"${
+                    shortActivationCode !== user.activationCode
+                      ? ` title="${user.activationCode}"`
+                      : ""
+                  }>${shortActivationCode}</code>
+                  <button onclick="copyToClipboard('${user.activationCode.replace(
+                    /'/g,
+                    "\\'"
+                  )}')" class="btn-small">复制</button>
+                </div>
+              </td>
+              <td>
+                <span class="datetime-text">${formatDateTime(
+                  user.activatedAt
+                )}</span>
+              </td>
+              <td>
+                <span class="datetime-text">${formatDateTime(
+                  user.expiresAt
+                )}</span>
+              </td>
+              <td>
+                <div class="status-container">
+                  <span class="status-badge status-${statusClass}">
+                    ${user.isOnline ? "在线" : "离线"}
+                  </span>
+                  <span class="status-badge status-${user.status}">
+                    ${activationStatus}
+                  </span>
+                </div>
+              </td>
+              <td>
+                <div class="action-container">
+                  <button onclick="viewUserDetails('${
+                    user.deviceId
+                  }')" class="btn-small btn-secondary">详情</button>
+                  ${
+                    user.status === "used"
+                      ? `<button onclick="toggleUserStatus('${user.deviceId}', 'disable')" class="btn-small btn-warning">禁用</button>`
+                      : `<button onclick="toggleUserStatus('${user.deviceId}', 'enable')" class="btn-small btn-success">启用</button>`
+                  }
+                  <button onclick="sendUserNotification('${
+                    user.deviceId
+                  }')" class="btn-small btn-secondary">通知</button>
+                </div>
               </td>
             </tr>
           `;

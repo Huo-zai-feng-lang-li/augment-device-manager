@@ -136,30 +136,81 @@ app.post("/api/validate-code", async (req, res) => {
       return res.status(400).json({ error: "激活码和设备ID不能为空" });
     }
 
-    // 验证激活码
-    const validation = validateActivationCode(code, deviceId);
-
-    if (validation.valid) {
-      // 更新使用状态
-      await db.updateActivationCodeStatus(code, "used", deviceId);
-
-      // 记录使用日志
-      await db.logUsage(code, deviceId, "activated", "激活码验证成功");
-
-      res.json({
-        success: true,
-        message: "激活成功",
-        expiresAt: validation.expiresAt,
-      });
-    } else {
-      // 记录失败日志
-      await db.logUsage(code, deviceId, "failed", validation.reason);
-
-      res.status(400).json({
+    // 先进行格式验证
+    const formatValidation = validateActivationCode(code, deviceId);
+    if (!formatValidation.valid) {
+      await db.logUsage(code, deviceId, "failed", formatValidation.reason);
+      return res.status(400).json({
         success: false,
-        error: validation.reason,
+        error: formatValidation.reason,
       });
     }
+
+    // 从数据库查询激活码状态
+    const activationCodes = await db.getAllActivationCodes();
+    const activationCode = activationCodes.find((c) => c.code === code);
+
+    if (!activationCode) {
+      await db.logUsage(code, deviceId, "failed", "激活码不存在");
+      return res.status(400).json({
+        success: false,
+        error: "激活码不存在",
+      });
+    }
+
+    // 检查激活码状态
+    if (activationCode.status === "revoked") {
+      await db.logUsage(code, deviceId, "failed", "激活码已被撤销");
+      return res.status(400).json({
+        success: false,
+        error: "激活码已被撤销",
+      });
+    }
+
+    if (activationCode.status === "inactive") {
+      await db.logUsage(code, deviceId, "failed", "激活码已被禁用");
+      return res.status(400).json({
+        success: false,
+        error: "激活码已被禁用",
+      });
+    }
+
+    // 检查过期时间
+    const now = new Date();
+    const expiry = new Date(activationCode.expires_at);
+    if (now > expiry) {
+      // 自动标记为过期
+      await db.updateActivationCodeStatus(code, "expired");
+      await db.logUsage(code, deviceId, "failed", "激活码已过期");
+      return res.status(400).json({
+        success: false,
+        error: "激活码已过期",
+      });
+    }
+
+    // 检查设备绑定（如果已被其他设备使用）
+    if (
+      activationCode.used_by_device &&
+      activationCode.used_by_device !== deviceId
+    ) {
+      await db.logUsage(code, deviceId, "failed", "激活码已绑定其他设备");
+      return res.status(400).json({
+        success: false,
+        error: "激活码已绑定其他设备",
+      });
+    }
+
+    // 验证通过，更新使用状态
+    await db.updateActivationCodeStatus(code, "used", deviceId);
+
+    // 记录使用日志
+    await db.logUsage(code, deviceId, "activated", "激活码验证成功");
+
+    res.json({
+      success: true,
+      message: "激活成功",
+      expiresAt: activationCode.expires_at,
+    });
   } catch (error) {
     console.error("验证激活码错误:", error);
     res.status(500).json({ error: "验证失败" });
@@ -177,6 +228,43 @@ app.get("/api/usage-logs", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("获取使用记录错误:", error);
     res.status(500).json({ error: "获取使用记录失败" });
+  }
+});
+
+// 撤销激活码
+app.post("/api/revoke-activation", authenticateToken, async (req, res) => {
+  try {
+    const { code, reason = "管理员撤销" } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: "激活码不能为空" });
+    }
+
+    // 检查激活码是否存在
+    const activationCodes = await db.getAllActivationCodes();
+    const activationCode = activationCodes.find((c) => c.code === code);
+
+    if (!activationCode) {
+      return res.status(404).json({ error: "激活码不存在" });
+    }
+
+    if (activationCode.status === "revoked") {
+      return res.status(400).json({ error: "激活码已被撤销" });
+    }
+
+    // 撤销激活码
+    await db.revokeActivationCode(code, reason);
+
+    // 记录撤销日志
+    await db.logUsage(code, "admin", "revoked", `管理员撤销激活码: ${reason}`);
+
+    res.json({
+      success: true,
+      message: "激活码撤销成功",
+    });
+  } catch (error) {
+    console.error("撤销激活码错误:", error);
+    res.status(500).json({ error: "撤销激活码失败" });
   }
 });
 

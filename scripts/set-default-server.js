@@ -48,7 +48,7 @@ async function main() {
 }
 
 async function updateDefaultConfig(host, port, protocol) {
-  const configPath = path.join(__dirname, "desktop-client/src/config.js");
+  const configPath = path.join(__dirname, "../desktop-client/src/config.js");
 
   if (!fsSync.existsSync(configPath)) {
     throw new Error("配置文件不存在: " + configPath);
@@ -84,7 +84,7 @@ const DEFAULT_CONFIG = {
 
 async function showCurrentConfig() {
   try {
-    const configPath = path.join(__dirname, "desktop-client/src/config.js");
+    const configPath = path.join(__dirname, "../desktop-client/src/config.js");
     const content = await fs.readFile(configPath, "utf8");
 
     // 提取当前配置

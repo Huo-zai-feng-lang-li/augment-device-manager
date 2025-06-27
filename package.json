@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "echo 🚀 启动完整开发环境... && npm run install-all && concurrently --names \"后端,客户端\" --prefix-colors \"blue,green\" \"cd admin-backend && npm run dev\" \"cd desktop-client && npm run dev\"",
-    "build": "echo 🚀 智能打包远程控制版本... && node smart-build.js",
+    "build:remote": "echo 🚀 超级一键打包远程控制版本... && node scripts/super-build.js",
+    "build": "echo 🚀 智能打包本地控制版本... && node scripts/smart-build.js",
     "start": "npm run dev",
     "server": "cd admin-backend && npm run dev",
     "client": "cd desktop-client && npm run dev",
@@ -27,6 +28,7 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
-    "fs-extra": "^11.3.0"
+    "fs-extra": "^11.3.0",
+    "node-fetch": "^2.7.0"
   }
 }
