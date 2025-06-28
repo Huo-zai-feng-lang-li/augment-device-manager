@@ -67,8 +67,8 @@ cd desktop-client && node detailed-test-report.js
 
 ```mermaid
 graph TD
-    A[🏠 Augment 设备管理器] --> B[🌐 管理后台<br/>admin-backend]
-    A --> C[💻 桌面客户端<br/>desktop-client]
+    A[🏠 Augment 设备管理器] --> B[🌐 管理后台<br/>modules/admin-backend]
+    A --> C[💻 桌面客户端<br/>modules/desktop-client]
     A --> D[🔧 共享模块<br/>shared]
 
     B --> B1[🚀 Express 服务器<br/>server.js]
@@ -101,10 +101,18 @@ graph TD
 
 ```
 根目录/
-├── admin-backend/          # 后端服务器
-├── desktop-client/         # 桌面客户端
+├── modules/                # 主要模块
+│   ├── admin-backend/      # 后端服务器
+│   └── desktop-client/     # 桌面客户端
+├── scripts/                # 脚本文件
+│   ├── build/              # 构建脚本
+│   ├── setup/              # 设置脚本
+│   └── powershell/         # PowerShell脚本
+├── tests/                  # 测试文件
+│   ├── current/            # 当前活跃测试
+│   ├── legacy/             # 旧版测试文件
+│   └── integration/        # 集成测试
 ├── shared/                 # 共享代码模块
-├── scripts/                # 构建和部署脚本
 ├── docs/                   # 项目文档
 ├── tools/                  # 工具文件
 ├── package.json            # 项目配置
@@ -114,14 +122,18 @@ graph TD
 
 ## 📋 常用命令
 
-| 命令                   | 功能                                                                    |
-| ---------------------- | ----------------------------------------------------------------------- |
-| `npm run dev`          | 🚀 一键启动完整开发环境                                                 |
-| `npm run setup`        | 📦 安装所有依赖                                                         |
-| `npm run server-only`  | 🌐 仅启动远程控制服务器                                                 |
-| `npm run build`        | 📦 打包桌面 exe                                                         |
-| `npm run build:remote` | 🚀 一键远程打包，用于分发给不同用户，可以通过扶服务端远程控制任意客户端 |
-| `npm run release`      | 🚀 发布新版本                                                           |
+| 命令                       | 功能                                                                    |
+| -------------------------- | ----------------------------------------------------------------------- |
+| `npm run dev`              | 🚀 一键启动完整开发环境                                                 |
+| `npm run setup`            | 📦 安装所有依赖                                                         |
+| `npm run server-only`      | 🌐 仅启动远程控制服务器                                                 |
+| `npm run build`            | 📦 打包桌面 exe                                                         |
+| `npm run build:remote`     | 🚀 一键远程打包，用于分发给不同用户，可以通过扶服务端远程控制任意客户端 |
+| `npm run config:update`    | 🔄 自动更新客户端配置（解决 ngrok 地址变化问题）                        |
+| `npm run config:watch`     | 👀 实时监听服务器地址变化并自动更新配置                                 |
+| `npm run workflow:rebuild` | 🚀 **一键重建客户端**（推荐日常使用）                                   |
+| `npm run workflow:quick`   | ⚡ 快速重建客户端                                                       |
+| `npm run release`          | 🚀 发布新版本                                                           |
 
 ## 🌐 服务地址
 
@@ -300,6 +312,7 @@ npm run release      # 构建并发布到GitHub Releases
 - ✅ 配置管理：自动备份和恢复客户端配置
 - ✅ 远程打包：生成预配置远程服务器地址的安装包
 - ✅ 一对多控制：服务端可以远程控制所有客户端
+- ✅ 地址变化解决：自动检测并更新 ngrok 地址变化
 
 ### 快速开始
 
@@ -341,15 +354,73 @@ npm run build
 npm run test-connection
 ```
 
+### ngrok 地址变化解决方案
+
+**问题**：ngrok 免费版地址每次重启都会变化，导致已分发的客户端无法连接。
+
+**解决方案**：
+
+```bash
+# 1. 自动更新配置
+npm run config:update
+
+# 2. 重新打包
+npm run build:remote
+
+# 3. 分发新安装包
+```
+
+**一键重建**：
+
+```bash
+# 推荐：完整工作流程（检查→更新→验证→清理→打包）
+npm run workflow:rebuild
+
+# 快速模式：仅更新配置并打包
+npm run workflow:quick
+```
+
+**实时监听**：
+
+```bash
+# 后台运行，自动检测地址变化
+npm run config:watch
+```
+
+详细说明请参考：**[📖 下次运行指南](./docs/下次运行指南.md)** |
+**[📖 ngrok 地址变化解决方案](./docs/ngrok地址变化解决方案.md)**
+
 ### 详细配置
 
-完整的远程控制配置指南请参考：**[📖 远程控制配置指南](./REMOTE_CONTROL.md)**
+完整的远程控制配置指南请参考
+：**[📖 远程控制配置指南](./docs/远程控制配置指南.md)**
 
 支持的部署方案：
 
-- 🚀 **ngrok** - 快速测试，几分钟完成配置
+- 🚀 **ngrok** - 快速测试，几分钟完成配置（已解决地址变化问题）
 - ☁️ **云服务器** - 生产环境推荐
 - 🔗 **内网穿透** - frp、花生壳等工具
+
+## 🔧 调试工具
+
+项目提供了多个调试工具，位于 `tools/` 目录：
+
+```bash
+# 显示详细的设备指纹信息
+node tools/显示设备指纹.js
+
+# 调试设备ID生成函数
+node tools/调试设备ID.js
+
+# 简单设备指纹查看
+node tools/简单设备指纹.js
+```
+
+这些工具可以帮助你：
+
+- 🔍 查看当前设备的指纹信息
+- 🧪 测试不同的设备 ID 生成算法
+- 🔧 调试设备识别相关问题
 
 ## 📋 命令速查
 
@@ -363,6 +434,8 @@ npm run test-connection
 | `npm run setup-remote`     | 🌐 远程控制配置向导     |
 | `npm run test-connection`  | 🔍 测试远程连接         |
 | `npm run configure-client` | ⚙️ 配置客户端服务器     |
+| `npm run config:update`    | 🔄 自动更新客户端配置   |
+| `npm run config:watch`     | 👀 监听地址变化         |
 
 ## 🤝 技术交流
 

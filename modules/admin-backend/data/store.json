@@ -1,0 +1,42 @@
+{
+  "admins": [
+    {
+      "id": 1,
+      "username": "admin",
+      "password_hash": "$2a$10$PhGXY9B.roFaeQcBfHKG0Oa0qGUI4gMwkrLhWhh0bY.E8r/8GxhWy"
+    }
+  ],
+  "activationCodes": [
+    {
+      "id": 1,
+      "code": "974EC190096E6B166500E09F557FCA8A",
+      "device_id": null,
+      "created_at": "2025-06-28T16:24:56.151Z",
+      "expires_at": "2025-07-28T16:24:56.151Z",
+      "used_at": "2025-06-28T16:28:11.075Z",
+      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "status": "used",
+      "notes": "",
+      "last_verified_at": "2025-06-28T16:35:59.811Z"
+    }
+  ],
+  "usageLogs": [
+    {
+      "id": 1,
+      "activation_code": "974EC190096E6B166500E09F557FCA8A",
+      "device_id": "admin",
+      "action": "created",
+      "timestamp": "2025-06-28T16:24:56.151Z",
+      "details": "管理员创建激活码"
+    },
+    {
+      "id": 2,
+      "activation_code": "974EC190096E6B166500E09F557FCA8A",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "activated",
+      "timestamp": "2025-06-28T16:28:11.075Z",
+      "details": "激活码验证成功"
+    }
+  ],
+  "broadcastHistory": []
+}

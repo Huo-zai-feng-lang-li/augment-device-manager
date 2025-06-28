@@ -166,12 +166,12 @@ admin-backend/logs/
 admin-backend/uploads/
 
 # Desktop client specific - 构建输出目录
-desktop-client/dist/
-desktop-client/build/
-desktop-client/build-output/
-desktop-client/exe-output/
-desktop-client/final-build/
-desktop-client/release/
+modules/desktop-client/dist/
+modules/desktop-client/dist-final/
+modules/desktop-client/build/
+modules/desktop-client/build-output/
+modules/desktop-client/final-build/
+modules/desktop-client/release/
 
 # 保留desktop-client/public目录（前端界面文件）
 !desktop-client/public/

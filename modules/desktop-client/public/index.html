@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Augment设备管理器</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      /* 极简风格样式 */
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateX(-12px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.8;
+          transform: scale(1.05);
+        }
+      }
+
+      @keyframes deviceIdUpdate {
+        0% {
+          background-color: #dcfce7;
+          border-color: #16a34a;
+          transform: scale(1);
+        }
+        50% {
+          background-color: #bbf7d0;
+          border-color: #15803d;
+          transform: scale(1.02);
+        }
+        100% {
+          background-color: #dcfce7;
+          border-color: #16a34a;
+          transform: scale(1);
+        }
+      }
+
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .animate-fadeIn {
+        animation: fadeIn 0.4s ease-out;
+      }
+      .animate-slideIn {
+        animation: slideIn 0.3s ease-out;
+      }
+      .animate-pulse {
+        animation: pulse 2s infinite;
+      }
+      .animate-spin {
+        animation: spin 1s linear infinite;
+      }
+
+      /* 卡片样式 */
+      .card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.2s ease;
+      }
+
+      .card:hover {
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+      }
+
+      /* 标签页 */
+      .tab-content {
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+        animation: fadeIn 0.3s ease-out;
+      }
+
+      /* 极简背景 */
+      .minimal-bg {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      }
+
+      /* 状态指示器 */
+      .status-dot {
+        position: relative;
+      }
+
+      .status-dot::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: inherit;
+        animation: pulse 2s infinite;
+        opacity: 0.4;
+      }
+
+      /* 滚动条 */
+      ::-webkit-scrollbar {
+        width: 4px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 2px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+
+      /* 加载状态 */
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(248, 250, 252, 0.9);
+        backdrop-filter: blur(4px);
+        z-index: 9999;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen minimal-bg">
+    <!-- 加载状态 -->
+    <div
+      id="loading"
+      class="loading-overlay hidden items-center justify-center"
+    >
+      <div class="text-center">
+        <div
+          class="w-8 h-8 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin mx-auto mb-3"
+        ></div>
+        <p class="text-slate-600 text-sm">加载中...</p>
+      </div>
+    </div>
+
+    <!-- 主容器 -->
+    <div class="container mx-auto px-6 py-8 max-w-6xl">
+      <!-- 头部 -->
+      <header class="text-center mb-12 animate-fadeIn relative">
+        <!-- 右上角按钮组 -->
+        <div class="absolute top-0 right-0 flex gap-3">
+          <!-- 公告历史按钮 -->
+          <button
+            onclick="toggleAnnouncementHistory()"
+            class="group relative p-3 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:shadow-md transition-all duration-300 hover:bg-white/90"
+            title="查看公告历史"
+          >
+            <svg
+              class="w-5 h-5 text-slate-600 group-hover:text-slate-800 transition-colors duration-300"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"
+              />
+              <path
+                d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z"
+              />
+            </svg>
+            <!-- 公告计数徽章 -->
+            <span
+              id="announcement-badge"
+              class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium hidden"
+            >
+              0
+            </span>
+          </button>
+
+          <!-- 主题切换按钮 -->
+          <button
+            id="theme-toggle-btn"
+            onclick="toggleTheme()"
+            class="group relative p-3 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:shadow-md transition-all duration-300 hover:bg-white/90"
+            title="切换到丰富风格"
+          >
+            <svg
+              class="w-5 h-5 text-slate-600 group-hover:text-slate-800 transition-colors duration-300"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M4 2a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V4a1 1 0 100-2H4zm2 3a1 1 0 000 2h8a1 1 0 100-2H6zM6 9a1 1 0 100 2h8a1 1 0 100-2H6zM6 13a1 1 0 100 2h5a1 1 0 100-2H6z"
+                clip-rule="evenodd"
+              ></path>
+            </svg>
+            <!-- 工具提示 -->
+            <div
+              class="absolute bottom-full right-0 mb-2 px-3 py-1 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap"
+            >
+              切换到丰富风格
+              <div
+                class="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-800"
+              ></div>
+            </div>
+          </button>
+        </div>
+
+        <div class="flex items-center justify-center gap-3 mb-4">
+          <div
+            class="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-800 rounded-2xl flex items-center justify-center"
+          >
+            <svg
+              class="w-6 h-6 text-white"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"
+              />
+            </svg>
+          </div>
+          <h1 class="text-3xl font-light text-slate-800">Augment 设备管理器</h1>
+        </div>
+        <p class="text-slate-500 text-lg font-light">
+          Cursor IDE 设备限制解决方案
+        </p>
+
+        <!-- 状态指示器 -->
+        <div
+          class="inline-flex items-center gap-2 mt-6 px-4 py-2 bg-white/80 rounded-full shadow-sm"
+        >
+          <div
+            id="quick-status-indicator"
+            class="w-2 h-2 bg-red-500 rounded-full status-dot"
+          ></div>
+          <span id="quick-status-text" class="text-sm text-slate-600"
+            >设备未激活</span
+          >
+        </div>
+      </header>
+
+      <!-- 导航标签 -->
+      <nav class="flex justify-center mb-8 animate-slideIn">
+        <div class="flex bg-white/80 rounded-2xl p-1 shadow-sm">
+          <button
+            id="tab-btn-dashboard"
+            onclick="switchTab('dashboard')"
+            class="tab-btn px-6 py-3 text-sm font-medium rounded-xl transition-all duration-200 bg-slate-100 text-slate-800"
+          >
+            仪表盘
+          </button>
+          <button
+            id="tab-btn-activation"
+            onclick="switchTab('activation')"
+            class="tab-btn px-6 py-3 text-sm font-medium rounded-xl transition-all duration-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+          >
+            设备激活
+          </button>
+          <button
+            id="tab-btn-tools"
+            onclick="switchTab('tools')"
+            class="tab-btn px-6 py-3 text-sm font-medium rounded-xl transition-all duration-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+          >
+            工具
+          </button>
+          <button
+            id="tab-btn-system"
+            onclick="switchTab('system')"
+            class="tab-btn px-6 py-3 text-sm font-medium rounded-xl transition-all duration-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+          >
+            系统
+          </button>
+        </div>
+      </nav>
+
+      <!-- 仪表盘标签页 -->
+      <div id="dashboard-tab" class="tab-content active">
+        <!-- 状态卡片网格 -->
+        <div class="grid md:grid-cols-3 gap-6 mb-8">
+          <!-- 设备状态 -->
+          <div class="card rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center gap-3 mb-4">
+              <div
+                class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center"
+              >
+                <svg
+                  class="w-5 h-5 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-medium text-slate-800">设备状态</h3>
+                <p class="text-sm text-slate-500">激活状态</p>
+              </div>
+            </div>
+            <div class="text-center">
+              <h4
+                id="status-text"
+                class="text-xl font-semibold text-red-600 mb-1"
+              >
+                未激活
+              </h4>
+              <p id="status-detail" class="text-sm text-slate-500">
+                请输入激活码以启用设备功能
+              </p>
+            </div>
+          </div>
+
+          <!-- 连接状态 -->
+          <div class="card rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center gap-3 mb-4">
+              <div
+                class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center"
+              >
+                <svg
+                  class="w-5 h-5 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-medium text-slate-800">连接状态</h3>
+                <p class="text-sm text-slate-500">服务器连接</p>
+              </div>
+            </div>
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-slate-600">服务器</span>
+                <div id="connection-status" class="flex items-center gap-2">
+                  <div class="w-2 h-2 bg-red-500 rounded-full status-dot"></div>
+                  <span class="text-sm font-medium text-red-600">未连接</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-slate-600">延迟</span>
+                <span
+                  id="network-latency"
+                  class="text-sm font-medium text-slate-800"
+                  >-</span
+                >
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-slate-600">最后同步</span>
+                <span id="last-sync" class="text-sm text-slate-500">从未</span>
+              </div>
+            </div>
+            <button
+              onclick="testServerConnection()"
+              class="w-full mt-4 px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              测试连接
+            </button>
+          </div>
+
+          <!-- 系统信息 -->
+          <div class="card rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center gap-3 mb-4">
+              <div
+                class="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center"
+              >
+                <svg
+                  class="w-5 h-5 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-medium text-slate-800">系统信息</h3>
+                <p class="text-sm text-slate-500">性能监控</p>
+              </div>
+            </div>
+            <div class="space-y-3">
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-sm text-slate-600">CPU</span>
+                  <span id="cpu-text" class="text-sm font-medium">0%</span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-2">
+                  <div
+                    id="cpu-progress"
+                    class="bg-gradient-to-r from-emerald-400 to-emerald-500 h-2 rounded-full transition-all duration-500"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-sm text-slate-600">内存</span>
+                  <span id="memory-text" class="text-sm font-medium">0%</span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-2">
+                  <div
+                    id="memory-progress"
+                    class="bg-gradient-to-r from-blue-400 to-blue-500 h-2 rounded-full transition-all duration-500"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 设备激活标签页 -->
+      <div id="activation-tab" class="tab-content">
+        <div class="max-w-md mx-auto">
+          <div class="card rounded-2xl p-8 shadow-sm text-center">
+            <div
+              class="w-16 h-16 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6"
+            >
+              <svg
+                class="w-8 h-8 text-white"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z"
+                />
+              </svg>
+            </div>
+
+            <!-- 激活表单 -->
+            <div id="activation-form">
+              <h3 class="text-xl font-semibold text-slate-800 mb-2">
+                设备激活
+              </h3>
+              <p class="text-slate-500 mb-6">请输入激活码以启用设备功能</p>
+
+              <div class="space-y-4">
+                <input
+                  type="text"
+                  id="activation-code"
+                  placeholder="请输入激活码"
+                  class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                />
+                <button
+                  onclick="validateActivation()"
+                  class="w-full px-6 py-3 bg-emerald-500 text-white font-medium rounded-xl hover:bg-emerald-600 transition-colors"
+                >
+                  激活设备
+                </button>
+              </div>
+            </div>
+
+            <!-- 已激活信息 -->
+            <div id="activated-info" class="hidden">
+              <h3 class="text-xl font-semibold text-emerald-600 mb-2">
+                设备已激活
+              </h3>
+              <p class="text-slate-500 mb-4">设备功能已启用</p>
+              <div
+                id="activation-details"
+                class="text-sm text-slate-600 bg-slate-50 rounded-lg p-4"
+              ></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 工具标签页 -->
+      <div id="tools-tab" class="tab-content">
+        <div class="grid md:grid-cols-2 gap-6">
+          <!-- 清理工具 -->
+          <div class="card rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center gap-3 mb-4">
+              <div
+                class="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center"
+              >
+                <svg
+                  class="w-5 h-5 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"
+                  />
+                  <path
+                    fill-rule="evenodd"
+                    d="M4 5a2 2 0 012-2h8a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 2a1 1 0 000 2h6a1 1 0 100-2H7z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-medium text-slate-800">清理工具</h3>
+                <p class="text-sm text-slate-500">清理系统缓存</p>
+              </div>
+            </div>
+            <p class="text-sm text-slate-600 mb-4">
+              清理IDE相关的缓存文件和临时数据，释放磁盘空间。
+            </p>
+
+            <!-- 功能说明 -->
+            <div
+              class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg"
+            >
+              <h3
+                class="text-sm font-medium text-amber-800 mb-2 flex items-center gap-2"
+              >
+                💡 功能说明
+              </h3>
+              <div class="text-xs text-amber-700 space-y-1">
+                <p>
+                  <strong>默认清理</strong>：仅清理 Augment
+                  扩展数据，让扩展认为是新设备，保留 IDE 登录状态
+                </p>
+                <p>
+                  <strong>完全重置</strong>：清理所有 IDE 数据，让 IDE
+                  也认为是全新用户，需要重新登录
+                </p>
+              </div>
+            </div>
+
+            <!-- IDE选择区域 -->
+            <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h3 class="text-lg font-semibold text-blue-800 mb-3">
+                🎯 选择要清理的IDE
+              </h3>
+              <div class="space-y-2">
+                <label class="flex items-center gap-3 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="clean-cursor"
+                    checked
+                    class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span class="text-slate-800">🎨 Cursor IDE</span>
+                  <span class="text-xs text-slate-500 ml-2"
+                    >(默认清理Augment扩展数据)</span
+                  >
+                </label>
+                <label class="flex items-center gap-3 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="clean-vscode"
+                    class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span class="text-slate-800">💙 Visual Studio Code</span>
+                  <span class="text-xs text-slate-500 ml-2"
+                    >(默认清理Augment扩展数据)</span
+                  >
+                </label>
+              </div>
+            </div>
+
+            <!-- PowerShell辅助选项 -->
+            <div class="mb-4">
+              <label class="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  id="use-powershell-assist"
+                  class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  data-tooltip="启用PowerShell辅助清理，提供更强的系统级操作能力，包括注册表MachineGuid修改和深度风控清理"
+                />
+                <span class="text-slate-800">🚀 启用PowerShell辅助清理</span>
+                <span class="text-xs text-blue-600 ml-2"
+                  >(推荐，更强的清理能力)</span
+                >
+              </label>
+              <div class="text-xs text-slate-500 ml-6 mt-1">
+                • 系统级注册表操作 • 深度Augment风控清理 • 更高的清理成功率
+              </div>
+            </div>
+
+            <!-- 清理选项 - 隐藏但保持默认选中状态 -->
+            <div class="mb-4 space-y-2" style="display: none">
+              <label class="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  id="preserve-activation"
+                  checked
+                  class="rounded border-slate-300"
+                />
+                <span class="text-slate-700">保留激活状态（推荐）</span>
+              </label>
+              <label class="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  id="deep-clean"
+                  checked
+                  class="rounded border-slate-300"
+                />
+                <span class="text-slate-700">深度清理（可能影响设备ID）</span>
+              </label>
+              <label class="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  id="clean-cursor-extension"
+                  checked
+                  class="rounded border-slate-300"
+                />
+                <span class="text-slate-700"
+                  >🎯 清理Cursor IDE扩展数据（让Augment扩展认为是新设备）</span
+                >
+              </label>
+            </div>
+
+            <!-- 新增：Cursor IDE完全重置选项 -->
+            <div
+              class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg"
+            >
+              <label class="flex items-center gap-3 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="reset-cursor-completely"
+                  class="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                />
+                <div class="flex-1">
+                  <span class="text-slate-800 font-medium"
+                    >🔄 完全重置Cursor IDE用户身份</span
+                  >
+                  <p class="text-xs text-slate-600 mt-1">
+                    清理所有Cursor
+                    IDE数据，让IDE也认为是全新用户（包括遥测ID、用户设置等）
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            <!-- VS Code重置选项 -->
+            <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <label class="flex items-center gap-3 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="reset-vscode-completely"
+                  class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <div class="flex-1">
+                  <span class="text-slate-800 font-medium"
+                    >🔄 完全重置VS Code用户身份</span
+                  >
+                  <p class="text-xs text-slate-600 mt-1">
+                    清理所有VS
+                    Code数据，让IDE也认为是全新用户（包括遥测ID、用户设置等）
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            <button
+              onclick="performCleanup()"
+              class="w-full px-4 py-2 bg-orange-500 text-white font-medium rounded-lg hover:bg-orange-600 transition-colors mb-4"
+            >
+              开始清理
+            </button>
+
+            <!-- 清理日志显示区域 -->
+            <div id="cleanup-log-container" class="hidden">
+              <div class="bg-slate-50 rounded-lg p-3 border">
+                <div class="flex items-center justify-between mb-2">
+                  <h4 class="text-sm font-medium text-slate-700">清理日志</h4>
+                  <button
+                    onclick="toggleCleanupLog()"
+                    class="text-xs text-slate-500 hover:text-slate-700"
+                  >
+                    收起
+                  </button>
+                </div>
+                <div
+                  id="cleanup-log"
+                  class="text-xs text-slate-600 bg-white rounded border p-2 max-h-32 overflow-y-auto font-mono"
+                >
+                  等待清理操作...
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 重置工具 -->
+          <div class="card rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center gap-3 mb-4">
+              <div
+                class="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center"
+              >
+                <svg
+                  class="w-5 h-5 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-medium text-slate-800">重置计数</h3>
+                <p class="text-sm text-slate-500">重置使用计数</p>
+              </div>
+            </div>
+            <p class="text-sm text-slate-600 mb-4">
+              重置Cursor的使用计数器，恢复到初始状态。
+            </p>
+            <button
+              onclick="resetUsageCount()"
+              class="w-full px-4 py-2 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors"
+            >
+              重置计数
+            </button>
+          </div>
+
+          <!-- 更新检查 -->
+          <div class="card rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center gap-3 mb-4">
+              <div
+                class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center"
+              >
+                <svg
+                  class="w-5 h-5 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-medium text-slate-800">检查更新</h3>
+                <p class="text-sm text-slate-500">应用程序更新</p>
+              </div>
+            </div>
+            <p class="text-sm text-slate-600 mb-4">
+              检查并安装最新版本的设备管理器。
+            </p>
+            <button
+              onclick="checkForUpdates()"
+              class="w-full px-4 py-2 bg-indigo-500 text-white font-medium rounded-lg hover:bg-indigo-600 transition-colors"
+            >
+              检查更新
+            </button>
+          </div>
+
+          <!-- 扩展信息 -->
+          <div class="card rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center gap-3 mb-4">
+              <div
+                class="w-10 h-10 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-xl flex items-center justify-center"
+              >
+                <svg
+                  class="w-5 h-5 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-medium text-slate-800">扩展信息</h3>
+                <p class="text-sm text-slate-500">Augment扩展</p>
+              </div>
+            </div>
+            <div id="augment-info" class="text-sm text-slate-600 mb-4">
+              <p>正在获取扩展信息...</p>
+            </div>
+            <button
+              onclick="getAugmentInfo()"
+              class="w-full px-4 py-2 bg-cyan-500 text-white font-medium rounded-lg hover:bg-cyan-600 transition-colors"
+            >
+              刷新信息
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 系统标签页 -->
+      <div id="system-tab" class="tab-content">
+        <div class="grid lg:grid-cols-2 gap-6">
+          <!-- 系统性能 -->
+          <div class="card rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center gap-3 mb-6">
+              <div
+                class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center"
+              >
+                <svg
+                  class="w-5 h-5 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-medium text-slate-800">系统性能</h3>
+                <p class="text-sm text-slate-500">实时监控</p>
+              </div>
+            </div>
+
+            <!-- 性能指标 -->
+            <div class="space-y-6">
+              <div>
+                <div class="flex justify-between items-center mb-2">
+                  <span class="text-sm font-medium text-slate-700"
+                    >CPU使用率</span
+                  >
+                  <span
+                    id="cpu-text-detail"
+                    class="text-sm font-semibold text-slate-900"
+                    >0%</span
+                  >
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-3">
+                  <div
+                    id="cpu-progress-detail"
+                    class="bg-gradient-to-r from-emerald-400 to-emerald-500 h-3 rounded-full transition-all duration-500"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+
+              <div>
+                <div class="flex justify-between items-center mb-2">
+                  <span class="text-sm font-medium text-slate-700"
+                    >内存使用率</span
+                  >
+                  <span
+                    id="memory-text-detail"
+                    class="text-sm font-semibold text-slate-900"
+                    >0%</span
+                  >
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-3">
+                  <div
+                    id="memory-progress-detail"
+                    class="bg-gradient-to-r from-blue-400 to-blue-500 h-3 rounded-full transition-all duration-500"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+
+              <div>
+                <div class="flex justify-between items-center mb-2">
+                  <span class="text-sm font-medium text-slate-700"
+                    >磁盘使用率</span
+                  >
+                  <span
+                    id="disk-text"
+                    class="text-sm font-semibold text-slate-900"
+                    >57%</span
+                  >
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-3">
+                  <div
+                    id="disk-progress"
+                    class="bg-gradient-to-r from-purple-400 to-purple-500 h-3 rounded-full transition-all duration-500"
+                    style="width: 57%"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 系统详情 -->
+            <div class="mt-6 pt-6 border-t border-slate-200">
+              <div class="grid grid-cols-2 gap-4 text-sm">
+                <div class="text-center">
+                  <p class="text-slate-500 mb-1">主机名</p>
+                  <p id="hostname-text" class="font-medium text-slate-800">
+                    ZK
+                  </p>
+                </div>
+                <div class="text-center">
+                  <p class="text-slate-500 mb-1">运行时间</p>
+                  <p id="uptime-text-system" class="font-medium text-slate-800">
+                    23小时7分钟
+                  </p>
+                </div>
+                <div class="text-center">
+                  <p class="text-slate-500 mb-1">CPU核心</p>
+                  <p id="cpu-cores-text" class="font-medium text-slate-800">
+                    12核
+                  </p>
+                </div>
+                <div class="text-center">
+                  <p class="text-slate-500 mb-1">总内存</p>
+                  <p
+                    id="total-memory-text-system"
+                    class="font-medium text-slate-800"
+                  >
+                    15.81GB
+                  </p>
+                </div>
+              </div>
+
+              <!-- 设备ID -->
+              <div class="mt-4 pt-4 border-t border-slate-200">
+                <div class="text-center">
+                  <p class="text-slate-500 mb-2 font-medium">
+                    设备ID（清理成功标志）
+                  </p>
+                  <div class="flex items-center justify-center gap-2">
+                    <p
+                      id="device-id-text"
+                      class="font-mono text-sm text-slate-800 bg-blue-50 border border-blue-200 px-4 py-2 rounded-lg font-semibold select-all"
+                      style="word-break: break-all; max-width: 300px"
+                    >
+                      获取中...
+                    </p>
+                    <button
+                      onclick="copyDeviceId()"
+                      class="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-colors"
+                      data-tooltip="复制设备ID"
+                    >
+                      <svg
+                        class="w-5 h-5"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"
+                        />
+                        <path
+                          d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <!-- 详细设备ID信息展示 -->
+                  <div class="mt-6 p-4 bg-gray-50 rounded-lg border">
+                    <h4
+                      class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2"
+                    >
+                      <svg
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"
+                        />
+                      </svg>
+                      设备标识符详情
+                    </h4>
+
+                    <!-- 稳定设备ID -->
+                    <div class="mb-3">
+                      <div class="flex justify-between items-center mb-1">
+                        <span class="text-xs font-medium text-gray-600"
+                          >稳定设备ID</span
+                        >
+                        <span
+                          id="stable-id-cleanable"
+                          class="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800"
+                          >可清理</span
+                        >
+                      </div>
+                      <div
+                        class="font-mono text-xs text-gray-800 bg-white border px-2 py-1 rounded break-all"
+                      >
+                        <span id="stable-device-id">获取中...</span>
+                      </div>
+                    </div>
+
+                    <!-- 设备指纹 -->
+                    <div class="mb-3">
+                      <div class="flex justify-between items-center mb-1">
+                        <span class="text-xs font-medium text-gray-600"
+                          >设备指纹</span
+                        >
+                        <span
+                          id="fingerprint-cleanable"
+                          class="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800"
+                          >可清理</span
+                        >
+                      </div>
+                      <div
+                        class="font-mono text-xs text-gray-800 bg-white border px-2 py-1 rounded break-all"
+                      >
+                        <span id="device-fingerprint">获取中...</span>
+                      </div>
+                    </div>
+
+                    <!-- 设备缓存状态 -->
+                    <div class="mb-3">
+                      <div class="flex justify-between items-center mb-1">
+                        <span class="text-xs font-medium text-gray-600"
+                          >设备缓存</span
+                        >
+                        <span
+                          id="cache-cleanable"
+                          class="px-2 py-1 text-xs rounded bg-gray-100 text-gray-600"
+                          >检查中</span
+                        >
+                      </div>
+                      <div class="text-xs text-gray-700">
+                        状态:
+                        <span
+                          id="device-cache-status"
+                          class="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800"
+                          >检查中</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Cursor IDE 遥测ID详情 -->
+                  <div
+                    class="mt-4 p-4 bg-purple-50 rounded-lg border border-purple-200"
+                  >
+                    <h4
+                      class="text-sm font-semibold text-purple-700 mb-3 flex items-center gap-2"
+                    >
+                      <svg
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      Cursor IDE 遥测标识符
+                      <span
+                        id="cursor-telemetry-cleanable"
+                        class="px-2 py-1 text-xs rounded bg-purple-100 text-purple-800"
+                        >可清理</span
+                      >
+                    </h4>
+
+                    <!-- 主设备ID -->
+                    <div class="mb-2">
+                      <div class="text-xs font-medium text-purple-600 mb-1">
+                        主设备ID (devDeviceId)
+                      </div>
+                      <div
+                        class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all"
+                      >
+                        <span id="cursor-dev-device-id">获取中...</span>
+                      </div>
+                    </div>
+
+                    <!-- 机器ID -->
+                    <div class="mb-2">
+                      <div class="text-xs font-medium text-purple-600 mb-1">
+                        机器ID (machineId)
+                      </div>
+                      <div
+                        class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all"
+                      >
+                        <span id="cursor-machine-id">获取中...</span>
+                      </div>
+                    </div>
+
+                    <!-- MAC机器ID -->
+                    <div class="mb-2">
+                      <div class="text-xs font-medium text-purple-600 mb-1">
+                        MAC机器ID (macMachineId)
+                      </div>
+                      <div
+                        class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all"
+                      >
+                        <span id="cursor-mac-machine-id">获取中...</span>
+                      </div>
+                    </div>
+
+                    <!-- 会话ID -->
+                    <div class="mb-2">
+                      <div class="text-xs font-medium text-purple-600 mb-1">
+                        会话ID (sessionId)
+                      </div>
+                      <div
+                        class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all"
+                      >
+                        <span id="cursor-session-id">获取中...</span>
+                      </div>
+                    </div>
+
+                    <!-- SQM ID -->
+                    <div class="mb-2">
+                      <div class="text-xs font-medium text-purple-600 mb-1">
+                        SQM ID (sqmId)
+                      </div>
+                      <div
+                        class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all"
+                      >
+                        <span id="cursor-sqm-id">获取中...</span>
+                      </div>
+                    </div>
+
+                    <div
+                      class="text-xs text-purple-600 mt-2 flex items-center gap-1"
+                    >
+                      <svg
+                        class="w-3 h-3"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                      这些ID用于Cursor IDE的用户识别和遥测数据收集
+                    </div>
+                  </div>
+                  <p class="text-xs text-slate-400 mt-2">
+                    💡 清理成功后此ID会发生变化
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 设备信息 -->
+          <div class="card rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center gap-3 mb-6">
+              <div
+                class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center"
+              >
+                <svg
+                  class="w-5 h-5 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z"
+                  />
+                </svg>
+              </div>
+              <div class="flex-1">
+                <h3 class="font-medium text-slate-800">设备信息</h3>
+                <p class="text-sm text-slate-500">硬件详情</p>
+              </div>
+              <!-- 信息模式切换按钮 -->
+              <button
+                id="info-mode-toggle"
+                onclick="toggleInfoMode()"
+                class="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors"
+                data-tooltip="切换显示模式：基础信息 ⇄ 详细信息"
+              >
+                详细
+              </button>
+            </div>
+
+            <div id="device-info" class="space-y-3 text-sm">
+              <!-- 基础信息 -->
+              <div
+                class="flex justify-between"
+                data-tooltip="当前运行的操作系统版本"
+              >
+                <span class="text-slate-600">操作系统</span>
+                <span class="font-medium text-slate-800">-</span>
+              </div>
+              <div
+                class="flex justify-between"
+                data-tooltip="CPU型号和架构信息"
+              >
+                <span class="text-slate-600">处理器</span>
+                <span class="font-medium text-slate-800">-</span>
+              </div>
+              <div class="flex justify-between" data-tooltip="系统总内存容量">
+                <span class="text-slate-600">总内存</span>
+                <span class="font-medium text-slate-800">-</span>
+              </div>
+              <div class="flex justify-between" data-tooltip="当前可用内存大小">
+                <span class="text-slate-600">可用内存</span>
+                <span class="font-medium text-slate-800">-</span>
+              </div>
+
+              <!-- 扩展信息 -->
+              <div
+                id="extended-info"
+                class="border-t border-slate-200 pt-3 mt-4 hidden"
+              >
+                <div class="flex justify-between" data-tooltip="系统运行时间">
+                  <span class="text-slate-600">运行时间</span>
+                  <span class="font-medium text-slate-800">-</span>
+                </div>
+                <div class="flex justify-between" data-tooltip="当前CPU使用率">
+                  <span class="text-slate-600">CPU使用率</span>
+                  <span class="font-medium text-slate-800">-</span>
+                </div>
+                <div class="flex justify-between" data-tooltip="内存使用率">
+                  <span class="text-slate-600">内存使用率</span>
+                  <span class="font-medium text-slate-800">-</span>
+                </div>
+                <div class="flex justify-between" data-tooltip="网络连接状态">
+                  <span class="text-slate-600">网络状态</span>
+                  <span class="font-medium text-slate-800">-</span>
+                </div>
+                <div class="flex justify-between" data-tooltip="当前用户名">
+                  <span class="text-slate-600">当前用户</span>
+                  <span class="font-medium text-slate-800">-</span>
+                </div>
+                <div
+                  class="flex justify-between"
+                  data-tooltip="Node.js运行版本"
+                >
+                  <span class="text-slate-600">Node版本</span>
+                  <span class="font-medium text-slate-800">-</span>
+                </div>
+              </div>
+
+              <!-- 进程信息 -->
+              <div
+                id="process-info"
+                class="border-t border-slate-200 pt-3 mt-4 hidden"
+              >
+                <h4 class="font-medium text-slate-700 mb-2">进程信息</h4>
+                <div class="flex justify-between" data-tooltip="当前应用进程ID">
+                  <span class="text-slate-600">进程ID</span>
+                  <span class="font-medium text-slate-800">-</span>
+                </div>
+                <div class="flex justify-between" data-tooltip="应用内存占用">
+                  <span class="text-slate-600">应用内存</span>
+                  <span class="font-medium text-slate-800">-</span>
+                </div>
+                <div class="flex justify-between" data-tooltip="应用CPU占用">
+                  <span class="text-slate-600">应用CPU</span>
+                  <span class="font-medium text-slate-800">-</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex gap-2 mt-4">
+              <button
+                onclick="loadDeviceInfo()"
+                class="flex-1 px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors"
+                data-tooltip="刷新所有系统信息"
+              >
+                刷新信息
+              </button>
+              <button
+                onclick="exportSystemInfo()"
+                class="px-4 py-2 bg-slate-500 text-white font-medium rounded-lg hover:bg-slate-600 transition-colors"
+                data-tooltip="导出系统信息到文件"
+              >
+                导出
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 公告历史记录弹窗 -->
+    <div
+      id="announcement-history-modal"
+      class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 hidden transition-all duration-300"
+      onclick="closeAnnouncementHistory(event)"
+    >
+      <div
+        class="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden scale-95 transition-all duration-300"
+        onclick="event.stopPropagation()"
+      >
+        <!-- 弹窗头部 -->
+        <div
+          class="flex items-center justify-between p-6 border-b border-slate-200/50"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center"
+            >
+              <svg
+                class="w-5 h-5 text-white"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"
+                />
+                <path
+                  d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z"
+                />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold text-slate-800">公告历史记录</h3>
+              <p class="text-sm text-slate-500">
+                共 <span id="announcement-count">0</span> 条记录
+              </p>
+            </div>
+          </div>
+          <button
+            onclick="closeAnnouncementHistory()"
+            class="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            <svg
+              class="w-5 h-5 text-slate-400"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <!-- 弹窗内容 -->
+        <div class="p-6 overflow-y-auto max-h-[60vh]">
+          <div id="announcement-history-content">
+            <!-- 历史记录内容将在这里动态加载 -->
+          </div>
+        </div>
+
+        <!-- 弹窗底部 -->
+        <div
+          class="flex items-center justify-between p-6 border-t border-slate-200/50 bg-slate-50/50"
+        >
+          <div class="text-sm text-slate-500">
+            历史记录会自动保存最近100条公告
+          </div>
+          <button
+            onclick="clearAnnouncementHistory()"
+            class="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm font-medium"
+          >
+            清空历史
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="text-center mt-16 py-8 border-t border-slate-200">
+      <p class="text-slate-400 text-sm">© 2025 Augment Team. 保留所有权利.</p>
+    </footer>
+
+    <script>
+      // 主题切换功能
+      function toggleTheme() {
+        // 切换到丰富风格 (index-original.html)
+        if (confirm("确定要切换到丰富风格吗？")) {
+          window.location.href = "index-original.html";
+        }
+      }
+
+      // 公告历史记录管理
+      let announcementHistory = JSON.parse(
+        localStorage.getItem("announcementHistory") || "[]"
+      );
+
+      // 显示公告历史记录
+      function toggleAnnouncementHistory() {
+        const modal = document.getElementById("announcement-history-modal");
+        const content = document.getElementById("announcement-history-content");
+        const count = document.getElementById("announcement-count");
+
+        // 更新计数
+        count.textContent = announcementHistory.length;
+
+        // 生成历史记录HTML
+        if (announcementHistory.length === 0) {
+          content.innerHTML = `
+            <div class="text-center py-12">
+              <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"/>
+                </svg>
+              </div>
+              <p class="text-slate-500">暂无公告历史记录</p>
+            </div>
+          `;
+        } else {
+          content.innerHTML = announcementHistory
+            .map(
+              (announcement, index) => `
+            <div class="mb-4 p-4 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
+              <div class="flex items-start justify-between mb-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">
+                    #${announcementHistory.length - index}
+                  </span>
+                  <span class="text-sm text-slate-500">${
+                    announcement.timestamp
+                  }</span>
+                </div>
+                <button
+                  onclick="removeAnnouncement(${index})"
+                  class="text-slate-400 hover:text-red-500 transition-colors"
+                  title="删除此条记录"
+                >
+                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="text-slate-700 leading-relaxed">${
+                announcement.content
+              }</div>
+            </div>
+          `
+            )
+            .join("");
+        }
+
+        // 显示弹窗
+        modal.classList.remove("hidden");
+        setTimeout(() => {
+          modal.classList.remove("opacity-0");
+          modal.querySelector(".bg-white\\/95").classList.remove("scale-95");
+        }, 10);
+      }
+
+      // 关闭公告历史记录
+      function closeAnnouncementHistory(event) {
+        if (event && event.target !== event.currentTarget) return;
+
+        const modal = document.getElementById("announcement-history-modal");
+        modal.classList.add("opacity-0");
+        modal.querySelector(".bg-white\\/95").classList.add("scale-95");
+
+        setTimeout(() => {
+          modal.classList.add("hidden");
+        }, 300);
+      }
+
+      // 添加公告到历史记录
+      function addAnnouncementToHistory(content) {
+        const announcement = {
+          content: content,
+          timestamp: new Date().toLocaleString("zh-CN"),
+          id: Date.now(),
+        };
+
+        announcementHistory.unshift(announcement);
+
+        // 限制历史记录数量为100条
+        if (announcementHistory.length > 100) {
+          announcementHistory = announcementHistory.slice(0, 100);
+        }
+
+        // 保存到本地存储
+        localStorage.setItem(
+          "announcementHistory",
+          JSON.stringify(announcementHistory)
+        );
+
+        // 更新徽章
+        updateAnnouncementBadge();
+      }
+
+      // 删除单条公告记录
+      function removeAnnouncement(index) {
+        if (confirm("确定要删除这条公告记录吗？")) {
+          announcementHistory.splice(index, 1);
+          localStorage.setItem(
+            "announcementHistory",
+            JSON.stringify(announcementHistory)
+          );
+          toggleAnnouncementHistory(); // 刷新显示
+          updateAnnouncementBadge();
+        }
+      }
+
+      // 清空公告历史
+      function clearAnnouncementHistory() {
+        if (confirm("确定要清空所有公告历史记录吗？此操作不可恢复。")) {
+          announcementHistory = [];
+          localStorage.setItem(
+            "announcementHistory",
+            JSON.stringify(announcementHistory)
+          );
+          toggleAnnouncementHistory(); // 刷新显示
+          updateAnnouncementBadge();
+        }
+      }
+
+      // 更新公告徽章
+      function updateAnnouncementBadge() {
+        const badge = document.getElementById("announcement-badge");
+        if (announcementHistory.length > 0) {
+          badge.textContent = announcementHistory.length;
+          badge.classList.remove("hidden");
+        } else {
+          badge.classList.add("hidden");
+        }
+      }
+
+      // 页面加载完成后的初始化
+      document.addEventListener("DOMContentLoaded", function () {
+        // 更新主题切换按钮的提示文本
+        const themeBtn = document.getElementById("theme-toggle-btn");
+        if (themeBtn) {
+          themeBtn.title = "切换到丰富风格";
+        }
+
+        // 初始化公告徽章
+        updateAnnouncementBadge();
+
+        // 监听来自renderer.js的公告
+        window.addEventListener("new-announcement", (event) => {
+          addAnnouncementToHistory(event.detail.content);
+        });
+      });
+    </script>
+    <script src="renderer.js"></script>
+
+    <!-- 确保函数在全局作用域中可用 -->
+    <script>
+      // 等待renderer.js加载完成后再初始化
+      document.addEventListener("DOMContentLoaded", function () {
+        // 确保函数可用
+        if (typeof switchTab === "undefined") {
+          window.switchTab = function (tabName) {
+            console.log("switchTab fallback:", tabName);
+          };
+        }
+
+        if (typeof testServerConnection === "undefined") {
+          window.testServerConnection = function () {
+            console.log("testServerConnection fallback");
+          };
+        }
+
+        console.log("✅ 页面初始化完成");
+      });
+    </script>
+  </body>
+</html>

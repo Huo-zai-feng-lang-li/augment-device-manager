@@ -176,6 +176,53 @@ class StableDeviceId {
   }
 
   /**
+   * 强制生成新的设备ID（激进模式专用）
+   * 清理所有缓存并生成全新的设备ID，包含随机元素确保每次都不同
+   */
+  async forceGenerateNewDeviceId() {
+    try {
+      // 1. 清理所有缓存
+      await this.clearCache();
+
+      // 2. 生成包含随机元素的新设备ID（激进模式专用）
+      const deviceInfo = {
+        platform: os.platform(),
+        arch: os.arch(),
+        hostname: os.hostname(),
+        cpus: os
+          .cpus()
+          .map((cpu) => cpu.model)
+          .join(""),
+        totalmem: os.totalmem(),
+        username: os.userInfo().username,
+        homedir: os.homedir(),
+        networkInterfaces: this.getStableNetworkInfo(),
+        // 激进模式：添加随机元素确保设备ID变化
+        randomSeed: crypto.randomBytes(32).toString("hex"),
+        timestamp: Date.now(),
+        aggressiveMode: true,
+        forceGenerated: crypto.randomUUID(),
+      };
+
+      // 生成新的哈希
+      const newId = crypto
+        .createHash("sha256")
+        .update(JSON.stringify(deviceInfo))
+        .digest("hex");
+
+      // 3. 保存到缓存
+      await this.writeToCache(this.cacheFile, newId);
+      await this.writeToCache(this.backupFile, newId);
+
+      return newId;
+    } catch (error) {
+      console.error("强制生成新设备ID失败:", error);
+      // 降级到基础设备指纹生成
+      return this.generateBasicDeviceId();
+    }
+  }
+
+  /**
    * 生成Cursor IDE专用的设备ID（包含随机元素）
    * 用于让Cursor IDE扩展认为是新设备
    */
@@ -207,6 +254,37 @@ class StableDeviceId {
   }
 
   /**
+   * 生成VS Code专用的设备ID（包含随机元素）
+   * 用于让VS Code扩展认为是新设备
+   */
+  async generateVSCodeDeviceId() {
+    const crypto = require("crypto");
+    const os = require("os");
+
+    // 为VS Code生成包含随机元素的设备信息
+    const vscodeDeviceInfo = {
+      platform: os.platform(),
+      arch: os.arch(),
+      hostname: os.hostname(),
+      cpus: os
+        .cpus()
+        .map((cpu) => cpu.model)
+        .join(""),
+      totalmem: os.totalmem(),
+      username: os.userInfo().username,
+      // 添加VS Code专用随机元素，确保每次清理后VS Code认为是新设备
+      randomSeed: crypto.randomBytes(16).toString("hex"),
+      timestamp: Date.now(),
+      vscodeSpecific: crypto.randomBytes(8).toString("hex"),
+    };
+
+    return crypto
+      .createHash("sha256")
+      .update(JSON.stringify(vscodeDeviceInfo))
+      .digest("hex");
+  }
+
+  /**
    * 检查设备ID是否存在缓存
    */
   hasCachedId() {
@@ -223,6 +301,8 @@ module.exports = {
     await stableDeviceId.generateStableDeviceId(),
   generateCursorDeviceId: async () =>
     await stableDeviceId.generateCursorDeviceId(),
+  generateVSCodeDeviceId: async () =>
+    await stableDeviceId.generateVSCodeDeviceId(),
   clearDeviceIdCache: () => stableDeviceId.clearCache(),
   hasDeviceIdCache: () => stableDeviceId.hasCachedId(),
 };
