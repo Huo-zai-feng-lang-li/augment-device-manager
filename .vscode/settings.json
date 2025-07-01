@@ -1,0 +1,63 @@
+{
+	// 开启自动修复
+	"editor.codeActionsOnSave": {
+		"source.fixAll": "explicit",
+		"source.fixAll.eslint": "explicit",
+		"source.fixAll.stylelint": "explicit"
+	},
+	// 背景色
+	"workbench.colorCustomizations": {
+		// 背景色
+		"editor.background": "#000000",
+		// 光标颜色
+		"editorCursor.foreground": "#f3f706",
+		// 选中背景颜色
+		"editor.selectionBackground": "#5d5858",
+		// 选中边框颜色
+		"editor.selectionHighlightBorder": "#f3f706",
+		// 开启彩色括号连线
+		"editorBracketMatch.background": "#531111",
+		// 开启彩色括号边框连线
+		"editorBracketMatch.border": "#f70a06"
+	},
+	// 保存的时候自动格式化
+	"editor.formatOnSave": true,
+	// 默认格式化工具选择prettier
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	// 设置为 false，表示使用制表符进行缩进。有助于减少文件大小，空格比制表符大 4 倍
+	"editor.insertSpaces": false,
+	// 设置制表符宽度为 4。请确保.prettierrc.js中的tabWidth设置为4，和vscode 制表符设置一致
+	"editor.tabSize": 4,
+	// 启用 ESLint 插件。这意味着在 VSCode 中将会对代码进行 ESLint 检查。
+	"eslint.enable": true,
+	// 表示在保存文件时运行 ESLint 检查。每当您保存文件时，VSCode 将会自动运行 ESLint 并检查代码中的错误和警告。
+	"eslint.run": "onSave",
+	"cSpell.words": ["jsoneditor"],
+	"editor.inlineSuggest.showToolbar": "onHover",
+	"[vue]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"workbench.sideBar.location": "right", // 侧边栏位置
+	"files.autoSave": "onFocusChange", // 文件自动保存
+	"workbench.colorTheme": "Monokai Dimmed", // 系统主题
+	"workbench.iconTheme": "vscode-icons", // 文件图标
+	"git.confirmSync": false, //同步 Git 仓库时是否显示确认对话框
+	"git.autofetch": true, //自动定期从远程 Git 仓库抓取最新的变更
+	"git.postCommitCommand": "push", // 提交后自动推送
+	"git.enableSmartCommit": true, // 自动提交
+	"explorer.confirmDelete": false, // 删除文件时不再提示
+	"terminal.integrated.defaultProfile.windows": "Git Bash", // 默认终端
+	"explorer.confirmDragAndDrop": false, // 拖拽文件时不再提示
+	"javascript.updateImportsOnFileMove.enabled": "always", // 移动文件时自动更新导入路径
+	"json.schemas": [
+		{
+			"fileMatch": ["package.json"],
+			"url": "https://json.schemastore.org/package.json"
+		}
+	], // json校验
+	"prettier.proseWrap": "always", // 换行
+	"editor.lineDecorationsWidth": 2, // 折行线宽度
+	"editor.glyphMargin": false, // 折行线
+	"editor.folding": true,
+	"git.ignoreLimitWarning": true // 行号折叠
+}

@@ -27,7 +27,7 @@ class SmartTooltip {
     this.tooltip = document.createElement("div");
     this.tooltip.className = "smart-tooltip";
     this.tooltip.style.cssText = `
-      position: fixed;
+      position: absolute;
       background: rgba(0, 0, 0, 0.9);
       color: white;
       padding: 8px 12px;
@@ -209,6 +209,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 检查激活状态
   await checkActivationStatus();
 
+  // 启动增强防护状态监控
+  startGuardianStatusMonitoring();
+
   // 获取WebSocket连接状态
   await getWebSocketStatus();
 
@@ -282,6 +285,52 @@ async function loadAllInfoPanels() {
     console.log("信息板块加载完成");
   } catch (error) {
     console.error("加载信息板块时出错:", error);
+  }
+}
+
+// 刷新整个客户端数据
+async function refreshAllClientData() {
+  console.log("🔄 开始刷新整个客户端数据...");
+
+  try {
+    showLoading(true);
+
+    // 并行刷新所有数据模块
+    const refreshPromises = [
+      getAugmentInfo(), // Augment扩展信息
+      loadDeviceInfo(), // 设备信息
+      loadSystemInfo(), // 系统信息
+      loadDeviceIdDetails(), // 设备ID详情
+      loadAppVersion(), // 应用版本信息
+      getWebSocketStatus(), // WebSocket连接状态
+    ];
+
+    // 等待所有刷新操作完成
+    const results = await Promise.allSettled(refreshPromises);
+
+    // 检查是否有失败的操作
+    const failedOperations = results.filter(
+      (result) => result.status === "rejected"
+    );
+
+    if (failedOperations.length > 0) {
+      console.warn(
+        `⚠️ ${failedOperations.length} 个模块刷新失败:`,
+        failedOperations
+      );
+      showAlert(
+        `客户端数据已刷新，但有 ${failedOperations.length} 个模块刷新失败`,
+        "warning"
+      );
+    } else {
+      console.log("✅ 所有客户端数据刷新完成");
+      showAlert("客户端数据已全部刷新完成", "success");
+    }
+  } catch (error) {
+    console.error("❌ 刷新客户端数据时出错:", error);
+    showAlert("刷新客户端数据失败: " + error.message, "error");
+  } finally {
+    showLoading(false);
   }
 }
 
@@ -479,12 +528,24 @@ async function loadSystemInfo() {
   try {
     const systemInfo = await ipcRenderer.invoke("get-system-info");
 
-    // 智能设备信息获取：只在必要时获取设备信息
+    // 获取Cursor遥测设备ID作为主要设备ID（清理成功标志）
     if (!systemInfo.deviceId) {
       try {
-        const deviceInfo = await ipcRenderer.invoke("get-device-info");
-        if (deviceInfo.success && deviceInfo.deviceId) {
-          systemInfo.deviceId = deviceInfo.deviceId;
+        const deviceIdDetails = await ipcRenderer.invoke(
+          "get-device-id-details"
+        );
+        if (
+          deviceIdDetails.success &&
+          deviceIdDetails.cursorTelemetry?.devDeviceId
+        ) {
+          // 使用Cursor的telemetry.devDeviceId作为主要设备ID
+          systemInfo.deviceId = deviceIdDetails.cursorTelemetry.devDeviceId;
+        } else {
+          // 如果没有Cursor遥测ID，则使用设备指纹作为备用
+          const deviceInfo = await ipcRenderer.invoke("get-device-info");
+          if (deviceInfo.success && deviceInfo.deviceId) {
+            systemInfo.deviceId = deviceInfo.deviceId;
+          }
         }
       } catch (deviceError) {
         console.warn("获取设备ID失败:", deviceError);
@@ -968,7 +1029,7 @@ function showModalAlert(message, type = "info", options = {}) {
   const titleBar = document.createElement("div");
   titleBar.style.cssText = `
     padding: 20px 24px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -977,7 +1038,7 @@ function showModalAlert(message, type = "info", options = {}) {
   const title = document.createElement("h3");
   title.style.cssText = `
     margin: 0;
-    color: white;
+    color: #000000;
     font-size: 18px;
     font-weight: 600;
     display: flex;
@@ -998,7 +1059,7 @@ function showModalAlert(message, type = "info", options = {}) {
   closeBtn.style.cssText = `
     background: none;
     border: none;
-    color: white;
+    color: #000000;
     font-size: 24px;
     cursor: pointer;
     padding: 4px;
@@ -1021,7 +1082,7 @@ function showModalAlert(message, type = "info", options = {}) {
     padding: 20px 24px 24px;
     max-height: calc(85vh - 120px);
     overflow-y: auto;
-    color: white;
+    color: #000000;
     line-height: 1.6;
   `;
   contentArea.innerHTML = message;
@@ -1579,6 +1640,9 @@ async function performCleanup() {
     document.getElementById("clean-cursor-extension")?.checked ?? true;
   const autoRestartCursor =
     document.getElementById("auto-restart-cursor")?.checked ?? true;
+  const skipBackup = document.getElementById("skip-backup")?.checked ?? true; // 默认跳过备份
+  const enableEnhancedGuardian =
+    document.getElementById("enable-enhanced-guardian")?.checked ?? true; // 默认启用增强守护
 
   // 获取重置选项
   const resetCursorCompletely =
@@ -1600,8 +1664,18 @@ async function performCleanup() {
 
   addCleanupLog("备份当前设备信息...", "info");
   try {
-    const deviceInfo = await ipcRenderer.invoke("get-device-info");
-    originalDeviceId = deviceInfo.deviceId;
+    // 获取Cursor遥测设备ID作为主要设备ID（清理成功标志）
+    const deviceIdDetails = await ipcRenderer.invoke("get-device-id-details");
+    if (
+      deviceIdDetails.success &&
+      deviceIdDetails.cursorTelemetry?.devDeviceId
+    ) {
+      originalDeviceId = deviceIdDetails.cursorTelemetry.devDeviceId;
+    } else {
+      // 如果没有Cursor遥测ID，则使用设备指纹作为备用
+      const deviceInfo = await ipcRenderer.invoke("get-device-info");
+      originalDeviceId = deviceInfo.deviceId;
+    }
     addCleanupLog(`当前设备ID: ${originalDeviceId}`, "info");
 
     if (preserveActivation) {
@@ -1708,6 +1782,8 @@ async function performCleanup() {
       deepClean,
       cleanCursorExtension,
       autoRestartCursor,
+      skipBackup, // 跳过备份文件创建
+      enableEnhancedGuardian, // 启用增强守护进程
 
       // 重置选项
       skipCursorLogin: !resetCursorCompletely, // 根据用户选择决定是否跳过Cursor IDE登录清理
@@ -1858,9 +1934,21 @@ async function performCleanup() {
       addCleanupLog("检查清理效果...", "info");
       setTimeout(async () => {
         try {
-          // 获取清理后的设备ID
-          const newDeviceInfo = await ipcRenderer.invoke("get-device-info");
-          const newDeviceId = newDeviceInfo.deviceId;
+          // 获取清理后的设备ID（使用Cursor遥测ID）
+          let newDeviceId = null;
+          const newDeviceIdDetails = await ipcRenderer.invoke(
+            "get-device-id-details"
+          );
+          if (
+            newDeviceIdDetails.success &&
+            newDeviceIdDetails.cursorTelemetry?.devDeviceId
+          ) {
+            newDeviceId = newDeviceIdDetails.cursorTelemetry.devDeviceId;
+          } else {
+            // 如果没有Cursor遥测ID，则使用设备指纹作为备用
+            const newDeviceInfo = await ipcRenderer.invoke("get-device-info");
+            newDeviceId = newDeviceInfo.deviceId;
+          }
 
           if (originalDeviceId && newDeviceId !== originalDeviceId) {
             addCleanupLog(`✅ 设备ID已更新！`, "success");
@@ -1886,7 +1974,7 @@ async function performCleanup() {
 
           // 如果保留激活状态，检查激活是否仍然有效
           if (preserveActivation && activationBackup) {
-            addCleanupLog("检查激活状态...", "info");
+            // addCleanupLog("检查激活状态...", "info");
             try {
               // 重新检查激活状态
               await checkActivationStatus();
@@ -1908,7 +1996,7 @@ async function performCleanup() {
                   switchTab("dashboard");
                 }, 2000);
               } else if (isActivated) {
-                addCleanupLog("✅ 激活状态保持正常", "success");
+                // addCleanupLog("✅ 激活状态保持正常", "success");
                 showAlert(
                   `🎉 设备清理操作完成，激活状态已保留<br>
                   • 原设备ID: ${originalDeviceId.substring(0, 16)}...<br>
@@ -2245,7 +2333,7 @@ function updateDeviceInfoDisplay(data) {
     return `${Math.round(value)}%`;
   };
 
-  // 更新各项信息
+  // 更新各项信息 - 按HTML中的字段顺序
   const updates = [
     // 基础信息
     data.systemInfo?.platform
@@ -2257,14 +2345,6 @@ function updateDeviceInfoDisplay(data) {
 
     // 扩展信息
     formatUptime(data.systemInfo?.uptime),
-    formatPercent(data.systemInfo?.cpuUsage),
-    data.systemInfo?.totalMemory
-      ? formatPercent(
-          ((data.systemInfo.totalMemory - data.systemInfo.freeMemory) /
-            data.systemInfo.totalMemory) *
-            100
-        )
-      : "-",
     data.systemInfo?.networkStatus || (navigator.onLine ? "已连接" : "断开"),
     data.systemInfo?.username || "-",
     data.systemInfo?.nodeVersion || process.version || "-",
@@ -2283,15 +2363,8 @@ function updateDeviceInfoDisplay(data) {
         valueSpan.textContent = updates[index];
 
         // 添加状态颜色
-        if (index === 6) {
-          // 内存使用率
-          const usage = parseFloat(updates[index]);
-          if (usage > 80) valueSpan.className = "font-medium text-red-600";
-          else if (usage > 60)
-            valueSpan.className = "font-medium text-yellow-600";
-          else valueSpan.className = "font-medium text-green-600";
-        } else if (index === 5) {
-          // CPU使用率
+        if (index === 10) {
+          // 应用CPU使用率
           const usage = parseFloat(updates[index]);
           if (usage > 80) valueSpan.className = "font-medium text-red-600";
           else if (usage > 60)
@@ -2455,7 +2528,7 @@ function showDeviceIdComparison(originalId, newId) {
 }
 
 // 信息显示模式切换
-let isExtendedMode = false;
+let isExtendedMode = true;
 
 function toggleInfoMode() {
   const extendedInfo = document.getElementById("extended-info");
@@ -2869,3 +2942,267 @@ function stopCleanupMonitoring() {
 }
 
 // 移除了复杂的进度条动画样式，保持简洁
+
+// ==================== 增强防护状态监控 ====================
+
+let guardianStatusInterval = null;
+
+// 启动增强防护状态监控
+function startGuardianStatusMonitoring() {
+  // 立即检查一次状态
+  refreshGuardianStatus();
+
+  // 每30秒自动刷新状态
+  guardianStatusInterval = setInterval(refreshGuardianStatus, 30000);
+}
+
+// 停止状态监控
+function stopGuardianStatusMonitoring() {
+  if (guardianStatusInterval) {
+    clearInterval(guardianStatusInterval);
+    guardianStatusInterval = null;
+  }
+}
+
+// 刷新增强防护状态
+async function refreshGuardianStatus() {
+  try {
+    const status = await ipcRenderer.invoke("get-enhanced-guardian-status");
+    updateGuardianStatusDisplay(status);
+  } catch (error) {
+    console.error("获取增强防护状态失败:", error);
+    hideGuardianStatusCard();
+  }
+}
+
+// 更新增强防护状态显示
+function updateGuardianStatusDisplay(status) {
+  const card = document.getElementById("guardian-status-card");
+  const modeElement = document.getElementById("guardian-mode");
+  const interceptCount = document.getElementById("intercept-count");
+  const backupRemoved = document.getElementById("backup-removed");
+  const protectionRestored = document.getElementById("protection-restored");
+  const recentIntercepts = document.getElementById("recent-intercepts");
+
+  if (!card) return;
+
+  // 如果有防护在运行，显示卡片
+  if (status.isGuarding) {
+    card.style.display = "block";
+
+    // 自动显示详细状态板块
+    if (typeof window.showGuardianStatusPanel === "function") {
+      window.showGuardianStatusPanel();
+    }
+
+    // 更新详细状态板块的数据
+    if (typeof window.updateGuardianStatusPanel === "function") {
+      window.updateGuardianStatusPanel(status);
+    }
+
+    // 更新防护模式
+    const modeText = {
+      standalone: "独立服务（持久防护）",
+      inprocess: "内置进程（临时防护）",
+      none: "未启动",
+    };
+    modeElement.textContent = `防护模式：${modeText[status.mode] || "未知"}`;
+
+    // 更新统计数据
+    let stats = {
+      interceptedAttempts: 0,
+      backupFilesRemoved: 0,
+      protectionRestored: 0,
+    };
+
+    if (
+      status.standalone &&
+      status.standalone.isRunning &&
+      status.standalone.config
+    ) {
+      // 独立服务模式 - 从日志中解析统计
+      stats = parseStatsFromLogs(status.standalone.recentLogs || []);
+    } else if (status.inProcess && status.inProcess.stats) {
+      // 内置进程模式 - 直接使用统计
+      stats = status.inProcess.stats;
+    }
+
+    interceptCount.textContent = stats.interceptedAttempts || 0;
+    backupRemoved.textContent = stats.backupFilesRemoved || 0;
+    protectionRestored.textContent = stats.protectionRestored || 0;
+
+    // 更新最近拦截记录
+    updateRecentIntercepts(status);
+  } else {
+    // 没有防护运行，隐藏卡片
+    hideGuardianStatusCard();
+  }
+}
+
+// 从日志中解析统计信息
+function parseStatsFromLogs(logs) {
+  const stats = {
+    interceptedAttempts: 0,
+    backupFilesRemoved: 0,
+    protectionRestored: 0,
+  };
+
+  logs.forEach((log) => {
+    if (log.includes("拦截") || log.includes("检测到")) {
+      stats.interceptedAttempts++;
+    }
+    if (log.includes("删除备份") || log.includes("已删除")) {
+      stats.backupFilesRemoved++;
+    }
+    if (log.includes("恢复") || log.includes("已恢复")) {
+      stats.protectionRestored++;
+    }
+  });
+
+  return stats;
+}
+
+// 更新最近拦截记录
+function updateRecentIntercepts(status) {
+  const recentIntercepts = document.getElementById("recent-intercepts");
+  if (!recentIntercepts) return;
+
+  let logs = [];
+
+  if (status.standalone && status.standalone.recentLogs) {
+    logs = status.standalone.recentLogs;
+  } else if (status.inProcess && status.inProcess.recentLogs) {
+    logs = status.inProcess.recentLogs;
+  }
+
+  if (logs.length > 0) {
+    // 过滤出拦截相关的日志
+    const interceptLogs = logs
+      .filter(
+        (log) =>
+          log.includes("拦截") ||
+          log.includes("检测到") ||
+          log.includes("删除备份") ||
+          log.includes("恢复")
+      )
+      .slice(-3); // 只显示最近3条
+
+    if (interceptLogs.length > 0) {
+      recentIntercepts.innerHTML = interceptLogs
+        .map((log) => {
+          const time = extractTimeFromLog(log);
+          const action = extractActionFromLog(log);
+          return `<div class="flex justify-between items-center py-1">
+          <span class="text-slate-600">${action}</span>
+          <span class="text-slate-400">${time}</span>
+        </div>`;
+        })
+        .join("");
+    } else {
+      recentIntercepts.innerHTML =
+        '<div class="text-center text-slate-400 py-2">暂无拦截记录</div>';
+    }
+  } else {
+    recentIntercepts.innerHTML =
+      '<div class="text-center text-slate-400 py-2">暂无拦截记录</div>';
+  }
+}
+
+// 从日志中提取时间
+function extractTimeFromLog(log) {
+  const timeMatch = log.match(/\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})/);
+  if (timeMatch) {
+    const time = new Date(timeMatch[1]);
+    return time.toLocaleTimeString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+  return "刚刚";
+}
+
+// 从日志中提取操作描述
+function extractActionFromLog(log) {
+  if (log.includes("拦截")) return "🚨 拦截IDE操作";
+  if (log.includes("删除备份")) return "🗑️ 删除备份文件";
+  if (log.includes("恢复")) return "🔒 恢复保护";
+  if (log.includes("检测到")) return "👁️ 检测到变化";
+  return "🛡️ 防护操作";
+}
+
+// 隐藏增强防护状态卡片
+function hideGuardianStatusCard() {
+  const card = document.getElementById("guardian-status-card");
+  if (card) {
+    card.style.display = "none";
+  }
+
+  // 同时隐藏详细状态板块
+  if (typeof window.hideGuardianStatusPanel === "function") {
+    window.hideGuardianStatusPanel();
+  }
+}
+
+// 停止增强防护服务
+async function stopGuardianService() {
+  try {
+    const result = await ipcRenderer.invoke("stop-enhanced-guardian");
+    if (result.success) {
+      showAlert("增强防护服务已停止", "success");
+      hideGuardianStatusCard();
+    } else {
+      showAlert(`停止防护服务失败: ${result.message}`, "error");
+    }
+  } catch (error) {
+    showAlert(`停止防护服务失败: ${error.message}`, "error");
+  }
+}
+
+// 查看增强防护日志
+async function viewGuardianLogs() {
+  try {
+    const status = await ipcRenderer.invoke("get-enhanced-guardian-status");
+
+    let logs = [];
+    let logSource = "无日志";
+
+    if (status.standalone && status.standalone.recentLogs) {
+      logs = status.standalone.recentLogs;
+      logSource = "独立服务日志";
+    } else if (status.inProcess && status.inProcess.recentLogs) {
+      logs = status.inProcess.recentLogs;
+      logSource = "内置进程日志";
+    }
+
+    if (logs.length > 0) {
+      const logContent = logs
+        .map(
+          (log) =>
+            `<div class="py-1 border-b border-slate-200 text-sm">${log}</div>`
+        )
+        .join("");
+
+      showAlert(
+        `
+        <div class="text-left">
+          <h4 class="font-medium mb-2">${logSource}</h4>
+          <div class="max-h-64 overflow-y-auto bg-slate-50 p-3 rounded border">
+            ${logContent}
+          </div>
+        </div>
+      `,
+        "info"
+      );
+    } else {
+      showAlert("暂无防护日志", "info");
+    }
+  } catch (error) {
+    showAlert(`获取防护日志失败: ${error.message}`, "error");
+  }
+}
+
+// 将函数暴露到全局作用域
+window.viewGuardianLogs = viewGuardianLogs;
+window.refreshGuardianStatus = refreshGuardianStatus;
+window.stopGuardianService = stopGuardianService;
+window.showAlert = showAlert;

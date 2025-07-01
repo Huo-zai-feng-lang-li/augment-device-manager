@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>增强防护状态板块测试</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-slate-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold text-slate-800 mb-6">🛡️ 增强防护状态板块测试</h1>
+        
+        <!-- 控制按钮 -->
+        <div class="mb-6 flex gap-4">
+            <button onclick="showGuardianStatusPanel()" class="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600">
+                显示防护状态板块
+            </button>
+            <button onclick="hideGuardianStatusPanel()" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
+                隐藏防护状态板块
+            </button>
+            <button onclick="testUpdateStatus()" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                测试状态更新
+            </button>
+        </div>
+
+        <!-- 增强防护状态板块 -->
+        <div id="guardian-status-panel" class="card rounded-2xl p-6 shadow-sm bg-white" style="display: none;">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/>
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="font-medium text-slate-800">🛡️ 增强防护状态</h3>
+              <p class="text-sm text-slate-500" id="guardian-panel-mode">防护模式：未启动</p>
+            </div>
+            <button onclick="refreshGuardianStatus()" class="text-slate-400 hover:text-slate-600 transition-colors" title="刷新状态">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"/>
+              </svg>
+            </button>
+          </div>
+          
+          <!-- 拦截统计 -->
+          <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="text-center p-4 bg-gradient-to-br from-red-50 to-red-100 rounded-xl border border-red-200">
+              <div class="text-2xl font-bold text-red-600 mb-1" id="panel-intercept-count">0</div>
+              <div class="text-sm text-red-700 font-medium">拦截次数</div>
+              <div class="text-xs text-red-500 mt-1">IDE操作拦截</div>
+            </div>
+            <div class="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl border border-orange-200">
+              <div class="text-2xl font-bold text-orange-600 mb-1" id="panel-backup-removed">0</div>
+              <div class="text-sm text-orange-700 font-medium">删除备份</div>
+              <div class="text-xs text-orange-500 mt-1">备份文件清理</div>
+            </div>
+            <div class="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+              <div class="text-2xl font-bold text-blue-600 mb-1" id="panel-protection-restored">0</div>
+              <div class="text-sm text-blue-700 font-medium">恢复保护</div>
+              <div class="text-xs text-blue-500 mt-1">保护机制恢复</div>
+            </div>
+          </div>
+
+          <!-- 最近拦截记录 -->
+          <div class="mb-6">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-sm font-medium text-slate-700">最近拦截记录</h4>
+              <span class="text-xs text-slate-500">实时更新</span>
+            </div>
+            <div id="panel-recent-intercepts" class="bg-slate-50 rounded-lg p-3 min-h-[80px] max-h-32 overflow-y-auto">
+              <div class="text-center text-slate-400 py-4">
+                <svg class="w-8 h-8 mx-auto mb-2 text-slate-300" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"/>
+                </svg>
+                <div class="text-sm text-slate-400">暂无拦截记录</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 控制按钮 -->
+          <div class="flex gap-3">
+            <button onclick="stopGuardianService()" class="flex-1 px-4 py-2 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 012 0v4a1 1 0 11-2 0V7zM12 7a1 1 0 012 0v4a1 1 0 11-2 0V7z"/>
+              </svg>
+              停止防护
+            </button>
+            <button onclick="viewGuardianLogs()" class="flex-1 px-4 py-2 bg-slate-500 text-white font-medium rounded-lg hover:bg-slate-600 transition-colors flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+              </svg>
+              查看日志
+            </button>
+          </div>
+        </div>
+    </div>
+
+    <script>
+        // 显示增强防护状态板块
+        function showGuardianStatusPanel() {
+            const panel = document.getElementById('guardian-status-panel');
+            if (panel) {
+                panel.style.display = 'block';
+                console.log('显示增强防护状态板块');
+            }
+        }
+
+        // 隐藏增强防护状态板块
+        function hideGuardianStatusPanel() {
+            const panel = document.getElementById('guardian-status-panel');
+            if (panel) {
+                panel.style.display = 'none';
+                console.log('隐藏增强防护状态板块');
+            }
+        }
+
+        // 刷新增强防护状态
+        function refreshGuardianStatus() {
+            console.log('刷新增强防护状态');
+            // 模拟状态更新
+            testUpdateStatus();
+        }
+
+        // 测试状态更新
+        function testUpdateStatus() {
+            const mockStatus = {
+                isRunning: true,
+                stats: {
+                    interceptCount: Math.floor(Math.random() * 20) + 1,
+                    backupRemoved: Math.floor(Math.random() * 15) + 1,
+                    protectionRestored: Math.floor(Math.random() * 10) + 1
+                },
+                recentIntercepts: [
+                    {
+                        type: 'ide_operation',
+                        description: '拦截IDE操作',
+                        timestamp: Date.now() - 120000
+                    },
+                    {
+                        type: 'backup_removal',
+                        description: '删除备份文件',
+                        timestamp: Date.now() - 60000
+                    },
+                    {
+                        type: 'protection_restore',
+                        description: '恢复保护',
+                        timestamp: Date.now() - 30000
+                    }
+                ]
+            };
+            
+            updateGuardianStatusPanel(mockStatus);
+        }
+
+        // 更新增强防护状态板块
+        function updateGuardianStatusPanel(status) {
+            // 更新防护模式显示
+            const modeElement = document.getElementById('guardian-panel-mode');
+            if (modeElement) {
+                if (status.isRunning) {
+                    modeElement.textContent = '防护模式：独立服务（持久防护）';
+                    modeElement.className = 'text-sm text-emerald-600 font-medium';
+                } else {
+                    modeElement.textContent = '防护模式：未启动';
+                    modeElement.className = 'text-sm text-slate-500';
+                }
+            }
+
+            // 更新统计数据
+            const interceptCount = document.getElementById('panel-intercept-count');
+            const backupRemoved = document.getElementById('panel-backup-removed');
+            const protectionRestored = document.getElementById('panel-protection-restored');
+            
+            if (interceptCount) interceptCount.textContent = status.stats?.interceptCount || 0;
+            if (backupRemoved) backupRemoved.textContent = status.stats?.backupRemoved || 0;
+            if (protectionRestored) protectionRestored.textContent = status.stats?.protectionRestored || 0;
+
+            // 更新最近拦截记录
+            updateRecentIntercepts(status.recentIntercepts || []);
+        }
+
+        // 更新最近拦截记录
+        function updateRecentIntercepts(intercepts) {
+            const container = document.getElementById('panel-recent-intercepts');
+            if (!container) return;
+
+            if (intercepts.length === 0) {
+                container.innerHTML = `
+                  <div class="text-center text-slate-400 py-4">
+                    <svg class="w-8 h-8 mx-auto mb-2 text-slate-300" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"/>
+                    </svg>
+                    <div class="text-sm text-slate-400">暂无拦截记录</div>
+                  </div>
+                `;
+                return;
+            }
+
+            const interceptsHtml = intercepts.slice(0, 5).map(intercept => {
+                const iconMap = {
+                    'ide_operation': '🚨',
+                    'backup_removal': '🗑️',
+                    'protection_restore': '🔒'
+                };
+                const icon = iconMap[intercept.type] || '🛡️';
+                const time = new Date(intercept.timestamp).toLocaleTimeString('zh-CN', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+                
+                return `
+                  <div class="flex items-center justify-between py-2 border-b border-slate-200 last:border-b-0">
+                    <div class="flex items-center gap-2">
+                      <span class="text-sm">${icon}</span>
+                      <span class="text-sm text-slate-700">${intercept.description}</span>
+                    </div>
+                    <span class="text-xs text-slate-500">${time}</span>
+                  </div>
+                `;
+            }).join('');
+
+            container.innerHTML = interceptsHtml;
+        }
+
+        // 停止增强防护服务
+        function stopGuardianService() {
+            if (confirm('确定要停止增强防护服务吗？\n\n停止后将无法拦截IDE的设备ID恢复操作。')) {
+                console.log('停止增强防护服务');
+                alert('增强防护服务已停止');
+                hideGuardianStatusPanel();
+            }
+        }
+
+        // 查看增强防护日志
+        function viewGuardianLogs() {
+            console.log('查看增强防护日志');
+            alert('打开增强防护日志');
+        }
+    </script>
+</body>
+</html>

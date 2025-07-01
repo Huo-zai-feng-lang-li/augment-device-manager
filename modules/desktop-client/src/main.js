@@ -1562,6 +1562,46 @@ ipcMain.handle("get-websocket-status", async () => {
   };
 });
 
+// 获取增强防护状态
+ipcMain.handle("get-enhanced-guardian-status", async () => {
+  try {
+    return await deviceManager.getEnhancedGuardianStatus();
+  } catch (error) {
+    console.error("获取增强防护状态失败:", error);
+    return {
+      isGuarding: false,
+      mode: "none",
+      error: error.message,
+    };
+  }
+});
+
+// 停止增强防护服务
+ipcMain.handle("stop-enhanced-guardian", async () => {
+  try {
+    const results = { actions: [], errors: [] };
+
+    // 停止内置守护进程
+    await deviceManager.stopEnhancedGuardian(results);
+
+    // 停止独立服务
+    await deviceManager.stopStandaloneService(results);
+
+    return {
+      success: true,
+      message: "增强防护服务已停止",
+      actions: results.actions,
+      errors: results.errors,
+    };
+  } catch (error) {
+    console.error("停止增强防护服务失败:", error);
+    return {
+      success: false,
+      message: error.message,
+    };
+  }
+});
+
 // 测试服务器连接
 ipcMain.handle("test-server-connection", async () => {
   try {

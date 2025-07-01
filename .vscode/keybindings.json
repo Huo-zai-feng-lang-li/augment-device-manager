@@ -1,0 +1,43 @@
+// 将键绑定放在此文件中以覆盖默认值
+[
+  {
+    "key": "ctrl+s",
+    "command": "editor.action.formatDocument",
+    "when": "editorHasDocumentFormattingProvider && editorTextFocus && !editorReadonly && !inCompositeEditor"
+  },
+  {
+    "key": "shift+alt+f",
+    "command": "-editor.action.formatDocument",
+    "when": "editorHasDocumentFormattingProvider && editorTextFocus && !editorReadonly && !inCompositeEditor"
+  },
+  {
+    "key": "alt+x",
+    "command": "editor.action.toggleWordWrap"
+  },
+  {
+    "key": "alt+z",
+    "command": "-editor.action.toggleWordWrap"
+  },
+  {
+    "key": "ctrl+0",
+    "command": "workbench.action.closeAllEditors"
+  },
+  {
+    "key": "ctrl+k ctrl+w",
+    "command": "-workbench.action.closeAllEditors"
+  },
+  {
+    "key": "ctrl+s",
+    "command": "editor.action.formatDocument.none",
+    "when": "editorTextFocus && !editorHasDocumentFormattingProvider && !editorReadonly"
+  },
+  {
+    "key": "shift+alt+f",
+    "command": "-editor.action.formatDocument.none",
+    "when": "editorTextFocus && !editorHasDocumentFormattingProvider && !editorReadonly"
+  },
+  {
+    "key": "ctrl+s",
+    "command": "prettier.forceFormatDocument"
+  }
+]

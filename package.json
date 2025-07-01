@@ -5,17 +5,17 @@
   "main": "index.js",
   "scripts": {
     "dev": "echo 🚀 启动完整开发环境... && npm run install-all && concurrently --names \"后端,客户端\" --prefix-colors \"blue,green\" \"cd modules/admin-backend && npm run dev\" \"cd modules/desktop-client && npm run dev\"",
-    "build:remote": "echo 🚀 一键打包远程控制版本... && node scripts/build/super-build.js",
-    "package:remote": "echo 🚀 简洁远程打包... && node scripts/build/remote-package.js",
+    "build:remote": "echo 🧹 清理ngrok进程... && taskkill /IM ngrok.exe /F 2>nul || echo 无ngrok进程需要清理 && echo 🚀 一键打包远程控制版本... && node scripts/build/super-build.js",
+    "package:remote": "echo 🧹 清理ngrok进程... && taskkill /IM ngrok.exe /F 2>nul || echo 无ngrok进程需要清理 && echo 🚀 简洁远程打包... && node scripts/build/remote-package.js",
     "clean": "echo 🧹 清理构建文件... && node scripts/build/clean-build.js",
     "build": "echo 🚀 智能打包本地控制版本... && node scripts/build/smart-build.js",
-    "server:start": "echo 🚀 启动持久远程控制服务... && node scripts/server/start-server.js",
+    "server:start": "echo 🧹 清理ngrok进程... && taskkill /IM ngrok.exe /F 2>nul || echo 无ngrok进程需要清理 && echo 🚀 启动持久远程控制服务... && node scripts/server/start-server.js",
     "server:stop": "echo 🛑 停止远程控制服务... && node scripts/server/stop-server.js",
     "server:status": "echo 📊 检查服务状态... && node scripts/server/server-status.js",
     "config:update": "echo 🔄 更新客户端配置... && node scripts/setup/update-client-config.js",
-    "config:watch": "echo 👀 监听地址变化... && node scripts/setup/update-client-config.js --watch",
+    "config:watch": "echo ⚠️ 地址监听已禁用（无需实时监听，打包时自动配置） && node scripts/setup/update-client-config.js --watch",
     "config:verify": "echo 🔍 验证配置状态... && node scripts/test/verify-config.js",
-    "workflow:rebuild": "echo 🚀 完整重建工作流程... && node scripts/workflow/rebuild-client.js",
+    "workflow:rebuild": "echo 🧹 清理ngrok进程... && taskkill /IM ngrok.exe /F 2>nul || echo 无ngrok进程需要清理 && echo 🚀 完整重建工作流程... && node scripts/workflow/rebuild-client.js",
     "workflow:quick": "echo ⚡ 快速重建... && npm run config:update && cd modules/desktop-client && npm run build",
     "setup": "echo 📦 安装所有依赖... && npm run install-all && echo ✅ 安装完成！运行 npm run dev 启动开发环境",
     "start": "npm run dev",
@@ -38,7 +38,9 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
+    "chokidar": "^4.0.3",
     "fs-extra": "^11.3.0",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^2.7.0",
+    "sql.js": "^1.13.0"
   }
 }

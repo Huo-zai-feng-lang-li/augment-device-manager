@@ -6,9 +6,9 @@ const os = require("os");
 // 默认配置
 const DEFAULT_CONFIG = {
   server: {
-    host: "127.0.0.1", // 预设服务器地址
-    port: 3002, // 预设端口
-    protocol: "http", // 预设协议
+    host: "9abf-2409-8a00-6033-ad40-90ab-e159-bca9-417.ngrok-free.app", // 预设服务器地址
+    port: 443, // 预设端口
+    protocol: "https", // 预设协议
   },
   client: {
     autoConnect: true,

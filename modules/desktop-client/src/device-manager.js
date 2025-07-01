@@ -1,10 +1,14 @@
 const fs = require("fs-extra");
 const path = require("path");
 const os = require("os");
+const crypto = require("crypto");
 const { exec } = require("child_process");
 const { promisify } = require("util");
 const { app } = require("electron");
 const AdminHelper = require("./admin-helper");
+// const { DeviceIdGuardian } = require("./device-id-guardian"); // 已禁用设备ID守护功能
+const { EnhancedDeviceGuardian } = require("./enhanced-device-guardian");
+const { StandaloneGuardianService } = require("./standalone-guardian-service");
 
 const execAsync = promisify(exec);
 
@@ -29,6 +33,9 @@ class DeviceManager {
     this.platform = os.platform();
     this.cursorPaths = this.getCursorPaths();
     this.adminHelper = new AdminHelper();
+    // this.deviceIdGuardian = new DeviceIdGuardian(); // 已禁用，改用一次性文件保护
+    this.enhancedGuardian = new EnhancedDeviceGuardian();
+    this.standaloneService = new StandaloneGuardianService();
   }
 
   // 获取Cursor相关路径
@@ -457,6 +464,24 @@ class DeviceManager {
         await this.startContinuousMonitoring(results, monitoringTime, options);
       }
 
+      // 11. 启动设备ID守护者，防止IDE自动恢复旧ID（已禁用，改用一次性禁用storage.json）
+      // if (options.cleanCursor || options.cleanCursorExtension) {
+      //   await this.startDeviceIdGuardian(results, options);
+      // }
+
+      // 替代方案：一次性禁用storage.json文件
+      if (options.cleanCursor || options.cleanCursorExtension) {
+        await this.disableStorageJson(results, options);
+      }
+
+      // 12. 启动增强设备ID守护进程（可选）
+      if (
+        options.enableEnhancedGuardian &&
+        (options.cleanCursor || options.cleanCursorExtension)
+      ) {
+        await this.startEnhancedGuardian(results, options);
+      }
+
       return results;
     } catch (error) {
       return {
@@ -479,10 +504,14 @@ class DeviceManager {
         const config = await fs.readJson(configFile);
         results.actions.push("已读取当前配置文件");
 
-        // 备份完整配置文件
-        const backupPath = configFile + ".backup." + Date.now();
-        await fs.copy(configFile, backupPath);
-        results.actions.push(`已备份配置文件到: ${backupPath}`);
+        // 备份完整配置文件（可选）
+        if (!options.skipBackup) {
+          const backupPath = configFile + ".backup." + Date.now();
+          await fs.copy(configFile, backupPath);
+          results.actions.push(`已备份配置文件到: ${backupPath}`);
+        } else {
+          results.actions.push("🚫 跳过配置文件备份");
+        }
 
         let newConfig = {};
 
@@ -764,8 +793,26 @@ class DeviceManager {
                   "license",
                   "activation",
                   "extension",
+                  "bubble", // 聊天气泡
+                  "checkpoint", // 检查点
+                  "message", // 消息
+                  "composer", // 代码生成器
+                  "session", // 会话
+                  "auth", // 认证
+                  "token", // 令牌
+                  "user", // 用户
                 ];
                 let whereConditions = [];
+
+                // 特殊处理：直接清理已知的用户身份相关记录
+                const directCleanupPatterns = [
+                  "bubbleId:",
+                  "checkpointId:",
+                  "messageRequestContext:",
+                  "composerData:",
+                  "cursorAuth",
+                  "userSession",
+                ];
 
                 // 构建查询条件
                 for (const keyword of augmentKeywords) {
@@ -818,6 +865,9 @@ class DeviceManager {
               }
             }
           }
+
+          // 特别清理cursorDiskKV表中的用户会话数据
+          await this.cleanCursorDiskKVTable(db, results);
 
           if (cleanedTables > 0) {
             // 保存修改后的数据库
@@ -1501,15 +1551,26 @@ class DeviceManager {
         path.join(os.homedir(), ".config", "Cursor", "logs"),
       ];
 
-      // 备份重要文件
-      const backupDir = path.join(os.tmpdir(), `cursor-backup-${Date.now()}`);
-      await fs.ensureDir(backupDir);
+      // 备份重要文件（可选）
+      let backupDir = null;
+      if (!options.skipBackup) {
+        backupDir = path.join(os.tmpdir(), `cursor-backup-${Date.now()}`);
+        await fs.ensureDir(backupDir);
+        results.actions.push("📁 已创建备份目录");
+      } else {
+        results.actions.push("🚫 跳过备份文件创建（防止IDE恢复）");
+      }
 
       // 根据resetCursorCompletely和skipCursorLogin选项决定清理策略
       if (options.resetCursorCompletely) {
         // 完全重置模式：清理所有Cursor IDE数据
         results.actions.push("🔄 启用完全重置模式，清理所有Cursor IDE数据...");
-        await this.performCompleteCursorReset(results, cursorPaths, backupDir);
+        await this.performCompleteCursorReset(
+          results,
+          cursorPaths,
+          backupDir,
+          options
+        );
       } else if (options.skipCursorLogin) {
         // 保留登录模式：选择性清理
         results.actions.push("🔐 启用登录保留模式，选择性清理...");
@@ -1531,17 +1592,21 @@ class DeviceManager {
               }
 
               if (stats.isFile()) {
-                // 备份并删除非关键文件
+                // 备份并删除非关键文件（可选备份）
                 const fileName = path.basename(cursorPath);
-                const backupPath = path.join(backupDir, fileName);
-                await fs.copy(cursorPath, backupPath);
+                if (!options.skipBackup && backupDir) {
+                  const backupPath = path.join(backupDir, fileName);
+                  await fs.copy(cursorPath, backupPath);
+                }
                 await fs.remove(cursorPath);
                 results.actions.push(`已清理Cursor文件: ${fileName}`);
               } else if (stats.isDirectory()) {
-                // 备份并删除非关键目录
+                // 备份并删除非关键目录（可选备份）
                 const dirName = path.basename(cursorPath);
-                const backupPath = path.join(backupDir, dirName);
-                await fs.copy(cursorPath, backupPath);
+                if (!options.skipBackup && backupDir) {
+                  const backupPath = path.join(backupDir, dirName);
+                  await fs.copy(cursorPath, backupPath);
+                }
                 await fs.remove(cursorPath);
                 results.actions.push(`已清理Cursor目录: ${dirName}`);
               }
@@ -1567,19 +1632,23 @@ class DeviceManager {
               const stats = await fs.stat(cursorPath);
 
               if (stats.isFile()) {
-                // 备份单个文件
+                // 备份单个文件（可选）
                 const fileName = path.basename(cursorPath);
-                const backupPath = path.join(backupDir, fileName);
-                await fs.copy(cursorPath, backupPath);
+                if (!options.skipBackup && backupDir) {
+                  const backupPath = path.join(backupDir, fileName);
+                  await fs.copy(cursorPath, backupPath);
+                }
 
                 // 删除原文件
                 await fs.remove(cursorPath);
                 results.actions.push(`已清理Cursor文件: ${fileName}`);
               } else if (stats.isDirectory()) {
-                // 备份整个目录
+                // 备份整个目录（可选）
                 const dirName = path.basename(cursorPath);
-                const backupPath = path.join(backupDir, dirName);
-                await fs.copy(cursorPath, backupPath);
+                if (!options.skipBackup && backupDir) {
+                  const backupPath = path.join(backupDir, dirName);
+                  await fs.copy(cursorPath, backupPath);
+                }
 
                 // 删除原目录
                 await fs.remove(cursorPath);
@@ -1748,21 +1817,23 @@ class DeviceManager {
       for (const augmentPath of augmentStoragePaths) {
         try {
           if (await fs.pathExists(augmentPath)) {
-            // 备份Augment扩展数据
-            const backupDir = path.join(
-              os.tmpdir(),
-              `augment-backup-${Date.now()}`
-            );
-            await fs.ensureDir(backupDir);
-            const backupPath = path.join(backupDir, "augment.vscode-augment");
-            await fs.copy(augmentPath, backupPath);
+            // 备份Augment扩展数据（可选）
+            if (!options.skipBackup) {
+              const backupDir = path.join(
+                os.tmpdir(),
+                `augment-backup-${Date.now()}`
+              );
+              await fs.ensureDir(backupDir);
+              const backupPath = path.join(backupDir, "augment.vscode-augment");
+              await fs.copy(augmentPath, backupPath);
+              results.actions.push(`📁 Augment数据备份至: ${backupPath}`);
+            }
 
             // 删除Augment扩展存储目录
             await fs.remove(augmentPath);
             results.actions.push(
               `✅ 已清理Augment扩展存储: ${path.basename(augmentPath)}`
             );
-            results.actions.push(`📁 Augment数据备份至: ${backupPath}`);
             cleanedCount++;
           }
         } catch (error) {
@@ -1931,24 +2002,26 @@ class DeviceManager {
 
         if (await fs.pathExists(augmentWorkspacePath)) {
           try {
-            // 备份工作区Augment数据
-            const backupDir = path.join(
-              os.tmpdir(),
-              `workspace-augment-backup-${Date.now()}`
-            );
-            await fs.ensureDir(backupDir);
-            const backupPath = path.join(
-              backupDir,
-              `${workspace}-augment.vscode-augment`
-            );
-            await fs.copy(augmentWorkspacePath, backupPath);
+            // 备份工作区Augment数据（可选）
+            if (!options.skipBackup) {
+              const backupDir = path.join(
+                os.tmpdir(),
+                `workspace-augment-backup-${Date.now()}`
+              );
+              await fs.ensureDir(backupDir);
+              const backupPath = path.join(
+                backupDir,
+                `${workspace}-augment.vscode-augment`
+              );
+              await fs.copy(augmentWorkspacePath, backupPath);
+              results.actions.push(`📁 工作区数据备份至: ${backupPath}`);
+            }
 
             // 删除工作区Augment数据
             await fs.remove(augmentWorkspacePath);
             results.actions.push(
               `✅ 已清理工作区Augment数据: ${workspace.substring(0, 16)}...`
             );
-            results.actions.push(`📁 工作区数据备份至: ${backupPath}`);
             cleanedWorkspaces++;
           } catch (error) {
             results.errors.push(
@@ -2008,26 +2081,31 @@ class DeviceManager {
       for (const pathToClean of pathsToClean) {
         try {
           if (await fs.pathExists(pathToClean)) {
-            // 备份目录
-            const backupDir = path.join(
-              os.tmpdir(),
-              `cursor-backup-${Date.now()}-${Math.random()
-                .toString(36)
-                .substr(2, 9)}`
-            );
-            await fs.ensureDir(backupDir);
-            const backupPath = path.join(backupDir, path.basename(pathToClean));
+            // 备份目录（可选）
+            if (!options.skipBackup) {
+              const backupDir = path.join(
+                os.tmpdir(),
+                `cursor-backup-${Date.now()}-${Math.random()
+                  .toString(36)
+                  .substr(2, 9)}`
+              );
+              await fs.ensureDir(backupDir);
+              const backupPath = path.join(
+                backupDir,
+                path.basename(pathToClean)
+              );
 
-            try {
-              await fs.copy(pathToClean, backupPath);
-              results.actions.push(
-                `📁 ${path.basename(pathToClean)}备份至: ${backupPath}`
-              );
-            } catch (backupError) {
-              // 备份失败不阻止清理
-              results.actions.push(
-                `⚠️ ${path.basename(pathToClean)}备份失败，继续清理`
-              );
+              try {
+                await fs.copy(pathToClean, backupPath);
+                results.actions.push(
+                  `📁 ${path.basename(pathToClean)}备份至: ${backupPath}`
+                );
+              } catch (backupError) {
+                // 备份失败不阻止清理
+                results.actions.push(
+                  `⚠️ ${path.basename(pathToClean)}备份失败，继续清理`
+                );
+              }
             }
 
             // 删除原目录
@@ -2847,7 +2925,12 @@ class DeviceManager {
   }
 
   // 执行完全的Cursor IDE重置
-  async performCompleteCursorReset(results, cursorPaths, backupDir) {
+  async performCompleteCursorReset(
+    results,
+    cursorPaths,
+    backupDir,
+    options = {}
+  ) {
     try {
       results.actions.push("🔄 开始完全重置Cursor IDE用户身份...");
 
@@ -2859,17 +2942,21 @@ class DeviceManager {
             const pathName = path.basename(cursorPath);
 
             if (stats.isFile()) {
-              // 备份并删除文件
+              // 备份并删除文件（可选备份）
               const fileName = path.basename(cursorPath);
-              const backupPath = path.join(backupDir, fileName);
-              await fs.copy(cursorPath, backupPath);
+              if (!options.skipBackup && backupDir) {
+                const backupPath = path.join(backupDir, fileName);
+                await fs.copy(cursorPath, backupPath);
+              }
               await fs.remove(cursorPath);
               results.actions.push(`🗑️ 已清理Cursor文件: ${fileName}`);
             } else if (stats.isDirectory()) {
-              // 备份并删除目录
+              // 备份并删除目录（可选备份）
               const dirName = path.basename(cursorPath);
-              const backupPath = path.join(backupDir, dirName);
-              await fs.copy(cursorPath, backupPath);
+              if (!options.skipBackup && backupDir) {
+                const backupPath = path.join(backupDir, dirName);
+                await fs.copy(cursorPath, backupPath);
+              }
               await fs.remove(cursorPath);
               results.actions.push(`🗑️ 已清理Cursor目录: ${dirName}`);
             }
@@ -3162,12 +3249,15 @@ class DeviceManager {
       // 1. 保护MCP配置
       const mcpConfig = await this.protectVSCodeMCPConfig(results, variant);
 
-      // 2. 备份所有数据
-      const backupDir = path.join(
-        os.tmpdir(),
-        `vscode-${variant.name}-complete-backup-${Date.now()}`
-      );
-      await fs.ensureDir(backupDir);
+      // 2. 备份所有数据（可选）
+      let backupDir = null;
+      if (!options.skipBackup) {
+        backupDir = path.join(
+          os.tmpdir(),
+          `vscode-${variant.name}-complete-backup-${Date.now()}`
+        );
+        await fs.ensureDir(backupDir);
+      }
 
       // 3. 清理所有VS Code数据
       const pathsToClean = [
@@ -3179,8 +3269,10 @@ class DeviceManager {
       for (const pathToClean of pathsToClean) {
         if (await fs.pathExists(pathToClean)) {
           const pathName = path.basename(pathToClean);
-          const backupPath = path.join(backupDir, pathName);
-          await fs.copy(pathToClean, backupPath);
+          if (!options.skipBackup && backupDir) {
+            const backupPath = path.join(backupDir, pathName);
+            await fs.copy(pathToClean, backupPath);
+          }
           await fs.remove(pathToClean);
           results.actions.push(`🗑️ 已清理VS Code ${variant.name} ${pathName}`);
         }
@@ -3791,6 +3883,347 @@ class DeviceManager {
     } catch (error) {
       return {
         success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  // 启动设备ID守护者（已禁用，改用一次性文件保护）
+  /*
+  async startDeviceIdGuardian(results, options = {}) {
+    try {
+      // 生成新的设备ID
+      const crypto = require("crypto");
+      const newDeviceId = crypto.randomUUID();
+
+      // 启动守护者
+      await this.deviceIdGuardian.startGuarding(newDeviceId);
+
+      results.actions.push(`🛡️ 设备ID守护者已启动`);
+      results.actions.push(`🆔 新设备ID: ${newDeviceId}`);
+      results.actions.push(`🔒 已设置storage.json只读保护`);
+
+      // 设置定时器，在60秒后停止守护（避免长期占用资源）
+      setTimeout(async () => {
+        try {
+          await this.deviceIdGuardian.stopGuarding();
+          console.log("🛑 设备ID守护者已自动停止");
+        } catch (error) {
+          console.error("停止守护者失败:", error);
+        }
+      }, 60000);
+    } catch (error) {
+      results.errors.push(`启动设备ID守护者失败: ${error.message}`);
+    }
+  }
+  */
+
+  // 一次性禁用storage.json文件（替代持续监控）
+  async disableStorageJson(results, options = {}) {
+    try {
+      const storageJsonPath = path.join(
+        os.homedir(),
+        "AppData",
+        "Roaming",
+        "Cursor",
+        "User",
+        "globalStorage",
+        "storage.json"
+      );
+
+      // 检查文件是否存在
+      if (!(await fs.pathExists(storageJsonPath))) {
+        results.actions.push("⚠️ storage.json文件不存在，跳过禁用操作");
+        return;
+      }
+
+      // 设置文件为只读（禁止修改）
+      const { exec } = require("child_process");
+      const { promisify } = require("util");
+      const execAsync = promisify(exec);
+
+      try {
+        // Windows: 设置只读属性
+        await execAsync(`attrib +R "${storageJsonPath}"`);
+        results.actions.push(
+          "🔒 已将storage.json设置为只读，防止Cursor自动恢复设备ID"
+        );
+
+        // 验证设置是否成功
+        const { stdout } = await execAsync(`attrib "${storageJsonPath}"`);
+        if (stdout.includes("R")) {
+          results.actions.push("✅ 只读属性设置成功");
+        }
+      } catch (error) {
+        results.errors.push(`设置只读属性失败: ${error.message}`);
+
+        // 备用方案：尝试修改文件权限
+        try {
+          await fs.chmod(storageJsonPath, 0o444); // 只读权限
+          results.actions.push("🔒 已通过chmod设置storage.json为只读");
+        } catch (chmodError) {
+          results.errors.push(`备用权限设置也失败: ${chmodError.message}`);
+        }
+      }
+
+      // 添加说明信息
+      results.actions.push(
+        '💡 提示: 如需恢复文件修改权限，请运行: attrib -R "' +
+          storageJsonPath +
+          '"'
+      );
+    } catch (error) {
+      results.errors.push(`禁用storage.json失败: ${error.message}`);
+    }
+  }
+
+  // 恢复storage.json文件的修改权限
+  async enableStorageJson(results) {
+    try {
+      const storageJsonPath = path.join(
+        os.homedir(),
+        "AppData",
+        "Roaming",
+        "Cursor",
+        "User",
+        "globalStorage",
+        "storage.json"
+      );
+
+      // 检查文件是否存在
+      if (!(await fs.pathExists(storageJsonPath))) {
+        results.actions.push("⚠️ storage.json文件不存在");
+        return;
+      }
+
+      // 移除只读属性
+      const { exec } = require("child_process");
+      const { promisify } = require("util");
+      const execAsync = promisify(exec);
+
+      try {
+        // Windows: 移除只读属性
+        await execAsync(`attrib -R "${storageJsonPath}"`);
+        results.actions.push("🔓 已恢复storage.json的修改权限");
+
+        // 验证设置是否成功
+        const { stdout } = await execAsync(`attrib "${storageJsonPath}"`);
+        if (!stdout.includes("R")) {
+          results.actions.push("✅ 修改权限恢复成功");
+        }
+      } catch (error) {
+        results.errors.push(`恢复修改权限失败: ${error.message}`);
+
+        // 备用方案：尝试修改文件权限
+        try {
+          await fs.chmod(storageJsonPath, 0o644); // 可读写权限
+          results.actions.push("🔓 已通过chmod恢复storage.json修改权限");
+        } catch (chmodError) {
+          results.errors.push(`备用权限恢复也失败: ${chmodError.message}`);
+        }
+      }
+    } catch (error) {
+      results.errors.push(`恢复storage.json权限失败: ${error.message}`);
+    }
+  }
+
+  // 清理cursorDiskKV表中的用户会话数据
+  async cleanCursorDiskKVTable(db, results) {
+    try {
+      // 查看清理前的记录数量
+      const beforeCount = db.exec("SELECT COUNT(*) as count FROM cursorDiskKV");
+      const totalBefore =
+        beforeCount.length > 0 ? beforeCount[0].values[0][0] : 0;
+
+      const bubbleCount = db.exec(
+        'SELECT COUNT(*) as count FROM cursorDiskKV WHERE key LIKE "bubbleId:%"'
+      );
+      const bubbleBefore =
+        bubbleCount.length > 0 ? bubbleCount[0].values[0][0] : 0;
+
+      if (bubbleBefore > 0) {
+        // 清理用户相关记录
+        const cleanupQueries = [
+          'DELETE FROM cursorDiskKV WHERE key LIKE "bubbleId:%"',
+          'DELETE FROM cursorDiskKV WHERE key LIKE "checkpointId:%"',
+          'DELETE FROM cursorDiskKV WHERE key LIKE "messageRequest%"',
+          'DELETE FROM cursorDiskKV WHERE key LIKE "%composer%"',
+          'DELETE FROM cursorDiskKV WHERE key LIKE "%session%"',
+          'DELETE FROM cursorDiskKV WHERE key LIKE "%auth%"',
+          'DELETE FROM cursorDiskKV WHERE key LIKE "%user%"',
+          'DELETE FROM cursorDiskKV WHERE key LIKE "%augment%"',
+        ];
+
+        for (const query of cleanupQueries) {
+          try {
+            db.exec(query);
+          } catch (error) {
+            // 忽略单个查询失败
+          }
+        }
+
+        // 查看清理后的记录数量
+        const afterCount = db.exec(
+          "SELECT COUNT(*) as count FROM cursorDiskKV"
+        );
+        const totalAfter =
+          afterCount.length > 0 ? afterCount[0].values[0][0] : 0;
+
+        const deletedCount = totalBefore - totalAfter;
+        results.actions.push(
+          `🧹 已清理cursorDiskKV表: ${deletedCount} 条用户会话记录`
+        );
+        results.actions.push(`📊 bubbleId记录: ${bubbleBefore} → 0`);
+      } else {
+        results.actions.push("✅ cursorDiskKV表中无需清理的用户数据");
+      }
+    } catch (error) {
+      results.errors.push(`清理cursorDiskKV表失败: ${error.message}`);
+    }
+  }
+
+  // 启动增强设备ID守护进程
+  async startEnhancedGuardian(results, options = {}) {
+    try {
+      // 生成新的设备ID作为目标ID
+      const newDeviceId = crypto.randomUUID();
+
+      // 检查是否启用独立服务模式
+      const useStandaloneService = options.useStandaloneService !== false; // 默认启用
+
+      if (useStandaloneService) {
+        // 启动独立守护服务（客户端关闭后仍然运行）
+        const serviceResult =
+          await this.standaloneService.startStandaloneService(newDeviceId, {
+            enableBackupMonitoring: true,
+            enableDatabaseMonitoring: true,
+            enableEnhancedProtection: true,
+          });
+
+        if (serviceResult.success) {
+          results.actions.push("🛡️ 独立守护服务已启动（持久防护）");
+          results.actions.push(`🎯 目标设备ID: ${newDeviceId}`);
+          results.actions.push(`🔧 服务PID: ${serviceResult.pid}`);
+          results.actions.push("🔒 已启用零容忍备份文件监控");
+          results.actions.push("🗄️ 已启用SQLite数据库监控");
+          results.actions.push("🛡️ 已启用增强文件保护");
+          results.actions.push("⚡ 服务将在客户端关闭后继续运行");
+        } else {
+          results.errors.push(`启动独立守护服务失败: ${serviceResult.message}`);
+
+          // 降级到内置守护进程
+          results.actions.push("⚠️ 降级到内置守护进程模式");
+          await this.startInProcessGuardian(results, newDeviceId, options);
+        }
+      } else {
+        // 使用内置守护进程（客户端关闭时停止）
+        await this.startInProcessGuardian(results, newDeviceId, options);
+      }
+    } catch (error) {
+      results.errors.push(`启动增强守护进程失败: ${error.message}`);
+    }
+  }
+
+  // 启动内置守护进程
+  async startInProcessGuardian(results, deviceId, options = {}) {
+    try {
+      // 标记客户端正在清理，避免守护进程干扰
+      this.enhancedGuardian.setClientCleaningState(true);
+
+      // 启动增强守护进程
+      const guardianResult = await this.enhancedGuardian.startGuarding(
+        deviceId,
+        {
+          enableBackupMonitoring: true,
+          enableDatabaseMonitoring: true,
+          enableEnhancedProtection: true,
+        }
+      );
+
+      if (guardianResult.success) {
+        results.actions.push("🛡️ 内置守护进程已启动（客户端运行时防护）");
+        results.actions.push(`🎯 目标设备ID: ${deviceId}`);
+        results.actions.push("🔒 已启用零容忍备份文件监控");
+        results.actions.push("🗄️ 已启用SQLite数据库监控");
+        results.actions.push("🛡️ 已启用增强文件保护");
+
+        // 设置定时器，在指定时间后标记客户端清理完成
+        setTimeout(() => {
+          this.enhancedGuardian.setClientCleaningState(false);
+          console.log("✅ 客户端清理完成，增强守护进程开始全面监控");
+        }, 10000); // 10秒后开始监控
+      } else {
+        results.errors.push(`启动内置守护进程失败: ${guardianResult.message}`);
+      }
+    } catch (error) {
+      results.errors.push(`启动内置守护进程失败: ${error.message}`);
+    }
+  }
+
+  // 停止增强设备ID守护进程
+  async stopEnhancedGuardian(results) {
+    try {
+      const stopResult = await this.enhancedGuardian.stopGuarding();
+
+      if (stopResult.success) {
+        results.actions.push("🛑 增强设备ID守护进程已停止");
+      } else {
+        results.errors.push(`停止增强守护进程失败: ${stopResult.message}`);
+      }
+    } catch (error) {
+      results.errors.push(`停止增强守护进程失败: ${error.message}`);
+    }
+  }
+
+  // 获取增强守护进程状态
+  async getEnhancedGuardianStatus() {
+    try {
+      const inProcessStatus = await this.enhancedGuardian.getStatus();
+      const standaloneStatus = await this.standaloneService.getServiceStatus();
+
+      return {
+        inProcess: inProcessStatus,
+        standalone: standaloneStatus,
+        isGuarding: inProcessStatus.isGuarding || standaloneStatus.isRunning,
+        mode: standaloneStatus.isRunning
+          ? "standalone"
+          : inProcessStatus.isGuarding
+          ? "inprocess"
+          : "none",
+      };
+    } catch (error) {
+      return {
+        isGuarding: false,
+        error: error.message,
+      };
+    }
+  }
+
+  // 停止独立守护服务
+  async stopStandaloneService(results) {
+    try {
+      const stopResult = await this.standaloneService.stopStandaloneService();
+
+      if (stopResult.success) {
+        results.actions.push("🛑 独立守护服务已停止");
+        if (stopResult.pid) {
+          results.actions.push(`🔧 已停止PID: ${stopResult.pid}`);
+        }
+      } else {
+        results.errors.push(`停止独立守护服务失败: ${stopResult.message}`);
+      }
+    } catch (error) {
+      results.errors.push(`停止独立守护服务失败: ${error.message}`);
+    }
+  }
+
+  // 获取独立服务状态
+  async getStandaloneServiceStatus() {
+    try {
+      return await this.standaloneService.getServiceStatus();
+    } catch (error) {
+      return {
+        isRunning: false,
         error: error.message,
       };
     }

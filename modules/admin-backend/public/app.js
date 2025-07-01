@@ -573,35 +573,40 @@ function renderStats(stats) {
   const statsData = [
     {
       icon: "📊",
-      number: stats.totalCodes,
+      number: `${stats.totalCodes}`,
+      unit: "/个",
       label: "总激活码",
       iconBg: "linear-gradient(135deg, #3b82f6, #1d4ed8)",
-      trend: stats.totalCodes > 0 ? "+" + stats.totalCodes : "0",
+      trend: stats.totalCodes > 0 ? `+${stats.totalCodes}/个` : "0/个",
     },
     {
       icon: "✅",
-      number: stats.activeCodes,
+      number: `${stats.activeCodes}`,
+      unit: "/个",
       label: "可用激活码",
       iconBg: "linear-gradient(135deg, #10b981, #059669)",
       trend: `${activeRate}%`,
     },
     {
       icon: "🎯",
-      number: stats.usedCodes,
+      number: `${stats.usedCodes}`,
+      unit: "/个",
       label: "已使用",
       iconBg: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
       trend: `${usageRate}%`,
     },
     {
       icon: "⏰",
-      number: stats.expiredCodes,
+      number: `${stats.expiredCodes}`,
+      unit: "/个",
       label: "已过期",
       iconBg: "linear-gradient(135deg, #f59e0b, #d97706)",
       trend: stats.expiredCodes > 0 ? "需清理" : "正常",
     },
     {
       icon: "🌐",
-      number: stats.connectedClients || 0,
+      number: `${stats.connectedClients || 0}`,
+      unit: "/台",
       label: "在线客户端",
       iconBg:
         stats.connectedClients > 0
@@ -611,24 +616,45 @@ function renderStats(stats) {
     },
     {
       icon: "📈",
-      number: stats.recentUsage,
+      number: `${stats.recentUsage}`,
+      unit: "/次",
       label: "24小时使用",
       iconBg: "linear-gradient(135deg, #06b6d4, #0891b2)",
       trend: stats.recentUsage > 0 ? "活跃" : "静默",
+    },
+    {
+      icon: "📊",
+      number: `${stats.totalUsage || 0}`,
+      unit: "/次",
+      label: "总使用次数",
+      iconBg: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
+      trend: stats.totalUsage > 0 ? "累计" : "无记录",
     },
   ];
 
   // 如果有服务器信息，添加服务器状态卡片
   if (stats.serverInfo) {
+    const uptimeSeconds = stats.serverInfo.uptimeSeconds;
+    let uptimeNumber = "";
+    let uptimeUnit = "";
+
+    if (uptimeSeconds > 3600) {
+      const hours = Math.floor(uptimeSeconds / 3600);
+      uptimeNumber = `${hours}`;
+      uptimeUnit = "/小时";
+    } else {
+      const minutes = Math.floor(uptimeSeconds / 60);
+      uptimeNumber = `${minutes}`;
+      uptimeUnit = "/分钟";
+    }
+
     statsData.push({
       icon: "🖥️",
-      number:
-        stats.serverInfo.uptimeSeconds > 3600
-          ? Math.floor(stats.serverInfo.uptimeSeconds / 3600) + "h"
-          : Math.floor(stats.serverInfo.uptimeSeconds / 60) + "m",
+      number: uptimeNumber,
+      unit: uptimeUnit,
       label: "服务器运行时间",
       iconBg: "linear-gradient(135deg, #64748b, #475569)",
-      trend: stats.serverInfo.memoryPercent + "%内存",
+      trend: `${stats.serverInfo.memoryPercent}%内存`,
     });
   }
 
@@ -641,7 +667,11 @@ function renderStats(stats) {
         <span style="color: white;">${stat.icon}</span>
       </div>
       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
-        <h3>${stat.number}</h3>
+        <h3>${
+          stat.number
+        }<span style="font-size: 1rem; color: var(--primary-600); font-weight: 400;">${
+        stat.unit || ""
+      }</span></h3>
         <span style="font-size: 0.75rem; color: var(--primary-500); background: var(--primary-100); padding: 0.25rem 0.5rem; border-radius: var(--radius-md);">${
           stat.trend
         }</span>
@@ -673,17 +703,26 @@ function renderStats(stats) {
 function animateNumbers() {
   const statNumbers = document.querySelectorAll(".stat-card h3");
   statNumbers.forEach((element) => {
-    const finalNumber = parseInt(element.textContent);
+    // 获取数字部分（排除单位span）
+    const textContent =
+      element.childNodes[0]?.textContent || element.textContent;
+    const finalNumber = parseInt(textContent);
     if (finalNumber > 0) {
       let currentNumber = 0;
       const increment = Math.ceil(finalNumber / 20);
+      const unitSpan = element.querySelector("span"); // 保存单位span
       const timer = setInterval(() => {
         currentNumber += increment;
         if (currentNumber >= finalNumber) {
           currentNumber = finalNumber;
           clearInterval(timer);
         }
-        element.textContent = currentNumber;
+        // 只更新数字部分，保留单位span
+        if (unitSpan) {
+          element.innerHTML = `${currentNumber}${unitSpan.outerHTML}`;
+        } else {
+          element.textContent = currentNumber;
+        }
       }, 50);
     }
   });
