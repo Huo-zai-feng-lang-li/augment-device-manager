@@ -15,11 +15,26 @@ const http = require("http");
 const { exec } = require("child_process");
 const os = require("os");
 
+const ServerBeijingTimeAPI = require("./beijing-time-api");
 const {
   generateActivationCode,
   validateActivationCode,
   generateDeviceFingerprint,
 } = require("../../../shared/crypto/encryption-simple");
+
+// 全局时间API实例
+const globalTimeAPI = new ServerBeijingTimeAPI();
+
+// 辅助函数：获取在线时间戳（允许回退到本地时间）
+async function getTimestamp() {
+  try {
+    const onlineTime = await globalTimeAPI.getBeijingTime();
+    return onlineTime.toISOString();
+  } catch (error) {
+    console.warn("⚠️ 获取在线时间失败，使用本地时间:", error.message);
+    return new Date().toISOString();
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -147,18 +162,40 @@ const authenticateActivation = async (req, res, next) => {
       });
     }
 
-    // 检查过期时间
-    const now = new Date();
-    const expiry = new Date(activationCode.expires_at);
-    if (now > expiry) {
-      // 自动标记为过期
-      activationCode.status = "expired";
-      saveData(memoryStore);
+    // 使用在线时间检查过期状态
+    const serverTimeAPI = new ServerBeijingTimeAPI();
+    try {
+      const expirationCheck = await serverTimeAPI.validateExpiration(
+        activationCode.expires_at
+      );
 
-      return res.status(403).json({
+      if (!expirationCheck.valid) {
+        if (expirationCheck.expired) {
+          // 激活码已过期
+          activationCode.status = "expired";
+          saveData(memoryStore);
+          return res.status(403).json({
+            success: false,
+            error: "激活码已过期",
+            requireActivation: true,
+          });
+        } else if (expirationCheck.serverSecurityBlock) {
+          // 服务端网络时间验证失败
+          return res.status(503).json({
+            success: false,
+            error: "服务端时间验证失败，请稍后重试",
+            networkError: true,
+          });
+        }
+      }
+
+      console.log("✅ 服务端激活码验证通过 - 基于在线北京时间");
+    } catch (error) {
+      console.error("服务端时间验证异常:", error.message);
+      return res.status(503).json({
         success: false,
-        error: "激活码已过期",
-        requireActivation: true,
+        error: "服务端时间验证异常，请稍后重试",
+        networkError: true,
       });
     }
 
@@ -188,7 +225,7 @@ const authenticateActivation = async (req, res, next) => {
     req.activation = {
       code: activationCode,
       deviceId: deviceId,
-      permissions: getActivationPermissions(activationCode),
+      permissions: await getActivationPermissions(activationCode),
     };
 
     next();
@@ -203,8 +240,9 @@ const authenticateActivation = async (req, res, next) => {
 };
 
 // 健康检查接口
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+app.get("/api/health", async (req, res) => {
+  const timestamp = await getTimestamp();
+  res.json({ status: "ok", timestamp });
 });
 
 // 登录接口
@@ -250,16 +288,19 @@ app.post("/api/activation-codes", authenticateToken, async (req, res) => {
     // 生成激活码
     const code = generateActivationCode(deviceId, expiryDays || 30);
 
-    // 计算过期时间
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (expiryDays || 30));
+    // 使用在线时间计算过期时间
+    const serverTimeAPI = new ServerBeijingTimeAPI();
+    const currentTime = await serverTimeAPI.getBeijingTime();
+    const expiresAt = new Date(
+      currentTime.getTime() + (expiryDays || 30) * 24 * 60 * 60 * 1000
+    );
 
     // 保存到内存
     const activationCode = {
       id: memoryStore.activationCodes.length + 1,
       code: code,
       device_id: deviceId || null,
-      created_at: new Date().toISOString(),
+      created_at: currentTime.toISOString(),
       expires_at: expiresAt.toISOString(),
       used_at: null,
       used_by_device: null,
@@ -269,13 +310,13 @@ app.post("/api/activation-codes", authenticateToken, async (req, res) => {
 
     memoryStore.activationCodes.push(activationCode);
 
-    // 记录操作日志
+    // 记录操作日志（使用在线时间）
     memoryStore.usageLogs.push({
       id: memoryStore.usageLogs.length + 1,
       activation_code: code,
       device_id: "admin",
       action: "created",
-      timestamp: new Date().toISOString(),
+      timestamp: currentTime.toISOString(),
       details: "管理员创建激活码",
     });
 
@@ -527,27 +568,72 @@ app.post("/api/validate-code", async (req, res) => {
       });
     }
 
-    // 检查过期时间
-    const now = new Date();
-    const expiry = new Date(activationCode.expires_at);
-    if (now > expiry) {
-      // 自动标记为过期
-      activationCode.status = "expired";
+    // 使用在线时间检查过期状态
+    const serverTimeAPI = new ServerBeijingTimeAPI();
+    try {
+      const expirationCheck = await serverTimeAPI.validateExpiration(
+        activationCode.expires_at
+      );
 
-      // 记录失败日志
+      if (!expirationCheck.valid) {
+        if (expirationCheck.expired) {
+          // 激活码已过期
+          activationCode.status = "expired";
+
+          // 记录失败日志
+          memoryStore.usageLogs.push({
+            id: memoryStore.usageLogs.length + 1,
+            activation_code: code,
+            device_id: deviceId,
+            action: "failed",
+            timestamp: new Date().toISOString(),
+            details: "激活码已过期（基于在线时间）",
+          });
+          saveData(memoryStore);
+
+          return res.status(400).json({
+            success: false,
+            error: "激活码已过期",
+          });
+        } else if (expirationCheck.serverSecurityBlock) {
+          // 服务端网络时间验证失败
+          memoryStore.usageLogs.push({
+            id: memoryStore.usageLogs.length + 1,
+            activation_code: code,
+            device_id: deviceId,
+            action: "failed",
+            timestamp: new Date().toISOString(),
+            details: "服务端时间验证失败",
+          });
+          saveData(memoryStore);
+
+          return res.status(503).json({
+            success: false,
+            error: "服务端时间验证失败，请稍后重试",
+            networkError: true,
+          });
+        }
+      }
+
+      console.log("✅ 服务端激活码验证通过 - 基于在线北京时间");
+    } catch (error) {
+      console.error("服务端时间验证异常:", error.message);
+
+      // 记录异常日志
       memoryStore.usageLogs.push({
         id: memoryStore.usageLogs.length + 1,
         activation_code: code,
         device_id: deviceId,
         action: "failed",
         timestamp: new Date().toISOString(),
-        details: "激活码已过期",
+        details: "服务端时间验证异常: " + error.message,
       });
       saveData(memoryStore);
 
-      return res.status(400).json({
+      return res.status(503).json({
         success: false,
-        error: "激活码已过期",
+        error: "服务端时间验证异常，请稍后重试",
+        networkError: true,
       });
     }
 
@@ -694,18 +780,43 @@ app.post("/api/verify-activation", async (req, res) => {
       });
     }
 
-    // 检查过期时间
-    const now = new Date();
-    const expiry = new Date(activationCode.expires_at);
-    if (now > expiry) {
-      // 自动标记为过期
-      activationCode.status = "expired";
-      saveData(memoryStore);
+    // 使用在线时间检查过期状态
+    const serverTimeAPI = new ServerBeijingTimeAPI();
+    try {
+      const expirationCheck = await serverTimeAPI.validateExpiration(
+        activationCode.expires_at
+      );
 
+      if (!expirationCheck.valid) {
+        if (expirationCheck.expired) {
+          // 激活码已过期
+          activationCode.status = "expired";
+          saveData(memoryStore);
+
+          return res.json({
+            success: false,
+            valid: false,
+            reason: "激活码已过期",
+          });
+        } else if (expirationCheck.serverSecurityBlock) {
+          // 服务端网络时间验证失败
+          return res.json({
+            success: false,
+            valid: false,
+            reason: "服务端时间验证失败，请稍后重试",
+            networkError: true,
+          });
+        }
+      }
+
+      console.log("✅ 服务端激活码验证通过 - 基于在线北京时间");
+    } catch (error) {
+      console.error("服务端时间验证异常:", error.message);
       return res.json({
         success: false,
         valid: false,
-        reason: "激活码已过期",
+        reason: "服务端时间验证异常，请稍后重试",
+        networkError: true,
       });
     }
 
@@ -760,7 +871,7 @@ app.post("/api/verify-activation", async (req, res) => {
       valid: true,
       expiresAt: activationCode.expires_at,
       status: activationCode.status,
-      permissions: getActivationPermissions(activationCode),
+      permissions: await getActivationPermissions(activationCode),
     });
   } catch (error) {
     console.error("验证激活状态错误:", error);
@@ -773,7 +884,7 @@ app.post("/api/verify-activation", async (req, res) => {
 });
 
 // 获取激活码权限
-function getActivationPermissions(activationCode) {
+async function getActivationPermissions(activationCode) {
   const permissions = {
     canCleanup: false,
     canUpdate: false,
@@ -782,13 +893,20 @@ function getActivationPermissions(activationCode) {
 
   // 只有状态为 "used" 且未过期的激活码才有权限
   if (activationCode.status === "used") {
-    const now = new Date();
-    const expiry = new Date(activationCode.expires_at);
+    try {
+      const serverTimeAPI = new ServerBeijingTimeAPI();
+      const expirationCheck = await serverTimeAPI.validateExpiration(
+        activationCode.expires_at
+      );
 
-    if (now <= expiry) {
-      permissions.canCleanup = true;
-      permissions.canUpdate = true;
-      permissions.canExport = true;
+      if (expirationCheck.valid && !expirationCheck.expired) {
+        permissions.canCleanup = true;
+        permissions.canUpdate = true;
+        permissions.canExport = true;
+      }
+    } catch (error) {
+      console.warn("权限检查时间验证失败:", error.message);
+      // 网络失败时不给予权限，确保安全
     }
   }
 
@@ -982,9 +1100,19 @@ app.get("/api/stats", authenticateToken, async (req, res) => {
   try {
     const codes = memoryStore.activationCodes;
     const logs = memoryStore.usageLogs;
-    const now = new Date();
-    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // 使用在线时间进行统计计算
+    let now, dayAgo, weekAgo;
+    try {
+      now = await globalTimeAPI.getBeijingTime();
+      dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    } catch (error) {
+      console.warn("⚠️ 统计时间获取失败，使用本地时间:", error.message);
+      now = new Date();
+      dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    }
 
     // 计算服务器运行时间
     const uptime = process.uptime();
@@ -1000,8 +1128,7 @@ app.get("/api/stats", authenticateToken, async (req, res) => {
       totalCodes: codes.length,
       activeCodes: codes.filter((c) => c.status === "active").length,
       usedCodes: codes.filter((c) => c.status === "used").length,
-      expiredCodes: codes.filter((c) => new Date(c.expires_at) < new Date())
-        .length,
+      expiredCodes: codes.filter((c) => new Date(c.expires_at) < now).length,
       totalUsage: logs.length,
       recentUsage: logs.filter((l) => {
         const logDate = new Date(l.timestamp);
@@ -1034,13 +1161,14 @@ app.get("/api/stats", authenticateToken, async (req, res) => {
 });
 
 // 健康检查端点（无需认证）
-app.get("/api/health", (req, res) => {
+app.get("/api/health", async (req, res) => {
   const uptime = process.uptime();
   const memUsage = process.memoryUsage();
+  const timestamp = await getTimestamp();
 
   const health = {
     status: "healthy",
-    timestamp: new Date().toISOString(),
+    timestamp: timestamp,
     uptime: Math.floor(uptime),
     memory: {
       used: Math.round(memUsage.heapUsed / 1024 / 1024),

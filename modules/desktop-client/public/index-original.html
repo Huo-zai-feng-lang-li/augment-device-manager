@@ -167,33 +167,32 @@
         /* 移除过渡动画 */
       }
 
-      /* 移除卡片悬停效果 */
-      .data-card:hover {
-        /* 移除所有悬停动画和过渡效果 */
-      }
-
-      /* 移除了状态指示器相关样式 */
-
       /* 智能Tooltip样式 */
       .smart-tooltip {
         position: fixed;
-        background: rgba(0, 0, 0, 0.9);
+        background: rgba(15, 23, 42, 0.96);
         color: white;
-        padding: 8px 12px;
-        border-radius: 6px;
-        font-size: 12px;
-        line-height: 1.4;
-        max-width: 250px;
+        padding: 20px 24px;
+        border-radius: 12px;
+        font-size: 13px;
+        line-height: 2.2;
+        max-width: 480px;
+        min-width: 360px;
         word-wrap: break-word;
-        white-space: normal;
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
         z-index: 10000;
         pointer-events: none;
         opacity: 0;
         transform: scale(0.8);
         transition: all 0.2s ease;
-        backdrop-filter: blur(4px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        letter-spacing: 0.3px;
+        text-align: left;
       }
 
       .smart-tooltip.show {

@@ -1186,7 +1186,18 @@ function formatDateTime(dateString) {
 }
 
 function isExpired(dateString) {
-  return new Date(dateString) < new Date();
+  // 🚨 安全修复：移除本地时间判断，避免误导管理员
+  // 过期状态应该基于服务端的在线时间验证结果
+  // 这里仅做基本的时间格式检查，实际过期判断完全依赖服务端
+  if (!dateString) return false;
+
+  try {
+    const expiryTime = new Date(dateString);
+    // 仅检查时间格式是否有效，不做过期判断
+    return isNaN(expiryTime.getTime()) ? false : false; // 始终返回false，让服务端决定
+  } catch (error) {
+    return false; // 格式错误时不标记为过期
+  }
 }
 
 // 删除激活码

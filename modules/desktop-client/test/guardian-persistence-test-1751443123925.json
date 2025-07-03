@@ -1,0 +1,10 @@
+{
+  "startTime": "2025-07-02T07:58:43.869Z",
+  "phases": [],
+  "success": false,
+  "errors": [
+    "this.deviceManager.startEnhancedGuardianIndependent is not a function"
+  ],
+  "endTime": "2025-07-02T07:58:43.925Z",
+  "duration": 56
+}

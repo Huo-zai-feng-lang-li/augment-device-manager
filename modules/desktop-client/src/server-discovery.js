@@ -52,7 +52,7 @@ class ServerDiscovery {
   // 测试单个地址连接
   async testConnection(url, timeout = 3000) {
     try {
-      console.log(`测试连接: ${url}`);
+      console.log(`🔍 正在测试服务器: ${url}`);
       const response = await fetch(`${url}/api/health`, {
         method: "GET",
         timeout: timeout,
@@ -63,13 +63,61 @@ class ServerDiscovery {
 
       if (response.ok) {
         const data = await response.json();
-        return data.status === "ok";
+        const isHealthy = data.status === "ok";
+        if (isHealthy) {
+          console.log(`✅ 服务器响应正常: ${url}`);
+        } else {
+          console.log(`⚠️ 服务器状态异常: ${url} (状态: ${data.status})`);
+        }
+        return isHealthy;
+      } else {
+        console.log(`❌ 服务器响应错误: ${url} (HTTP ${response.status})`);
+        return false;
       }
-      return false;
     } catch (error) {
-      console.log(`连接失败 ${url}:`, error.message);
+      // 提供更友好的错误提示
+      const friendlyMessage = this.getFriendlyConnectionError(url, error);
+      console.log(friendlyMessage);
       return false;
     }
+  }
+
+  // 获取友好的连接错误信息
+  getFriendlyConnectionError(url, error) {
+    const urlObj = new URL(url);
+
+    if (error.code === "ECONNREFUSED") {
+      return `
+❌ 无法连接到 ${url}
+   └─ 原因: 服务器未启动或端口 ${urlObj.port} 被占用
+`;
+    }
+
+    if (error.code === "ENOTFOUND") {
+      return `
+❌ 域名解析失败 ${url}
+   └─ 原因: 无法解析域名 ${urlObj.hostname}
+`;
+    }
+
+    if (error.code === "ETIMEDOUT" || error.message.includes("timeout")) {
+      return `
+❌ 连接超时 ${url}
+   └─ 原因: 网络延迟过高或服务器响应缓慢
+`;
+    }
+
+    if (error.message.includes("fetch failed")) {
+      return `
+❌ 网络请求失败 ${url}
+   └─ 原因: 网络连接问题或服务器不可达
+`;
+    }
+
+    return `
+❌ 连接异常 ${url}
+   └─ 详情: ${error.message}
+`;
   }
 
   // 从URL提取主机信息

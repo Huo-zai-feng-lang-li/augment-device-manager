@@ -990,20 +990,26 @@
       /* 智能Tooltip样式 */
       .smart-tooltip {
         position: fixed;
-        background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+        background: rgba(15, 23, 42, 0.96);
         color: white;
-        padding: 10px 14px;
-        border-radius: 8px;
-        font-size: 12px;
-        line-height: 1.4;
-        max-width: 320px;
+        padding: 20px 24px;
+        border-radius: 12px;
+        font-size: 13px;
+        line-height: 2.2;
+        max-width: 480px;
+        min-width: 360px;
         word-wrap: break-word;
-        white-space: normal;
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
         z-index: 99999;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
         border: 1px solid rgba(255, 255, 255, 0.15);
-        backdrop-filter: blur(10px);
+        backdrop-filter: blur(12px);
         font-weight: 500;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        letter-spacing: 0.3px;
+        text-align: left;
         pointer-events: none;
         opacity: 0;
         transform: scale(0.8);

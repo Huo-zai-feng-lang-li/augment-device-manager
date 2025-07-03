@@ -1,0 +1,16 @@
+{
+  "startTime": "2025-07-02T07:59:54.297Z",
+  "phases": [
+    {
+      "name": "start_guardian",
+      "success": true,
+      "timestamp": "2025-07-02T07:59:54.882Z"
+    }
+  ],
+  "success": false,
+  "errors": [
+    "防护服务未正确运行"
+  ],
+  "endTime": "2025-07-02T07:59:54.887Z",
+  "duration": 590
+}

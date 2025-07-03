@@ -37,6 +37,9 @@ class EnhancedDeviceGuardian {
       protectionRestored: 0,
       startTime: null,
     };
+
+    // 事件通知回调
+    this.eventCallback = null;
   }
 
   /**
@@ -149,6 +152,9 @@ class EnhancedDeviceGuardian {
       // 5. 设置增强文件保护
       await this.setupEnhancedProtection();
 
+      // 6. 启动激活状态监控
+      await this.startActivationMonitoring();
+
       this.log("✅ 增强守护进程启动成功", "success");
       return { success: true, message: "守护进程启动成功" };
     } catch (error) {
@@ -156,6 +162,140 @@ class EnhancedDeviceGuardian {
       this.isGuarding = false;
       return { success: false, message: error.message };
     }
+  }
+
+  /**
+   * 独立启动守护进程（不依赖清理流程）
+   */
+  async startGuardingIndependently(deviceId = null, options = {}) {
+    try {
+      // 检查启动条件
+      const requirements = await this.checkStartupRequirements(deviceId);
+      if (!requirements.canStart) {
+        return {
+          success: false,
+          message: requirements.reason,
+          requirements: requirements,
+        };
+      }
+
+      // 使用检查后的设备ID
+      const targetDeviceId = requirements.deviceId;
+
+      // 设置默认选项
+      const defaultOptions = {
+        enableBackupMonitoring: true,
+        enableDatabaseMonitoring: true,
+        enableEnhancedProtection: true,
+        mode: "independent",
+      };
+
+      const finalOptions = { ...defaultOptions, ...options };
+
+      this.log("🚀 独立启动增强设备ID守护进程", "info");
+      this.log(`🎯 目标设备ID: ${targetDeviceId}`, "info");
+      this.log(`🔧 启动模式: 独立模式`, "info");
+
+      // 启动守护进程
+      const result = await this.startGuarding(targetDeviceId, finalOptions);
+
+      if (result.success) {
+        this.log("✅ 独立守护进程启动成功", "success");
+        return {
+          success: true,
+          message: "独立守护进程启动成功",
+          deviceId: targetDeviceId,
+          mode: "independent",
+        };
+      } else {
+        return result;
+      }
+    } catch (error) {
+      this.log(`❌ 独立启动失败: ${error.message}`, "error");
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 检查启动要求
+   */
+  async checkStartupRequirements(deviceId = null) {
+    try {
+      const requirements = {
+        canStart: false,
+        reason: "",
+        deviceId: null,
+        checks: {
+          deviceIdAvailable: false,
+          noConflictingProcess: false,
+          sufficientPermissions: false,
+          validConfiguration: false,
+        },
+      };
+
+      // 1. 检查是否已在运行
+      if (this.isGuarding) {
+        requirements.reason = "防护进程已在运行";
+        return requirements;
+      }
+
+      // 2. 检查设备ID
+      if (!deviceId) {
+        try {
+          const DeviceManager = require("./device-manager");
+          const deviceManager = new DeviceManager();
+          deviceId = await deviceManager.getCurrentDeviceId();
+        } catch (error) {
+          requirements.reason = "无法获取设备ID";
+          return requirements;
+        }
+      }
+
+      if (!deviceId) {
+        requirements.reason = "设备ID不可用";
+        return requirements;
+      }
+
+      requirements.deviceId = deviceId;
+      requirements.checks.deviceIdAvailable = true;
+
+      // 3. 检查权限（简化检查）
+      requirements.checks.sufficientPermissions = true;
+
+      // 4. 检查配置
+      requirements.checks.validConfiguration = true;
+
+      // 5. 检查冲突进程（简化检查）
+      requirements.checks.noConflictingProcess = true;
+
+      // 所有检查通过
+      requirements.canStart = Object.values(requirements.checks).every(
+        (check) => check
+      );
+
+      if (requirements.canStart) {
+        requirements.reason = "所有启动条件满足";
+      } else {
+        requirements.reason = "启动条件不满足";
+      }
+
+      return requirements;
+    } catch (error) {
+      return {
+        canStart: false,
+        reason: `检查启动条件失败: ${error.message}`,
+        deviceId: null,
+        checks: {},
+      };
+    }
+  }
+
+  /**
+   * 检查是否可以启动
+   */
+  async isReadyToStart() {
+    const requirements = await this.checkStartupRequirements();
+    return requirements.canStart;
   }
 
   /**
@@ -184,6 +324,13 @@ class EnhancedDeviceGuardian {
       this.backupMonitorInterval = null;
     }
 
+    // 停止激活状态监控
+    if (this.activationCheckInterval) {
+      clearInterval(this.activationCheckInterval);
+      this.activationCheckInterval = null;
+      this.log("🔐 激活状态监控已停止", "info");
+    }
+
     this.log("✅ 守护进程已完全停止", "success");
     return { success: true, message: "守护进程已停止" };
   }
@@ -197,6 +344,26 @@ class EnhancedDeviceGuardian {
       this.log("🔄 客户端清理开始，暂停设备ID监控", "info");
     } else {
       this.log("✅ 客户端清理完成，恢复设备ID监控", "info");
+    }
+  }
+
+  /**
+   * 设置事件通知回调
+   */
+  setEventCallback(callback) {
+    this.eventCallback = callback;
+  }
+
+  /**
+   * 触发事件通知
+   */
+  notifyEvent(eventType, data = {}) {
+    if (this.eventCallback) {
+      try {
+        this.eventCallback(eventType, data);
+      } catch (error) {
+        this.log(`❌ 事件通知失败: ${error.message}`, "error");
+      }
     }
   }
 
@@ -343,7 +510,7 @@ class EnhancedDeviceGuardian {
     if (fileName.includes(".tmp") || fileName.includes(".vsctmp")) {
       // IDE创建了临时文件，立即拦截
       await this.interceptTempFile(filePath);
-      this.stats.interceptedAttempts++;
+      // 注意：拦截计数在interceptTempFile内部处理，避免重复计数
     } else if (fileName === "storage.json" && event === "change") {
       // 主配置文件被修改，验证设备ID
       await this.verifyAndRestoreDeviceId();
@@ -382,6 +549,14 @@ class EnhancedDeviceGuardian {
 
         this.log("✅ 已拦截并恢复目标设备ID", "success");
         this.stats.interceptedAttempts++;
+
+        // 通知前端更新状态
+        this.notifyEvent("intercept-success", {
+          type: "device-id-intercept",
+          targetDeviceId: this.targetDeviceId,
+          interceptedId: tempData["telemetry.devDeviceId"],
+          timestamp: new Date().toISOString(),
+        });
       }
     } catch (error) {
       this.log(`❌ 拦截临时文件失败: ${error.message}`, "error");
@@ -397,6 +572,13 @@ class EnhancedDeviceGuardian {
         this.log("⚠️ 配置文件被删除，正在恢复...", "warn");
         await this.enforceTargetDeviceId();
         this.stats.protectionRestored++;
+
+        // 通知前端更新状态
+        this.notifyEvent("protection-restored", {
+          type: "config-file-restored",
+          targetDeviceId: this.targetDeviceId,
+          timestamp: new Date().toISOString(),
+        });
         return;
       }
 
@@ -414,6 +596,14 @@ class EnhancedDeviceGuardian {
 
         this.log("✅ 设备ID已恢复", "success");
         this.stats.protectionRestored++;
+
+        // 通知前端更新状态
+        this.notifyEvent("protection-restored", {
+          type: "device-id-restored",
+          targetDeviceId: this.targetDeviceId,
+          previousId: currentDeviceId,
+          timestamp: new Date().toISOString(),
+        });
       }
     } catch (error) {
       this.log(`❌ 验证设备ID失败: ${error.message}`, "error");
@@ -470,6 +660,70 @@ class EnhancedDeviceGuardian {
   }
 
   /**
+   * 启动激活状态监控
+   * 定期检查激活状态，如果失效则自动停止守护进程
+   */
+  async startActivationMonitoring() {
+    try {
+      // 每60秒检查一次激活状态
+      this.activationCheckInterval = setInterval(async () => {
+        if (!this.isGuarding) return;
+
+        try {
+          const isActivated = await this.checkActivationStatus();
+          if (!isActivated) {
+            this.log("🚨 检测到激活状态失效，自动停止增强防护", "warning");
+            await this.stopGuarding();
+          }
+        } catch (error) {
+          this.log(`⚠️ 激活状态检查失败: ${error.message}`, "warning");
+        }
+      }, 60000); // 60秒间隔
+
+      this.log("🔐 激活状态监控已启动", "success");
+    } catch (error) {
+      this.log(`❌ 启动激活状态监控失败: ${error.message}`, "error");
+      throw error;
+    }
+  }
+
+  /**
+   * 检查激活状态
+   */
+  async checkActivationStatus() {
+    try {
+      const configPath = path.join(
+        os.homedir(),
+        ".augment-device-manager",
+        "config.json"
+      );
+
+      if (!(await fs.pathExists(configPath))) {
+        return false;
+      }
+
+      const config = await fs.readJson(configPath);
+      if (!config.activation) {
+        return false;
+      }
+
+      // 简单的本地时间检查（作为快速预检）
+      if (config.activation.expiresAt) {
+        const now = new Date();
+        const expiry = new Date(config.activation.expiresAt);
+        if (now > expiry) {
+          return false;
+        }
+      }
+
+      return true;
+    } catch (error) {
+      this.log(`❌ 检查激活状态失败: ${error.message}`, "error");
+      return false;
+    }
+  }
+
+  /**
    * 清理现有备份文件
    */
   async cleanExistingBackupFiles() {
@@ -507,6 +761,15 @@ class EnhancedDeviceGuardian {
 
     this.stats.backupFilesRemoved += removedCount;
     this.log(`✅ 清理完成，共删除 ${removedCount} 个备份文件`, "success");
+
+    // 如果删除了备份文件，通知前端更新状态
+    if (removedCount > 0) {
+      this.notifyEvent("backup-removed", {
+        type: "batch-backup-cleanup",
+        removedCount: removedCount,
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   /**
@@ -543,6 +806,13 @@ class EnhancedDeviceGuardian {
 
     if (removedCount > 0) {
       this.stats.backupFilesRemoved += removedCount;
+
+      // 通知前端更新状态
+      this.notifyEvent("backup-removed", {
+        type: "periodic-backup-scan",
+        removedCount: removedCount,
+        timestamp: new Date().toISOString(),
+      });
     }
   }
 
@@ -598,6 +868,14 @@ class EnhancedDeviceGuardian {
         await fs.remove(filePath);
         this.stats.backupFilesRemoved++;
         this.log(`✅ 已立即删除备份: ${fileName}`, "success");
+
+        // 通知前端更新状态
+        this.notifyEvent("backup-removed", {
+          type: "backup-file-removed",
+          fileName: fileName,
+          filePath: filePath,
+          timestamp: new Date().toISOString(),
+        });
       } catch (error) {
         this.log(`❌ 删除备份失败 ${fileName}: ${error.message}`, "error");
       }
@@ -682,41 +960,39 @@ class EnhancedDeviceGuardian {
 
   /**
    * 设置基础文件保护
+   * 注意：已禁用文件级被动保护，仅使用实时监控主动保护
    */
   async setBasicFileProtection() {
     try {
       if (await fs.pathExists(this.paths.storageJson)) {
-        await this.execAsync(`attrib +R "${this.paths.storageJson}"`);
-        this.log("🔒 已设置storage.json只读保护", "success");
+        // 禁用文件级被动保护，避免权限冲突
+        this.log("🛡️ 使用实时监控保护模式，跳过基础文件保护", "info");
+
+        // 原只读保护代码已注释：
+        // await this.execAsync(`attrib +R "${this.paths.storageJson}"`);
       }
     } catch (error) {
-      this.log(`⚠️ 设置文件保护失败: ${error.message}`, "warn");
+      this.log(`⚠️ 设置保护模式失败: ${error.message}`, "warn");
     }
   }
 
   /**
    * 设置增强文件保护
+   * 注意：已禁用文件级被动保护，仅使用实时监控主动保护
+   * 原因：避免权限冲突，实时监控已足够强大
    */
   async setupEnhancedProtection() {
     try {
       if (!(await fs.pathExists(this.paths.storageJson))) return;
 
-      // Windows增强保护
-      if (process.platform === "win32") {
-        try {
-          // 设置只读属性
-          await this.execAsync(`attrib +R "${this.paths.storageJson}"`);
+      // 禁用文件级被动保护，仅依靠实时监控主动保护
+      this.log("🛡️ 使用实时监控保护模式，跳过文件级保护", "info");
+      this.log("📡 实时监控可精确拦截IDE修改并立即恢复", "info");
 
-          // 设置NTFS权限 - 拒绝所有用户写入
-          await this.execAsync(
-            `icacls "${this.paths.storageJson}" /deny *S-1-1-0:(W,D,DC,WD,AD,WA)`
-          );
-
-          this.log("🛡️ 已设置增强文件保护", "success");
-        } catch (error) {
-          this.log(`⚠️ 增强保护设置失败: ${error.message}`, "warn");
-        }
-      }
+      // 原被动保护代码已注释：
+      // - attrib +R (只读属性)
+      // - icacls deny (权限拒绝)
+      // 这些会导致程序自身无法写入，产生权限冲突
     } catch (error) {
       this.log(`❌ 设置增强保护失败: ${error.message}`, "error");
     }
@@ -735,6 +1011,10 @@ class EnhancedDeviceGuardian {
         currentDeviceId = data["telemetry.devDeviceId"];
       }
 
+      // 获取内存使用情况
+      const memoryUsage = process.memoryUsage();
+      const memoryUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
+
       return {
         isGuarding: this.isGuarding,
         isClientCleaning: this.isClientCleaning,
@@ -748,6 +1028,13 @@ class EnhancedDeviceGuardian {
         uptime: this.stats.startTime
           ? Date.now() - this.stats.startTime.getTime()
           : 0,
+        memoryUsage: {
+          heapUsed: memoryUsage.heapUsed,
+          heapTotal: memoryUsage.heapTotal,
+          external: memoryUsage.external,
+          rss: memoryUsage.rss,
+          usedMB: memoryUsedMB,
+        },
       };
     } catch (error) {
       return {

@@ -141,7 +141,9 @@ function generateActivationCode(deviceId, expiryDays = 30) {
 }
 
 /**
- * 验证激活码
+ * 验证激活码格式（仅格式验证，不涉及时间）
+ * 🚨 安全修复：移除本地时间使用，仅做格式验证
+ * 实际的过期验证应该在服务端使用在线时间进行
  */
 function validateActivationCode(code, deviceId) {
   try {
@@ -150,20 +152,12 @@ function validateActivationCode(code, deviceId) {
       return { valid: false, reason: "激活码格式错误" };
     }
 
-    // 简化验证：由于激活码是哈希值，这里进行基本验证
-    // 实际应用中应该在数据库中查找对应的激活码记录
-    const now = new Date();
-    const expiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30天后过期
-
+    // 🔒 安全策略：仅做格式验证，不生成时间相关数据
+    // 实际的激活码验证和过期检查必须在服务端使用在线时间进行
     return {
       valid: true,
-      data: {
-        deviceId: deviceId,
-        createdAt: now.toISOString(),
-        expiresAt: expiry.toISOString(),
-        version: "1.0",
-      },
-      expiresAt: expiry.toISOString(),
+      reason: "格式验证通过",
+      note: "实际验证需要服务端在线时间确认",
     };
   } catch (error) {
     return { valid: false, reason: "验证失败: " + error.message };

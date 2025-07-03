@@ -24,6 +24,25 @@ const WebSocket = require("ws");
 const fetch = require("node-fetch");
 const serverConfig = require("./config");
 
+// 记录软件启动时间
+const APP_START_TIME = Date.now();
+
+// 处理Node.js弃用警告，提供更友好的提示
+process.on("warning", (warning) => {
+  if (warning.name === "DeprecationWarning") {
+    // 过滤掉常见的弃用警告，避免控制台噪音
+    if (warning.message.includes("util._extend")) {
+      console.log("ℹ️ 检测到依赖包使用了过时的API，建议更新相关依赖包");
+      return;
+    }
+
+    console.log(`⚠️ 弃用警告: ${warning.message}`);
+    console.log("💡 建议更新相关依赖包以避免未来兼容性问题");
+  } else {
+    console.warn("⚠️ 系统警告:", warning.message);
+  }
+});
+
 // 设置应用程序名称和元数据
 app.setName("Augment设备管理器");
 app.setAppUserModelId("com.augment.device-manager");
@@ -194,15 +213,18 @@ async function initializeApp() {
 // 尝试服务器自动发现
 async function attemptServerDiscovery() {
   try {
+    console.log("\n🔍 开始服务器连接检测...\n");
+
     // 首先测试当前配置是否可用
     const currentConfigWorks = await serverConfig.testConnection();
 
     if (currentConfigWorks) {
-      console.log("✅ 当前服务器配置可用");
+      console.log("✅ 当前服务器配置可用，无需自动发现\n");
       return;
     }
 
-    console.log("⚠️ 当前服务器配置无法连接，尝试自动发现...");
+    console.log("⚠️ 当前服务器配置无法连接，启动自动发现功能...");
+    console.log(`   当前配置: ${serverConfig.getHttpUrl()}\n`);
 
     // 创建服务器发现实例
     const discovery = new ServerDiscovery(serverConfig);
@@ -211,20 +233,51 @@ async function attemptServerDiscovery() {
     const updated = await discovery.updateServerConfig(serverConfig);
 
     if (updated) {
-      console.log("✅ 服务器配置已自动更新");
+      const newConfig = serverConfig.getConfig();
+      console.log("\n✅ 服务器配置已自动更新");
+      console.log(`   新配置: ${serverConfig.getHttpUrl()}\n`);
 
       // 通知渲染进程配置已更新
       if (mainWindow) {
         mainWindow.webContents.send("server-config-updated", {
-          message: "服务器地址已自动更新",
-          config: serverConfig.getConfig(),
+          message: "服务器地址已自动更新，连接已恢复",
+          config: newConfig,
+          timestamp: new Date().toISOString(),
         });
       }
     } else {
-      console.log("❌ 未能自动发现可用的服务器");
+      console.log("\n❌ 自动发现失败：未找到可用的服务器");
+      console.log("\n💡 请检查：");
+      console.log("   • 后端服务是否正常启动");
+      console.log("   • 网络连接是否正常");
+      console.log("   • 防火墙是否阻止连接\n");
+
+      // 通知渲染进程发现失败
+      if (mainWindow) {
+        mainWindow.webContents.send("server-discovery-failed", {
+          message: "无法找到可用的服务器，请检查网络连接和服务器状态",
+          suggestions: [
+            "确认后端服务正在运行",
+            "检查网络连接是否正常",
+            "确认防火墙设置是否正确",
+          ],
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
   } catch (error) {
-    console.error("服务器自动发现失败:", error);
+    const errorMessage = `服务器自动发现过程异常: ${error.message}`;
+    console.error("\n❌", errorMessage);
+    console.log("💡 建议手动检查服务器配置和网络连接\n");
+
+    // 通知渲染进程发现异常
+    if (mainWindow) {
+      mainWindow.webContents.send("server-discovery-error", {
+        message: errorMessage,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 }
 
@@ -280,7 +333,7 @@ async function verifyActivationWithServer() {
       console.log("服务器验证失败:", result.reason);
 
       // 清除本地激活信息
-      await clearLocalActivation();
+      await clearLocalActivation(result.reason || "服务器验证失败");
 
       // 通知渲染进程
       if (mainWindow) {
@@ -370,7 +423,8 @@ function initializeWebSocket() {
     });
 
     wsClient.on("close", (code, reason) => {
-      console.log(`WebSocket连接已断开 (code: ${code}, reason: ${reason})`);
+      const friendlyReason = getWebSocketCloseReason(code, reason);
+      console.log(`🔌 WebSocket连接已断开: ${friendlyReason}`);
 
       // 更新连接状态
       wsConnectionStatus.connected = false;
@@ -381,7 +435,8 @@ function initializeWebSocket() {
         mainWindow.webContents.send("websocket-status-changed", {
           connected: false,
           timestamp: wsConnectionStatus.lastDisconnectedTime.toISOString(),
-          reason: reason || `连接断开 (code: ${code})`,
+          reason: friendlyReason,
+          code: code,
         });
       }
 
@@ -389,7 +444,8 @@ function initializeWebSocket() {
     });
 
     wsClient.on("error", (error) => {
-      console.error("WebSocket连接错误:", error);
+      const friendlyError = getWebSocketErrorMessage(error);
+      console.error("❌ WebSocket连接错误:", friendlyError);
 
       // 更新连接状态
       wsConnectionStatus.connected = false;
@@ -400,20 +456,85 @@ function initializeWebSocket() {
         mainWindow.webContents.send("websocket-status-changed", {
           connected: false,
           timestamp: wsConnectionStatus.lastDisconnectedTime.toISOString(),
-          error: error.message || "WebSocket连接错误",
+          error: friendlyError,
+          originalError: error.message,
         });
       }
     });
   } catch (error) {
-    console.error("WebSocket初始化失败:", error);
+    const friendlyError = getWebSocketErrorMessage(error);
+    console.error("❌ WebSocket初始化失败:", friendlyError);
     scheduleReconnect();
   }
+}
+
+// 获取友好的WebSocket关闭原因
+function getWebSocketCloseReason(code, reason) {
+  const codeMessages = {
+    1000: "正常关闭",
+    1001: "端点离开（如页面刷新）",
+    1002: "协议错误",
+    1003: "不支持的数据类型",
+    1005: "未收到状态码",
+    1006: "连接异常关闭",
+    1007: "数据格式错误",
+    1008: "策略违规",
+    1009: "消息过大",
+    1010: "扩展协商失败",
+    1011: "服务器内部错误",
+    1012: "服务重启",
+    1013: "稍后重试",
+    1014: "网关错误",
+    1015: "TLS握手失败",
+  };
+
+  const codeMessage = codeMessages[code] || `未知错误码 ${code}`;
+  const reasonText = reason ? ` (${reason})` : "";
+
+  return `${codeMessage}${reasonText}`;
+}
+
+// 获取友好的WebSocket错误信息
+function getWebSocketErrorMessage(error) {
+  if (error.code === "ECONNREFUSED") {
+    return `无法连接到WebSocket服务器
+    └─ 原因: 服务器未启动或端口被占用
+    └─ 建议: 检查后端服务是否正常运行`;
+  }
+
+  if (error.code === "ENOTFOUND") {
+    return `WebSocket服务器域名解析失败
+    └─ 原因: 无法解析服务器地址
+    └─ 建议: 检查网络连接和服务器配置`;
+  }
+
+  if (error.code === "ETIMEDOUT") {
+    return `WebSocket连接超时
+    └─ 原因: 网络延迟过高或服务器响应缓慢
+    └─ 建议: 检查网络连接质量`;
+  }
+
+  if (error.message && error.message.includes("Unexpected server response")) {
+    return `WebSocket握手失败
+    └─ 原因: 服务器响应异常，可能不支持WebSocket
+    └─ 建议: 确认服务器WebSocket服务正常`;
+  }
+
+  return `WebSocket连接异常
+    └─ 详情: ${error.message || "未知错误"}
+    └─ 建议: 检查网络连接和服务器状态`;
 }
 
 // 安排重连
 function scheduleReconnect() {
   if (wsReconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-    console.error("WebSocket重连次数已达上限，停止重连");
+    console.error("\n❌ WebSocket重连失败：已达到最大重试次数");
+    console.log("\n💡 故障排查建议：");
+    console.log("   • 检查后端服务是否正常运行");
+    console.log("   • 确认网络连接是否稳定");
+    console.log("   • 检查防火墙或代理设置");
+    console.log("   • 尝试重启应用程序\n");
+
     wsConnectionStatus.isReconnecting = false;
 
     // 通知渲染进程重连失败
@@ -422,7 +543,13 @@ function scheduleReconnect() {
         connected: false,
         reconnectFailed: true,
         timestamp: new Date().toISOString(),
-        message: "WebSocket重连次数已达上限，请检查网络连接或服务器状态",
+        message: `WebSocket连接失败：已尝试 ${MAX_RECONNECT_ATTEMPTS} 次重连`,
+        suggestions: [
+          "检查后端服务是否正常运行",
+          "确认网络连接是否稳定",
+          "检查防火墙或代理设置",
+          "尝试重启应用程序",
+        ],
       });
     }
     return;
@@ -437,7 +564,11 @@ function scheduleReconnect() {
     30000
   ); // 最大30秒
 
-  console.log(`${delay / 1000}秒后尝试第${wsReconnectAttempts}次重连...`);
+  console.log(
+    `\n🔄 准备第 ${wsReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} 次重连 (${
+      delay / 1000
+    }秒后)\n`
+  );
 
   // 通知渲染进程正在重连
   if (mainWindow) {
@@ -445,8 +576,10 @@ function scheduleReconnect() {
       connected: false,
       isReconnecting: true,
       reconnectAttempt: wsReconnectAttempts,
+      maxAttempts: MAX_RECONNECT_ATTEMPTS,
       nextRetryIn: delay,
       timestamp: new Date().toISOString(),
+      message: `正在尝试重连... (${wsReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`,
     });
   }
 
@@ -576,7 +709,7 @@ function handleActivationRevoked(message) {
   console.log(`激活码 ${code} 已被撤销: ${reason}`);
 
   // 清除本地激活信息
-  clearLocalActivation();
+  clearLocalActivation(reason);
 
   // 通知渲染进程
   if (mainWindow) {
@@ -595,7 +728,7 @@ function handleActivationDeleted(message) {
   console.log(`激活码 ${code} 已被删除`);
 
   // 清除本地激活信息
-  clearLocalActivation();
+  clearLocalActivation("激活码已被删除");
 
   // 通知渲染进程
   if (mainWindow) {
@@ -613,7 +746,7 @@ function handleActivationDisabled(message) {
   console.log(`账户已被禁用: ${reason}`);
 
   // 清除本地激活信息
-  clearLocalActivation();
+  clearLocalActivation(reason);
 
   // 通知渲染进程
   if (mainWindow) {
@@ -681,13 +814,51 @@ function handleBroadcastMessage(message) {
 }
 
 // 清除本地激活信息
-async function clearLocalActivation() {
+async function clearLocalActivation(reason = null) {
   try {
     const configPath = path.join(APP_CONFIG.configPath, APP_CONFIG.configFile);
 
     if (await fs.pathExists(configPath)) {
       await fs.remove(configPath);
       console.log("本地激活信息已清除");
+
+      // 🚨 激活失效时自动停止增强防护
+      console.log("🛑 激活失效，自动停止增强防护...");
+      try {
+        if (deviceManager) {
+          const results = { actions: [], errors: [] };
+
+          // 停止内置守护进程
+          await deviceManager.stopEnhancedGuardian(results);
+
+          // 停止独立守护服务
+          await deviceManager.stopStandaloneService(results);
+
+          console.log("✅ 增强防护已自动停止");
+
+          // 记录停止结果
+          if (results.actions.length > 0) {
+            console.log("停止操作:", results.actions.join(", "));
+          }
+          if (results.errors.length > 0) {
+            console.warn("停止错误:", results.errors.join(", "));
+          }
+        }
+      } catch (guardianError) {
+        console.error("自动停止增强防护失败:", guardianError.message);
+      }
+
+      // 如果是激活码过期，通知渲染进程
+      if (reason && (reason.includes("过期") || reason.includes("expired"))) {
+        console.log("🚨 激活码过期，通知渲染进程退出激活状态");
+        if (mainWindow) {
+          mainWindow.webContents.send("activation-expired", {
+            reason: reason,
+            timestamp: new Date().toISOString(),
+            requireReactivation: true,
+          });
+        }
+      }
     }
   } catch (error) {
     console.error("清除本地激活信息失败:", error);
@@ -1051,17 +1222,9 @@ ipcMain.handle("check-activation-status", async () => {
       const config = await fs.readJson(configPath);
 
       if (config.activation) {
-        const now = new Date();
-        const expiry = new Date(config.activation.expiresAt);
-
-        // 本地过期检查
-        if (now > expiry) {
-          return {
-            activated: false,
-            expired: true,
-            reason: "激活码已过期",
-          };
-        }
+        // 🚨 重要修复：移除本地时间过期检查，直接使用服务端在线时间验证
+        // 原因：本地时间可能被修改，导致错误的过期判断
+        console.log("⏰ 跳过本地时间检查，使用服务端在线时间验证...");
 
         // 实时验证服务端状态
         try {
@@ -1086,11 +1249,11 @@ ipcMain.handle("check-activation-status", async () => {
           if (!result.success || !result.valid) {
             // 服务端验证失败，清除本地激活信息
             console.log("服务端验证失败，清除本地激活:", result.reason);
-            await clearLocalActivation();
+            await clearLocalActivation(result.reason || "服务端验证失败");
 
             return {
               activated: false,
-              expired: false,
+              expired: result.reason && result.reason.includes("过期"),
               reason: result.reason || "服务端验证失败",
               serverValidation: false,
             };
@@ -1140,12 +1303,41 @@ async function verifyActivationForOperation() {
       return { valid: false, reason: "未激活" };
     }
 
-    // 检查本地过期
-    const now = new Date();
-    const expiry = new Date(config.activation.expiresAt);
-    if (now > expiry) {
-      return { valid: false, reason: "激活已过期" };
+    // 使用在线北京时间验证过期 - 简化且可靠
+    const BeijingTimeAPI = require("./beijing-time-api");
+    const beijingTimeAPI = new BeijingTimeAPI();
+
+    const expirationCheck = await beijingTimeAPI.validateExpiration(
+      config.activation.expiresAt
+    );
+
+    if (!expirationCheck.valid) {
+      console.warn("⚠️ 激活码验证失败:", expirationCheck.reason);
+
+      // 检查是否是网络错误导致的安全阻止
+      if (expirationCheck.securityBlock) {
+        return {
+          valid: false,
+          reason: expirationCheck.reason,
+          networkError: true,
+          securityIssue: true, // 标记为安全问题
+        };
+      }
+
+      // 🚨 激活码过期时，清除本地激活信息并触发退出激活状态
+      if (expirationCheck.expired) {
+        console.log("🚨 激活码已过期，清除本地激活信息并退出激活状态");
+        await clearLocalActivation(expirationCheck.reason || "激活码已过期");
+      }
+
+      return {
+        valid: false,
+        reason: expirationCheck.reason,
+        expired: true,
+      };
     }
+
+    console.log("✅ 激活码验证通过 - 基于在线北京时间");
 
     // 验证服务端状态
     try {
@@ -1169,7 +1361,7 @@ async function verifyActivationForOperation() {
 
       if (!result.success || !result.valid) {
         // 服务端验证失败，清除本地激活信息
-        await clearLocalActivation();
+        await clearLocalActivation(result.reason || "服务端验证失败");
         return { valid: false, reason: result.reason || "服务端验证失败" };
       }
 
@@ -1194,6 +1386,8 @@ ipcMain.handle("perform-device-cleanup", async (event, options = {}) => {
         success: false,
         error: `操作被拒绝: ${activation.reason}`,
         requireActivation: true,
+        securityIssue: activation.securityIssue || false, // 传递安全问题标志
+        expired: activation.expired || false, // 传递过期标志
       };
     }
 
@@ -1438,6 +1632,9 @@ ipcMain.handle("get-system-info", async () => {
       }
     }
 
+    // 计算软件运行时间（秒）
+    const appUptime = Math.floor((Date.now() - APP_START_TIME) / 1000);
+
     return {
       cpu: Math.max(0, Math.min(100, cpuUsage || 0)),
       memory: Math.max(0, Math.min(100, memoryUsage || 0)),
@@ -1446,6 +1643,7 @@ ipcMain.handle("get-system-info", async () => {
       arch: os.arch(),
       hostname: os.hostname(),
       uptime: os.uptime(),
+      appUptime: appUptime, // 软件运行时间（秒）
       // 添加详细信息
       totalMemory: Math.round((totalMem / 1024 / 1024 / 1024) * 100) / 100, // GB
       freeMemory: Math.round((freeMem / 1024 / 1024 / 1024) * 100) / 100, // GB
@@ -1454,6 +1652,9 @@ ipcMain.handle("get-system-info", async () => {
     };
   } catch (error) {
     console.error("获取系统信息失败:", error);
+    // 即使出错也要计算软件运行时间
+    const appUptime = Math.floor((Date.now() - APP_START_TIME) / 1000);
+
     return {
       cpu: 0,
       memory: 0,
@@ -1462,6 +1663,7 @@ ipcMain.handle("get-system-info", async () => {
       arch: "unknown",
       hostname: "unknown",
       uptime: 0,
+      appUptime: appUptime, // 软件运行时间（秒）
       totalMemory: 0,
       freeMemory: 0,
       cpuCount: 0,
@@ -1576,6 +1778,59 @@ ipcMain.handle("get-enhanced-guardian-status", async () => {
   }
 });
 
+// 独立启动增强防护（需要激活验证）
+ipcMain.handle(
+  "start-enhanced-guardian-independent",
+  async (event, options = {}) => {
+    try {
+      // 验证激活状态
+      const activation = await verifyActivationForOperation();
+      if (!activation.valid) {
+        return {
+          success: false,
+          error: `防护启动被拒绝: ${activation.reason}`,
+          requireActivation: true,
+          securityIssue: activation.securityIssue || false,
+        };
+      }
+
+      const result = await deviceManager.startEnhancedGuardianIndependently(
+        options
+      );
+
+      // 添加激活状态信息
+      if (activation.offline) {
+        result.warning = "在离线模式下启动防护";
+      }
+
+      return result;
+    } catch (error) {
+      console.error("独立启动增强防护失败:", error);
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+);
+
+// 检查增强防护启动要求
+ipcMain.handle("check-guardian-startup-requirements", async () => {
+  try {
+    const status = await deviceManager.getGuardianStartupStatus();
+    return status;
+  } catch (error) {
+    console.error("检查增强防护启动要求失败:", error);
+    return {
+      canStart: false,
+      reason: error.message,
+      requirements: {},
+      currentStatus: { isGuarding: false },
+      deviceId: null,
+    };
+  }
+});
+
 // 停止增强防护服务
 ipcMain.handle("stop-enhanced-guardian", async () => {
   try {
@@ -1605,9 +1860,9 @@ ipcMain.handle("stop-enhanced-guardian", async () => {
 // 测试服务器连接
 ipcMain.handle("test-server-connection", async () => {
   try {
-    console.log("测试服务器连接...");
+    console.log("\n🔍 开始测试服务器连接...");
     const serverUrl = serverConfig.getHttpUrl("/api/health");
-    console.log("连接地址:", serverUrl);
+    console.log(`   目标地址: ${serverUrl}\n`);
 
     const response = await fetch(serverUrl, {
       method: "GET",
@@ -1615,29 +1870,103 @@ ipcMain.handle("test-server-connection", async () => {
     });
 
     if (response.ok) {
+      console.log("✅ 服务器连接测试成功\n");
       return {
         success: true,
         message: "服务器连接正常",
         serverUrl: serverUrl,
         status: response.status,
+        timestamp: new Date().toISOString(),
       };
     } else {
+      const errorMsg = `服务器响应异常 (HTTP ${response.status})`;
+      console.log(`❌ ${errorMsg}\n`);
       return {
         success: false,
-        error: `服务器响应错误: ${response.status}`,
+        error: errorMsg,
         serverUrl: serverUrl,
+        status: response.status,
+        suggestions: [
+          "检查服务器是否正常运行",
+          "确认API服务是否可用",
+          "查看服务器日志获取详细信息",
+        ],
       };
     }
   } catch (error) {
-    console.error("服务器连接测试失败:", error);
+    const friendlyError = getFriendlyServerTestError(
+      error,
+      serverConfig.getHttpUrl()
+    );
+    console.error("\n❌ 服务器连接测试失败:", friendlyError.message);
+
     return {
       success: false,
-      error: error.message,
+      error: friendlyError.message,
       serverUrl: serverConfig.getHttpUrl(),
-      details: "请检查服务器是否正在运行，以及网络连接是否正常",
+      details: friendlyError.details,
+      suggestions: friendlyError.suggestions,
+      timestamp: new Date().toISOString(),
     };
   }
 });
+
+// 获取友好的服务器测试错误信息
+function getFriendlyServerTestError(error, serverUrl) {
+  if (error.code === "ECONNREFUSED") {
+    return {
+      message: "无法连接到服务器",
+      details: `服务器 ${serverUrl} 拒绝连接`,
+      suggestions: [
+        "确认后端服务是否正在运行",
+        "检查端口是否被占用或被防火墙阻止",
+        "验证服务器地址配置是否正确",
+      ],
+    };
+  }
+
+  if (error.code === "ENOTFOUND") {
+    return {
+      message: "服务器地址解析失败",
+      details: `无法解析服务器地址 ${serverUrl}`,
+      suggestions: [
+        "检查网络连接是否正常",
+        "确认服务器地址是否正确",
+        "尝试使用IP地址代替域名",
+      ],
+    };
+  }
+
+  if (error.code === "ETIMEDOUT" || error.message.includes("timeout")) {
+    return {
+      message: "服务器连接超时",
+      details: `连接 ${serverUrl} 超时`,
+      suggestions: [
+        "检查网络连接质量",
+        "确认服务器是否响应缓慢",
+        "稍后重试连接",
+      ],
+    };
+  }
+
+  if (error.message.includes("fetch failed")) {
+    return {
+      message: "网络请求失败",
+      details: `无法访问 ${serverUrl}`,
+      suggestions: [
+        "检查网络连接状态",
+        "确认服务器是否可达",
+        "检查代理或防火墙设置",
+      ],
+    };
+  }
+
+  return {
+    message: "服务器连接异常",
+    details: error.message || "未知错误",
+    suggestions: ["检查网络连接", "确认服务器配置", "查看详细日志获取更多信息"],
+  };
+}
 
 // 获取应用版本信息
 ipcMain.handle("get-app-version", async () => {

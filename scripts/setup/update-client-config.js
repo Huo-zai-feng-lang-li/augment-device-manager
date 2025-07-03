@@ -45,6 +45,17 @@ async function updateClientConfig() {
     await fs.writeJson(clientConfigPath, newConfig, { spaces: 2 });
     console.log("✅ 客户端配置已更新");
 
+    // 2.5. 创建打包标记文件，告诉配置系统这是生产环境
+    const packagedMarkerPath = path.join(
+      __dirname,
+      "../../modules/desktop-client/.packaged"
+    );
+    await fs.writeFile(
+      packagedMarkerPath,
+      `Packaged at: ${new Date().toISOString()}\nNgrok URL: ${ngrokUrl}`
+    );
+    console.log("✅ 打包标记已创建");
+
     // 3. 更新用户配置目录
     const userConfigDir = path.join(
       require("os").homedir(),

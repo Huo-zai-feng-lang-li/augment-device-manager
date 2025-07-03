@@ -37,11 +37,13 @@ Write-Host "  SessionId: $newSessionId"
 if ($ide -eq "Cursor") {
     $processNames = @('Cursor', 'cursor')
     $storageFile = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
-    $augmentPath = "$env:APPDATA\Cursor\User\globalStorage\augmentcode.augment"
+    $augmentPath = "$env:APPDATA\Cursor\User\globalStorage\augment.vscode-augment"
+    $mcpConfigPath = "$env:APPDATA\Cursor\User\globalStorage\augment.vscode-augment\augment-global-state\mcpServers.json"
 } else {
     $processNames = @('Code', 'code')
     $storageFile = "$env:APPDATA\Code\User\globalStorage\storage.json"
-    $augmentPath = "$env:APPDATA\Code\User\globalStorage\augmentcode.augment"
+    $augmentPath = "$env:APPDATA\Code\User\globalStorage\augment.vscode-augment"
+    $mcpConfigPath = "$env:APPDATA\Code\User\globalStorage\augment.vscode-augment\augment-global-state\mcpServers.json"
 }
 
 Write-Host "[STEP 2] Closing $ide processes..." -ForegroundColor Blue
@@ -100,14 +102,37 @@ if (-not $isDryRun) {
     Write-Host "[PREVIEW] Would update device identifiers in $storageFile" -ForegroundColor Cyan
 }
 
-# Clean Augment extension data (but preserve IDE login)
+# Clean Augment extension data (but preserve IDE login and MCP config)
 Write-Host "[STEP 4] Cleaning Augment extension data..." -ForegroundColor Blue
 
 if (-not $isDryRun) {
     if (Test-Path $augmentPath) {
         try {
+            # 1. 保护MCP配置文件
+            $mcpConfig = $null
+            if (Test-Path $mcpConfigPath) {
+                try {
+                    $mcpConfig = Get-Content $mcpConfigPath -Raw | ConvertFrom-Json
+                    Write-Host "[PROTECT] MCP configuration backed up" -ForegroundColor Yellow
+                }
+                catch {
+                    Write-Host "[WARNING] Failed to backup MCP config: $($_.Exception.Message)" -ForegroundColor Yellow
+                }
+            }
+
+            # 2. 删除Augment扩展数据
             Remove-Item -Path $augmentPath -Recurse -Force
             Write-Host "[SUCCESS] Augment extension data cleaned" -ForegroundColor Green
+
+            # 3. 恢复MCP配置文件
+            if ($mcpConfig) {
+                $mcpConfigDir = Split-Path $mcpConfigPath -Parent
+                if (-not (Test-Path $mcpConfigDir)) {
+                    New-Item -Path $mcpConfigDir -ItemType Directory -Force | Out-Null
+                }
+                $mcpConfig | ConvertTo-Json -Depth 10 | Set-Content $mcpConfigPath -Encoding UTF8
+                Write-Host "[RESTORE] MCP configuration restored" -ForegroundColor Green
+            }
         }
         catch {
             Write-Host "[WARNING] Failed to clean Augment data: $($_.Exception.Message)" -ForegroundColor Yellow
@@ -116,7 +141,7 @@ if (-not $isDryRun) {
         Write-Host "[INFO] Augment extension data not found" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "[PREVIEW] Would clean Augment extension data" -ForegroundColor Cyan
+    Write-Host "[PREVIEW] Would clean Augment extension data (preserving MCP config)" -ForegroundColor Cyan
 }
 
 # Update system registry (requires admin rights)

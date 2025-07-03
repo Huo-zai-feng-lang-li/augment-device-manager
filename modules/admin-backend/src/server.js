@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const Database = require("./database");
+const ServerBeijingTimeAPI = require("./beijing-time-api");
 const {
   generateActivationCode,
   validateActivationCode,
@@ -84,9 +85,12 @@ app.post("/api/activation-codes", authenticateToken, async (req, res) => {
     // 生成激活码
     const code = generateActivationCode(deviceId, expiryDays || 30);
 
-    // 计算过期时间
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (expiryDays || 30));
+    // 使用在线时间计算过期时间
+    const serverTimeAPI = new ServerBeijingTimeAPI();
+    const currentTime = await serverTimeAPI.getBeijingTime();
+    const expiresAt = new Date(
+      currentTime.getTime() + (expiryDays || 30) * 24 * 60 * 60 * 1000
+    );
 
     // 保存到数据库
     const result = await db.createActivationCode(
@@ -175,16 +179,46 @@ app.post("/api/validate-code", async (req, res) => {
       });
     }
 
-    // 检查过期时间
-    const now = new Date();
-    const expiry = new Date(activationCode.expires_at);
-    if (now > expiry) {
-      // 自动标记为过期
-      await db.updateActivationCodeStatus(code, "expired");
-      await db.logUsage(code, deviceId, "failed", "激活码已过期");
-      return res.status(400).json({
+    // 使用在线时间检查过期状态
+    const serverTimeAPI = new ServerBeijingTimeAPI();
+    try {
+      const expirationCheck = await serverTimeAPI.validateExpiration(
+        activationCode.expires_at
+      );
+
+      if (!expirationCheck.valid) {
+        if (expirationCheck.expired) {
+          // 激活码已过期
+          await db.updateActivationCodeStatus(code, "expired");
+          await db.logUsage(
+            code,
+            deviceId,
+            "failed",
+            "激活码已过期（基于在线时间）"
+          );
+          return res.status(400).json({
+            success: false,
+            error: "激活码已过期",
+          });
+        } else if (expirationCheck.serverSecurityBlock) {
+          // 服务端网络时间验证失败
+          await db.logUsage(code, deviceId, "failed", "服务端时间验证失败");
+          return res.status(503).json({
+            success: false,
+            error: "服务端时间验证失败，请稍后重试",
+            networkError: true,
+          });
+        }
+      }
+
+      console.log("✅ 服务端激活码验证通过 - 基于在线北京时间");
+    } catch (error) {
+      console.error("服务端时间验证异常:", error.message);
+      await db.logUsage(code, deviceId, "failed", "服务端时间验证异常");
+      return res.status(503).json({
         success: false,
-        error: "激活码已过期",
+        error: "服务端时间验证异常，请稍后重试",
+        networkError: true,
       });
     }
 

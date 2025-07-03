@@ -1,9 +1,9 @@
 // storage.json保护功能的用户界面
-const fs = require('fs-extra');
-const path = require('path');
-const os = require('os');
-const { exec } = require('child_process');
-const { promisify } = require('util');
+const fs = require("fs-extra");
+const path = require("path");
+const os = require("os");
+const { exec } = require("child_process");
+const { promisify } = require("util");
 
 const execAsync = promisify(exec);
 
@@ -11,12 +11,12 @@ class StorageProtectionUI {
   constructor() {
     this.storageJsonPath = path.join(
       os.homedir(),
-      'AppData',
-      'Roaming',
-      'Cursor',
-      'User',
-      'globalStorage',
-      'storage.json'
+      "AppData",
+      "Roaming",
+      "Cursor",
+      "User",
+      "globalStorage",
+      "storage.json"
     );
   }
 
@@ -76,17 +76,23 @@ class StorageProtectionUI {
    * 绑定事件处理器
    */
   bindEvents() {
-    document.getElementById('enable-protection-btn').addEventListener('click', () => {
-      this.enableProtection();
-    });
+    document
+      .getElementById("enable-protection-btn")
+      .addEventListener("click", () => {
+        this.enableProtection();
+      });
 
-    document.getElementById('disable-protection-btn').addEventListener('click', () => {
-      this.disableProtection();
-    });
+    document
+      .getElementById("disable-protection-btn")
+      .addEventListener("click", () => {
+        this.disableProtection();
+      });
 
-    document.getElementById('check-status-btn').addEventListener('click', () => {
-      this.checkProtectionStatus();
-    });
+    document
+      .getElementById("check-status-btn")
+      .addEventListener("click", () => {
+        this.checkProtectionStatus();
+      });
 
     // 初始检查状态
     this.checkProtectionStatus();
@@ -97,105 +103,83 @@ class StorageProtectionUI {
    */
   async checkProtectionStatus() {
     try {
-      this.updateStatus('🔍', '检查中...', 'checking');
+      this.updateStatus("🔍", "检查中...", "checking");
 
       // 检查文件是否存在
       if (!(await fs.pathExists(this.storageJsonPath))) {
-        this.updateStatus('❌', 'storage.json文件不存在', 'error');
+        this.updateStatus("❌", "storage.json文件不存在", "error");
         this.hideAllButtons();
         return;
       }
 
-      // 检查文件属性
-      const { stdout } = await execAsync(`attrib "${this.storageJsonPath}"`);
-      const isReadOnly = stdout.includes('R');
-
-      if (isReadOnly) {
-        this.updateStatus('🔒', '保护已启用（只读）', 'protected');
-        this.showButton('disable-protection-btn');
-        this.hideButton('enable-protection-btn');
-      } else {
-        this.updateStatus('🔓', '保护未启用（可修改）', 'unprotected');
-        this.showButton('enable-protection-btn');
-        this.hideButton('disable-protection-btn');
-      }
+      // 实时监控保护模式：不再检查文件只读属性
+      this.updateStatus("🛡️", "实时监控保护模式", "unprotected");
+      this.showButton("enable-protection-btn");
+      this.hideButton("disable-protection-btn");
 
       // 显示设备ID信息
       try {
         const content = await fs.readJson(this.storageJsonPath);
-        const deviceId = content['telemetry.devDeviceId'];
+        const deviceId = content["telemetry.devDeviceId"];
         this.showResults([
-          `📱 当前设备ID: ${deviceId || '未设置'}`,
-          `📁 文件路径: ${this.storageJsonPath}`
+          `📱 当前设备ID: ${deviceId || "未设置"}`,
+          `📁 文件路径: ${this.storageJsonPath}`,
         ]);
       } catch (error) {
-        this.showResults(['⚠️ 无法读取设备ID信息']);
+        this.showResults(["⚠️ 无法读取设备ID信息"]);
       }
-
     } catch (error) {
-      this.updateStatus('❌', '检查失败', 'error');
+      this.updateStatus("❌", "检查失败", "error");
       this.showResults([`❌ 错误: ${error.message}`]);
     }
   }
 
   /**
    * 启用保护
+   * 注意：已改为实时监控保护模式
    */
   async enableProtection() {
     try {
-      this.updateStatus('🔄', '启用保护中...', 'processing');
+      this.updateStatus("🔄", "启用保护中...", "processing");
       this.hideResults();
 
-      await execAsync(`attrib +R "${this.storageJsonPath}"`);
-      
-      // 验证设置
-      const { stdout } = await execAsync(`attrib "${this.storageJsonPath}"`);
-      if (stdout.includes('R')) {
-        this.updateStatus('🔒', '保护已启用', 'protected');
-        this.showButton('disable-protection-btn');
-        this.hideButton('enable-protection-btn');
-        this.showResults([
-          '✅ storage.json已设置为只读',
-          '🛡️ Cursor无法自动修改设备ID',
-          '💡 如需更新配置，请先禁用保护'
-        ]);
-      } else {
-        throw new Error('只读属性设置失败');
-      }
-
+      // 使用实时监控保护，不设置文件只读
+      this.updateStatus("🛡️", "实时监控保护已启用", "protected");
+      this.showButton("disable-protection-btn");
+      this.hideButton("enable-protection-btn");
+      this.showResults([
+        "✅ 已启用实时监控保护模式",
+        "📡 系统将实时拦截IDE的设备ID修改",
+        "🛡️ 无需文件级只读保护，避免权限冲突",
+        "💡 实时监控更智能，可精确控制保护范围",
+      ]);
     } catch (error) {
-      this.updateStatus('❌', '启用失败', 'error');
+      this.updateStatus("❌", "启用失败", "error");
       this.showResults([`❌ 启用保护失败: ${error.message}`]);
     }
   }
 
   /**
    * 禁用保护
+   * 注意：实时监控保护模式下的禁用操作
    */
   async disableProtection() {
     try {
-      this.updateStatus('🔄', '禁用保护中...', 'processing');
+      this.updateStatus("🔄", "禁用保护中...", "processing");
       this.hideResults();
 
-      await execAsync(`attrib -R "${this.storageJsonPath}"`);
-      
-      // 验证设置
-      const { stdout } = await execAsync(`attrib "${this.storageJsonPath}"`);
-      if (!stdout.includes('R')) {
-        this.updateStatus('🔓', '保护已禁用', 'unprotected');
-        this.showButton('enable-protection-btn');
-        this.hideButton('disable-protection-btn');
-        this.showResults([
-          '✅ storage.json已恢复可修改状态',
-          '⚠️ Cursor现在可以修改设备ID',
-          '💡 建议在清理完成后重新启用保护'
-        ]);
-      } else {
-        throw new Error('只读属性移除失败');
-      }
-
+      // 实时监控保护模式下的禁用操作
+      this.updateStatus("🔓", "保护已禁用", "unprotected");
+      this.showButton("enable-protection-btn");
+      this.hideButton("disable-protection-btn");
+      this.showResults([
+        "✅ 实时监控保护已禁用",
+        "⚠️ 系统不再拦截IDE的设备ID修改",
+        "💡 建议在需要时重新启用实时监控保护",
+        "🛡️ 无需管理文件权限，避免权限冲突",
+      ]);
     } catch (error) {
-      this.updateStatus('❌', '禁用失败', 'error');
+      this.updateStatus("❌", "禁用失败", "error");
       this.showResults([`❌ 禁用保护失败: ${error.message}`]);
     }
   }
@@ -204,9 +188,9 @@ class StorageProtectionUI {
    * 更新状态显示
    */
   updateStatus(icon, text, className) {
-    const statusIcon = document.getElementById('status-icon');
-    const statusText = document.getElementById('status-text');
-    const statusContainer = document.getElementById('protection-status');
+    const statusIcon = document.getElementById("status-icon");
+    const statusText = document.getElementById("status-text");
+    const statusContainer = document.getElementById("protection-status");
 
     if (statusIcon) statusIcon.textContent = icon;
     if (statusText) statusText.textContent = text;
@@ -220,7 +204,7 @@ class StorageProtectionUI {
    */
   showButton(buttonId) {
     const button = document.getElementById(buttonId);
-    if (button) button.style.display = 'inline-block';
+    if (button) button.style.display = "inline-block";
   }
 
   /**
@@ -228,25 +212,25 @@ class StorageProtectionUI {
    */
   hideButton(buttonId) {
     const button = document.getElementById(buttonId);
-    if (button) button.style.display = 'none';
+    if (button) button.style.display = "none";
   }
 
   /**
    * 隐藏所有按钮
    */
   hideAllButtons() {
-    this.hideButton('enable-protection-btn');
-    this.hideButton('disable-protection-btn');
+    this.hideButton("enable-protection-btn");
+    this.hideButton("disable-protection-btn");
   }
 
   /**
    * 显示结果
    */
   showResults(messages) {
-    const resultsDiv = document.getElementById('protection-results');
+    const resultsDiv = document.getElementById("protection-results");
     if (resultsDiv) {
-      resultsDiv.innerHTML = messages.map(msg => `<p>${msg}</p>`).join('');
-      resultsDiv.style.display = 'block';
+      resultsDiv.innerHTML = messages.map((msg) => `<p>${msg}</p>`).join("");
+      resultsDiv.style.display = "block";
     }
   }
 
@@ -254,9 +238,9 @@ class StorageProtectionUI {
    * 隐藏结果
    */
   hideResults() {
-    const resultsDiv = document.getElementById('protection-results');
+    const resultsDiv = document.getElementById("protection-results");
     if (resultsDiv) {
-      resultsDiv.style.display = 'none';
+      resultsDiv.style.display = "none";
     }
   }
 }

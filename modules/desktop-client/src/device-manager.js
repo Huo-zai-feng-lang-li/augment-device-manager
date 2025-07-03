@@ -36,6 +36,46 @@ class DeviceManager {
     // this.deviceIdGuardian = new DeviceIdGuardian(); // 已禁用，改用一次性文件保护
     this.enhancedGuardian = new EnhancedDeviceGuardian();
     this.standaloneService = new StandaloneGuardianService();
+
+    // 设置增强守护进程的事件回调
+    this.setupGuardianEventCallback();
+  }
+
+  /**
+   * 设置守护进程事件回调
+   */
+  setupGuardianEventCallback() {
+    this.enhancedGuardian.setEventCallback((eventType, data) => {
+      if (
+        eventType === "intercept-success" ||
+        eventType === "protection-restored" ||
+        eventType === "backup-removed"
+      ) {
+        // 通知主进程，主进程再通知前端刷新状态
+        this.notifyMainProcess("guardian-event", {
+          type: eventType,
+          data: data,
+        });
+      }
+    });
+  }
+
+  /**
+   * 通知主进程
+   */
+  notifyMainProcess(eventType, data) {
+    try {
+      // 如果在主进程中，直接处理
+      if (typeof process !== "undefined" && process.type === "browser") {
+        const { BrowserWindow } = require("electron");
+        const mainWindow = BrowserWindow.getAllWindows()[0];
+        if (mainWindow) {
+          mainWindow.webContents.send(eventType, data);
+        }
+      }
+    } catch (error) {
+      console.error("通知主进程失败:", error);
+    }
   }
 
   // 获取Cursor相关路径
@@ -681,14 +721,16 @@ class DeviceManager {
           );
           await fs.ensureDir(backupDir);
 
-          // 只清理特定的Augment相关文件
+          // 只清理特定的Augment相关文件，但保护MCP配置相关目录和文件
           const augmentFiles = files.filter(
             (file) =>
-              file.toLowerCase().includes("augment") ||
-              file.toLowerCase().includes("device") ||
-              file.toLowerCase().includes("license") ||
-              file.endsWith(".tmp") ||
-              file.endsWith(".cache")
+              (file.toLowerCase().includes("augment") ||
+                file.toLowerCase().includes("device") ||
+                file.toLowerCase().includes("license") ||
+                file.endsWith(".tmp") ||
+                file.endsWith(".cache")) &&
+              file !== "augment.vscode-augment" && // 保护MCP配置目录
+              file !== "augment-global-state" // 保护MCP配置子目录
           );
 
           if (augmentFiles.length > 0) {
@@ -978,7 +1020,7 @@ class DeviceManager {
     }
   }
 
-  // 重置使用计数
+  // 重置使用计数（保护MCP配置）
   async resetUsageCount() {
     try {
       const results = {
@@ -986,6 +1028,27 @@ class DeviceManager {
         actions: [],
         errors: [],
       };
+
+      // 保护MCP配置文件
+      const mcpConfigPath = path.join(
+        this.cursorPaths.augmentStorage,
+        "augment-global-state",
+        "mcpServers.json"
+      );
+      let mcpConfig = null;
+
+      if (await fs.pathExists(mcpConfigPath)) {
+        try {
+          mcpConfig = await fs.readJson(mcpConfigPath);
+          results.actions.push(
+            `🛡️ 已保护MCP配置文件: ${path.basename(mcpConfigPath)}`
+          );
+        } catch (error) {
+          results.actions.push(
+            `⚠️ 读取MCP配置失败，将跳过保护: ${error.message}`
+          );
+        }
+      }
 
       // 重新创建干净的存储目录
       if (await fs.pathExists(this.cursorPaths.augmentStorage)) {
@@ -1003,18 +1066,36 @@ class DeviceManager {
       await fs.ensureDir(newConfigPath);
 
       // 写入基础配置
+      let deviceId = "test-device-id";
+      try {
+        deviceId = require(getSharedPath(
+          "crypto/encryption"
+        )).generateDeviceFingerprint();
+      } catch (error) {
+        // 在测试环境中使用默认值
+        results.actions.push(`⚠️ 使用默认设备ID（测试环境）: ${error.message}`);
+      }
+
       const basicConfig = {
         version: "1.0.0",
         resetAt: new Date().toISOString(),
-        deviceId: require(getSharedPath(
-          "crypto/encryption"
-        )).generateDeviceFingerprint(),
+        deviceId: deviceId,
       };
 
       await fs.writeJson(path.join(newConfigPath, "config.json"), basicConfig, {
         spaces: 2,
       });
       results.actions.push("已创建新的配置文件");
+
+      // 恢复MCP配置文件
+      if (mcpConfig) {
+        // 重新构建MCP配置路径（因为目录已被重新创建）
+        const newMcpConfigPath = path.join(newConfigPath, "mcpServers.json");
+        await fs.writeJson(newMcpConfigPath, mcpConfig, { spaces: 2 });
+        results.actions.push(
+          `🔄 已恢复MCP配置文件: ${path.basename(newMcpConfigPath)}`
+        );
+      }
 
       return results;
     } catch (error) {
@@ -1768,7 +1849,7 @@ class DeviceManager {
     }
   }
 
-  // 专门清理Augment扩展的存储数据（包括登录会话）
+  // 专门清理Augment扩展的存储数据（包括登录会话，保护MCP配置）
   async cleanAugmentExtensionStorage(results, options = {}) {
     try {
       const augmentStoragePaths = [
@@ -1817,7 +1898,28 @@ class DeviceManager {
       for (const augmentPath of augmentStoragePaths) {
         try {
           if (await fs.pathExists(augmentPath)) {
-            // 备份Augment扩展数据（可选）
+            // 1. 保护MCP配置文件
+            const mcpConfigPath = path.join(
+              augmentPath,
+              "augment-global-state",
+              "mcpServers.json"
+            );
+            let mcpConfig = null;
+
+            if (await fs.pathExists(mcpConfigPath)) {
+              try {
+                mcpConfig = await fs.readJson(mcpConfigPath);
+                results.actions.push(
+                  `🛡️ 已保护MCP配置文件: ${path.basename(mcpConfigPath)}`
+                );
+              } catch (error) {
+                results.actions.push(
+                  `⚠️ 读取MCP配置失败，将跳过保护: ${error.message}`
+                );
+              }
+            }
+
+            // 2. 备份Augment扩展数据（可选）
             if (!options.skipBackup) {
               const backupDir = path.join(
                 os.tmpdir(),
@@ -1829,11 +1931,21 @@ class DeviceManager {
               results.actions.push(`📁 Augment数据备份至: ${backupPath}`);
             }
 
-            // 删除Augment扩展存储目录
+            // 3. 删除Augment扩展存储目录
             await fs.remove(augmentPath);
             results.actions.push(
               `✅ 已清理Augment扩展存储: ${path.basename(augmentPath)}`
             );
+
+            // 4. 恢复MCP配置文件
+            if (mcpConfig) {
+              await fs.ensureDir(path.dirname(mcpConfigPath));
+              await fs.writeJson(mcpConfigPath, mcpConfig, { spaces: 2 });
+              results.actions.push(
+                `🔄 已恢复MCP配置文件: ${path.basename(mcpConfigPath)}`
+              );
+            }
+
             cleanedCount++;
           }
         } catch (error) {
@@ -2725,7 +2837,18 @@ class DeviceManager {
         // 生成新的遥测ID
         const crypto = require("crypto");
         const newDeviceId = crypto.randomUUID();
-        const currentTime = new Date().toUTCString();
+
+        // 尝试使用在线时间，失败时回退到本地时间
+        let currentTime;
+        try {
+          const BeijingTimeAPI = require("./beijing-time-api");
+          const timeAPI = new BeijingTimeAPI();
+          const onlineTime = await timeAPI.getCurrentTime(true); // 允许回退
+          currentTime = onlineTime.toUTCString();
+        } catch (error) {
+          console.warn("⚠️ 获取在线时间失败，使用本地时间:", error.message);
+          currentTime = new Date().toUTCString();
+        }
 
         // 创建新的storage.json（只包含遥测ID和登录信息）
         const newStorageData = {
@@ -3937,41 +4060,18 @@ class DeviceManager {
         return;
       }
 
-      // 设置文件为只读（禁止修改）
-      const { exec } = require("child_process");
-      const { promisify } = require("util");
-      const execAsync = promisify(exec);
-
-      try {
-        // Windows: 设置只读属性
-        await execAsync(`attrib +R "${storageJsonPath}"`);
-        results.actions.push(
-          "🔒 已将storage.json设置为只读，防止Cursor自动恢复设备ID"
-        );
-
-        // 验证设置是否成功
-        const { stdout } = await execAsync(`attrib "${storageJsonPath}"`);
-        if (stdout.includes("R")) {
-          results.actions.push("✅ 只读属性设置成功");
-        }
-      } catch (error) {
-        results.errors.push(`设置只读属性失败: ${error.message}`);
-
-        // 备用方案：尝试修改文件权限
-        try {
-          await fs.chmod(storageJsonPath, 0o444); // 只读权限
-          results.actions.push("🔒 已通过chmod设置storage.json为只读");
-        } catch (chmodError) {
-          results.errors.push(`备用权限设置也失败: ${chmodError.message}`);
-        }
-      }
-
-      // 添加说明信息
+      // 注意：已禁用文件级被动保护，改用实时监控主动保护
+      results.actions.push("🛡️ 使用实时监控保护模式，跳过文件级只读保护");
       results.actions.push(
-        '💡 提示: 如需恢复文件修改权限，请运行: attrib -R "' +
-          storageJsonPath +
-          '"'
+        "📡 实时监控可精确拦截IDE修改并立即恢复，避免权限冲突"
       );
+
+      // 原只读保护代码已注释，避免权限冲突：
+      // - attrib +R (只读属性)
+      // - chmod 0o444 (只读权限)
+      // 这些会导致程序自身无法写入storage.json
+
+      results.actions.push("💡 提示: 实时监控保护更智能，无需手动管理文件权限");
     } catch (error) {
       results.errors.push(`禁用storage.json失败: ${error.message}`);
     }
@@ -4172,6 +4272,130 @@ class DeviceManager {
       }
     } catch (error) {
       results.errors.push(`停止增强守护进程失败: ${error.message}`);
+    }
+  }
+
+  // 独立启动增强防护
+  async startEnhancedGuardianIndependently(options = {}) {
+    try {
+      // 检查启动条件
+      const canStart = await this.canStartEnhancedGuardian();
+      if (!canStart.success) {
+        return canStart;
+      }
+
+      // 获取当前设备ID
+      const deviceId = await this.getCurrentDeviceId();
+      if (!deviceId) {
+        return { success: false, message: "无法获取设备ID" };
+      }
+
+      // 优先尝试启动独立服务
+      console.log("🚀 尝试启动独立守护服务...");
+      const serviceResult = await this.standaloneService.startStandaloneService(
+        deviceId,
+        {
+          enableBackupMonitoring: options.enableBackupMonitoring !== false,
+          enableDatabaseMonitoring: options.enableDatabaseMonitoring !== false,
+          enableEnhancedProtection: options.enableEnhancedProtection !== false,
+          ...options,
+        }
+      );
+
+      if (serviceResult.success) {
+        console.log("✅ 独立守护服务启动成功");
+        return {
+          success: true,
+          message: "独立守护服务已启动",
+          deviceId: deviceId,
+          mode: "standalone",
+          pid: serviceResult.pid,
+        };
+      } else if (serviceResult.alreadyRunning) {
+        console.log("ℹ️ 独立守护服务已在运行");
+        return {
+          success: true,
+          message: "独立守护服务已在运行",
+          deviceId: deviceId,
+          mode: "standalone",
+          pid: serviceResult.pid,
+          alreadyRunning: true,
+        };
+      } else {
+        console.log(`⚠️ 独立服务启动失败: ${serviceResult.message}`);
+        console.log("🔄 降级到内置守护进程模式...");
+
+        // 降级到内置守护进程
+        const result = await this.enhancedGuardian.startGuardingIndependently(
+          deviceId,
+          options
+        );
+
+        if (result.success) {
+          return {
+            success: true,
+            message: "增强防护已启动（内置模式）",
+            deviceId: deviceId,
+            mode: "inprocess",
+          };
+        } else {
+          return result;
+        }
+      }
+    } catch (error) {
+      return { success: false, message: `启动增强防护失败: ${error.message}` };
+    }
+  }
+
+  // 检查是否可以启动增强防护
+  async canStartEnhancedGuardian() {
+    try {
+      // 检查是否已在运行
+      const status = await this.getEnhancedGuardianStatus();
+      if (status.isGuarding) {
+        return { success: false, message: "增强防护已在运行" };
+      }
+
+      // 检查设备ID可用性
+      const deviceId = await this.getCurrentDeviceId();
+      if (!deviceId) {
+        return { success: false, message: "设备ID不可用" };
+      }
+
+      // 检查增强守护进程是否可以启动
+      const isReady = await this.enhancedGuardian.isReadyToStart();
+      if (!isReady) {
+        return { success: false, message: "增强守护进程未就绪" };
+      }
+
+      return { success: true, message: "可以启动增强防护" };
+    } catch (error) {
+      return { success: false, message: `检查启动条件失败: ${error.message}` };
+    }
+  }
+
+  // 获取守护进程启动状态信息
+  async getGuardianStartupStatus() {
+    try {
+      const requirements =
+        await this.enhancedGuardian.checkStartupRequirements();
+      const currentStatus = await this.getEnhancedGuardianStatus();
+
+      return {
+        canStart: requirements.canStart,
+        reason: requirements.reason,
+        requirements: requirements.checks,
+        currentStatus: currentStatus,
+        deviceId: requirements.deviceId,
+      };
+    } catch (error) {
+      return {
+        canStart: false,
+        reason: `获取状态失败: ${error.message}`,
+        requirements: {},
+        currentStatus: { isGuarding: false },
+        deviceId: null,
+      };
     }
   }
 

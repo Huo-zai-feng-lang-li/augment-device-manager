@@ -129,18 +129,18 @@ class DeviceIdGuardian {
 
   /**
    * 设置文件保护
+   * 注意：已禁用文件级被动保护，仅使用实时监控主动保护
    */
   async setFileProtection() {
     try {
-      // 在Windows上设置只读属性
-      const { exec } = require("child_process");
-      const { promisify } = require("util");
-      const execAsync = promisify(exec);
+      // 禁用文件级被动保护，避免权限冲突
+      console.log("🛡️ 使用实时监控保护模式，跳过文件级保护");
 
-      await execAsync(`attrib +R "${this.storageJsonPath}"`);
-      console.log("🔒 已设置文件只读保护");
+      // 原只读保护代码已注释：
+      // await execAsync(`attrib +R "${this.storageJsonPath}"`);
+      // 这会导致程序自身无法写入，产生权限冲突
     } catch (error) {
-      console.log("⚠️ 无法设置只读保护（权限不足）");
+      console.log("⚠️ 设置保护模式失败");
     }
   }
 

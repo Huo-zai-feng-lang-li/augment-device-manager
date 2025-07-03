@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Augment设备管理器</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- 优先加载renderer.js，确保函数定义不被覆盖 -->
+    <script src="renderer.js"></script>
     <style>
       /* 极简风格样式 */
       @keyframes fadeIn {
@@ -140,6 +142,71 @@
       }
       ::-webkit-scrollbar-thumb:hover {
         background: #94a3b8;
+      }
+
+      /* 优化的Tooltip样式 */
+      [data-tooltip] {
+        position: relative;
+      }
+
+      [data-tooltip]:hover::before {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        margin-bottom: 8px;
+        padding: 20px 24px;
+        background: rgba(15, 23, 42, 0.96);
+        color: white;
+        font-size: 13px;
+        line-height: 2.2;
+        border-radius: 12px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        word-break: normal;
+        overflow-wrap: break-word;
+        z-index: 1000;
+        max-width: 480px;
+        min-width: 360px;
+        width: max-content;
+        text-align: left;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        animation: fadeIn 0.3s ease-out;
+        pointer-events: none;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        letter-spacing: 0.3px;
+        hyphens: auto;
+      }
+
+      [data-tooltip]:hover::after {
+        content: "";
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        margin-bottom: 2px;
+        border: 6px solid transparent;
+        border-top-color: rgba(30, 41, 59, 0.95);
+        z-index: 1001;
+        pointer-events: none;
+        animation: fadeIn 0.2s ease-out;
+      }
+
+      /* 针对右侧元素的tooltip位置调整 */
+      .tooltip-left[data-tooltip]:hover::before {
+        left: auto;
+        right: 0;
+        transform: none;
+      }
+
+      .tooltip-left[data-tooltip]:hover::after {
+        left: auto;
+        right: 12px;
+        transform: none;
       }
 
       /* 加载状态 */
@@ -727,6 +794,7 @@
                   type="checkbox"
                   id="use-powershell-assist"
                   class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  checked
                 />
                 <span class="text-slate-800">🚀 启用PowerShell辅助清理</span>
                 <span class="text-xs text-blue-600 ml-2"
@@ -739,7 +807,7 @@
             </div>
 
             <!-- 增强防护选项 - 对用户可见 -->
-            <div class="mb-4 space-y-2">
+            <div class="mb-4 space-y-2" style="display: none">
               <h3 class="text-lg font-semibold text-slate-800 mb-3">
                 🛡️ 增强防护选项
               </h3>
@@ -885,147 +953,7 @@
               开始清理
             </button>
 
-            <!-- 增强防护状态卡片 -->
-            <div
-              id="guardian-status-card"
-              class="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-lg"
-              style="display: none"
-            >
-              <div class="flex items-center gap-3 mb-3">
-                <div
-                  class="w-8 h-8 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center"
-                >
-                  <svg
-                    class="w-4 h-4 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                    />
-                  </svg>
-                </div>
-                <div class="flex-1">
-                  <h4 class="font-medium text-slate-800">🛡️ 增强防护状态</h4>
-                  <p class="text-xs text-slate-500" id="guardian-mode">
-                    防护模式：未启动
-                  </p>
-                </div>
-                <button
-                  onclick="refreshGuardianStatus()"
-                  class="text-slate-400 hover:text-slate-600 transition-colors"
-                  title="刷新状态"
-                >
-                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fill-rule="evenodd"
-                      d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
-                    />
-                  </svg>
-                </button>
-              </div>
-
-              <!-- 拦截统计 -->
-              <div class="grid grid-cols-3 gap-3 mb-3">
-                <div class="text-center p-2 bg-white rounded-lg border">
-                  <div
-                    class="text-lg font-bold text-red-600"
-                    id="intercept-count"
-                  >
-                    0
-                  </div>
-                  <div class="text-xs text-slate-500">拦截次数</div>
-                </div>
-                <div class="text-center p-2 bg-white rounded-lg border">
-                  <div
-                    class="text-lg font-bold text-orange-600"
-                    id="backup-removed"
-                  >
-                    0
-                  </div>
-                  <div class="text-xs text-slate-500">删除备份</div>
-                </div>
-                <div class="text-center p-2 bg-white rounded-lg border">
-                  <div
-                    class="text-lg font-bold text-blue-600"
-                    id="protection-restored"
-                  >
-                    0
-                  </div>
-                  <div class="text-xs text-slate-500">恢复保护</div>
-                </div>
-              </div>
-
-              <!-- 最近拦截记录 -->
-              <div class="mb-3">
-                <div class="text-xs font-medium text-slate-600 mb-2">
-                  最近拦截：
-                </div>
-                <div
-                  id="recent-intercepts"
-                  class="text-xs text-slate-500 space-y-1 max-h-16 overflow-y-auto"
-                >
-                  <div class="text-center text-slate-400 py-2">
-                    暂无拦截记录
-                  </div>
-                </div>
-              </div>
-
-              <!-- 防护状态说明 -->
-              <div
-                class="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-lg"
-              >
-                <div class="flex items-start gap-2">
-                  <svg
-                    class="w-3 h-3 text-amber-500 mt-0.5 flex-shrink-0"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                  <div class="text-xs text-amber-700">
-                    <div class="font-medium">🔄 持续防护中</div>
-                    <div class="mt-1">
-                      防护服务在客户端关闭后继续运行，如需停止请点击下方按钮
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 控制按钮 -->
-              <div class="flex gap-2">
-                <button
-                  onclick="switchTab('tools')"
-                  class="flex-1 px-3 py-1.5 bg-emerald-500 text-white text-xs font-medium rounded hover:bg-emerald-600 transition-colors"
-                >
-                  查看详情
-                </button>
-                <button
-                  onclick="stopGuardianService()"
-                  class="flex-1 px-3 py-1.5 bg-red-500 text-white text-xs font-medium rounded hover:bg-red-600 transition-colors flex items-center justify-center gap-1"
-                  title="停止增强防护服务（包括独立服务进程）"
-                >
-                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fill-rule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 012 0v4a1 1 0 11-2 0V7zM12 7a1 1 0 012 0v4a1 1 0 11-2 0V7z"
-                    />
-                  </svg>
-                  停止防护
-                </button>
-                <button
-                  onclick="viewGuardianLogs()"
-                  class="flex-1 px-3 py-1.5 bg-slate-500 text-white text-xs font-medium rounded hover:bg-slate-600 transition-colors"
-                >
-                  查看日志
-                </button>
-              </div>
-            </div>
+            <!-- 增强防护控制已移至右上角 -->
 
             <!-- 清理日志显示区域 -->
             <div id="cleanup-log-container" class="hidden">
@@ -1063,110 +991,312 @@
 
           <!-- 右侧：其他工具垂直排列 -->
           <div class="space-y-6">
-            <!-- 增强防护状态 -->
-            <div class="card rounded-2xl p-6 shadow-sm">
-              <div class="flex items-center gap-3 mb-4">
-                <div
-                  class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center"
-                >
-                  <svg
-                    class="w-5 h-5 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
+            <!-- 增强防护状态 - 重构版 -->
+            <div
+              class="bg-white rounded-2xl p-6 shadow-lg border border-slate-100"
+            >
+              <!-- 标题区域 -->
+              <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center gap-3">
+                  <div
+                    class="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg"
                   >
-                    <path
-                      fill-rule="evenodd"
-                      d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
+                    <svg
+                      class="w-6 h-6 text-white"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 class="text-lg font-semibold text-slate-800">
+                      增强防护
+                    </h3>
+                    <p class="text-sm text-slate-500">实时监控防护状态</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 class="font-medium text-slate-800">🛡️ 增强防护</h3>
-                  <p class="text-sm text-slate-500">实时监控防护状态</p>
-                </div>
-              </div>
-              <p class="text-sm text-slate-600 mb-4">
-                监控IDE操作，防止设备ID被恢复，保护系统安全。
-              </p>
 
-              <!-- 拦截统计 -->
-              <div class="grid grid-cols-3 gap-2 mb-4">
-                <div
-                  class="text-center p-2 bg-red-50 rounded-lg border border-red-200"
-                >
+                <!-- 状态指示器 -->
+                <div class="flex items-center gap-2">
                   <div
-                    class="text-lg font-bold text-red-600"
-                    id="intercept-count"
-                  >
-                    0
-                  </div>
-                  <div class="text-xs text-red-700">拦截次数</div>
-                </div>
-                <div
-                  class="text-center p-2 bg-orange-50 rounded-lg border border-orange-200"
-                >
-                  <div
-                    class="text-lg font-bold text-orange-600"
-                    id="backup-removed"
-                  >
-                    0
-                  </div>
-                  <div class="text-xs text-orange-700">删除备份</div>
-                </div>
-                <div
-                  class="text-center p-2 bg-blue-50 rounded-lg border border-blue-200"
-                >
-                  <div
-                    class="text-lg font-bold text-blue-600"
-                    id="protection-restored"
-                  >
-                    0
-                  </div>
-                  <div class="text-xs text-blue-700">恢复保护</div>
-                </div>
-              </div>
-
-              <!-- 防护状态 -->
-              <div class="mb-4 p-3 bg-slate-50 rounded-lg">
-                <div class="flex items-center justify-between mb-2">
-                  <span class="text-sm font-medium text-slate-700"
-                    >防护状态</span
-                  >
+                    id="guardian-status-indicator"
+                    class="w-3 h-3 bg-slate-400 rounded-full animate-pulse"
+                  ></div>
                   <span
                     id="guardian-status"
-                    class="text-sm font-semibold text-slate-600"
+                    class="text-sm font-medium text-slate-600"
                     >未启动</span
                   >
                 </div>
-                <div class="text-xs text-slate-500">
-                  增强防护可以实时监控并阻止IDE恢复设备ID
+              </div>
+
+              <!-- 统计数据卡片 -->
+              <div class="grid grid-cols-3 gap-4 mb-6">
+                <div
+                  class="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200/50"
+                >
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="w-10 h-10 bg-red-500 rounded-lg flex items-center justify-center"
+                    >
+                      <svg
+                        class="w-5 h-5 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                    <div>
+                      <div
+                        id="intercept-count"
+                        class="text-2xl font-bold text-red-700"
+                      >
+                        0
+                      </div>
+                      <div class="text-xs font-medium text-red-600">
+                        拦截次数
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  class="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200/50"
+                >
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center"
+                    >
+                      <svg
+                        class="w-5 h-5 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"
+                          clip-rule="evenodd"
+                        />
+                        <path
+                          fill-rule="evenodd"
+                          d="M4 5a2 2 0 012-2v1a1 1 0 001 1h6a1 1 0 001-1V3a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V5zM8 8a1 1 0 012 0v3a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v3a1 1 0 102 0V8z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                    <div>
+                      <div
+                        id="backup-removed"
+                        class="text-2xl font-bold text-orange-700"
+                      >
+                        0
+                      </div>
+                      <div class="text-xs font-medium text-orange-600">
+                        删除备份
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200/50"
+                >
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center"
+                    >
+                      <svg
+                        class="w-5 h-5 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                    <div>
+                      <div
+                        id="protection-restored"
+                        class="text-2xl font-bold text-blue-700"
+                      >
+                        0
+                      </div>
+                      <div class="text-xs font-medium text-blue-600">
+                        恢复保护
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <!-- 控制按钮 -->
-              <div class="flex gap-2">
-                <button
-                  id="refresh-guardian-btn"
-                  onclick="refreshGuardianStatus()"
-                  class="flex-1 px-3 py-2 bg-emerald-500 text-white text-sm font-medium rounded-lg hover:bg-emerald-600 transition-colors"
+              <!-- 防护性能信息 -->
+              <div class="grid grid-cols-2 gap-4 mb-6">
+                <div
+                  class="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200/50"
                 >
-                  刷新状态
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center"
+                    >
+                      <svg
+                        class="w-5 h-5 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                    <div>
+                      <div
+                        id="guardian-uptime"
+                        class="text-2xl font-bold text-green-700"
+                      >
+                        0分钟
+                      </div>
+                      <div class="text-xs font-medium text-green-600">
+                        防护运行时间
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200/50"
+                >
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center"
+                    >
+                      <svg
+                        class="w-5 h-5 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"
+                        />
+                      </svg>
+                    </div>
+                    <div>
+                      <div
+                        id="guardian-memory"
+                        class="text-2xl font-bold text-purple-700"
+                      >
+                        0MB
+                      </div>
+                      <div class="text-xs font-medium text-purple-600">
+                        内存占用
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 设备ID显示区域 -->
+              <div
+                class="mb-6 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl"
+              >
+                <div class="text-center">
+                  <p
+                    class="text-slate-600 mb-3 font-medium flex items-center justify-center gap-2"
+                  >
+                    <svg
+                      class="w-4 h-4 text-blue-500"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z"
+                        clip-rule="evenodd"
+                      />
+                      <path
+                        d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z"
+                      />
+                    </svg>
+                    设备ID（清理成功标志）
+                  </p>
+                  <div class="flex items-center justify-center gap-2">
+                    <p
+                      id="device-id-text"
+                      class="font-mono text-sm text-slate-800 bg-white border border-blue-300 px-4 py-2 rounded-lg font-semibold select-all shadow-sm"
+                      style="word-break: break-all; max-width: 300px"
+                    >
+                      获取中...
+                    </p>
+                    <button
+                      onclick="copyDeviceId()"
+                      class="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-colors"
+                      title="复制设备ID"
+                    >
+                      <svg
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"
+                        />
+                        <path
+                          d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 控制按钮区域 -->
+              <div class="flex gap-3">
+                <button
+                  id="start-guardian-btn"
+                  onclick="startGuardianService()"
+                  class="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+                  title="启动增强防护服务"
+                >
+                  启动防护
                 </button>
+
                 <button
                   id="stop-guardian-btn"
                   onclick="stopGuardianService()"
-                  class="flex-1 px-3 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors"
+                  class="flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-medium rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+                  title="停止增强防护服务"
                   style="display: none"
-                  title="停止增强防护服务（包括独立服务进程）"
                 >
                   停止防护
                 </button>
+
                 <button
-                  onclick="viewGuardianLogs()"
-                  class="flex-1 px-3 py-2 bg-slate-500 text-white text-sm font-medium rounded-lg hover:bg-slate-600 transition-colors"
+                  id="refresh-guardian-btn"
+                  onclick="window.refreshGuardianStatus && window.refreshGuardianStatus('manual')"
+                  class="px-4 py-3 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition-all duration-200 flex items-center justify-center shadow-md hover:shadow-lg"
+                  title="手动刷新防护状态和统计数据"
                 >
-                  查看日志
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fill-rule="evenodd"
+                      d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -1330,7 +1460,7 @@
 
             <!-- 系统详情 -->
             <div class="mt-6 pt-6 border-t border-slate-200">
-              <div class="grid grid-cols-2 gap-4 text-sm">
+              <div class="grid grid-cols-3 gap-4 text-sm">
                 <div class="text-center">
                   <p class="text-slate-500 mb-1">主机名</p>
                   <p id="hostname-text" class="font-medium text-slate-800">
@@ -1338,9 +1468,15 @@
                   </p>
                 </div>
                 <div class="text-center">
-                  <p class="text-slate-500 mb-1">运行时间</p>
+                  <p class="text-slate-500 mb-1">系统运行时间</p>
                   <p id="uptime-text-system" class="font-medium text-slate-800">
-                    23小时7分钟
+                    20小时42分钟
+                  </p>
+                </div>
+                <div class="text-center">
+                  <p class="text-slate-500 mb-1">软件运行时间</p>
+                  <p id="app-uptime-text" class="font-medium text-slate-800">
+                    2小时15分钟
                   </p>
                 </div>
                 <div class="text-center">
@@ -1363,36 +1499,6 @@
               <!-- 设备ID -->
               <div class="mt-4 pt-4 border-t border-slate-200">
                 <div class="text-center">
-                  <p class="text-slate-500 mb-2 font-medium">
-                    设备ID（清理成功标志）
-                  </p>
-                  <div class="flex items-center justify-center gap-2">
-                    <p
-                      id="device-id-text"
-                      class="font-mono text-sm text-slate-800 bg-blue-50 border border-blue-200 px-4 py-2 rounded-lg font-semibold select-all"
-                      style="word-break: break-all; max-width: 300px"
-                    >
-                      获取中...
-                    </p>
-                    <button
-                      onclick="copyDeviceId()"
-                      class="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-colors"
-                    >
-                      <svg
-                        class="w-5 h-5"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"
-                        />
-                        <path
-                          d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-
                   <!-- 详细设备ID信息展示 -->
                   <div class="mt-6 p-4 bg-gray-50 rounded-lg border">
                     <h4
@@ -1413,11 +1519,39 @@
                     <!-- 稳定设备ID -->
                     <div class="mb-3">
                       <div class="flex justify-between items-center mb-1">
-                        <span
-                          class="text-xs font-medium text-gray-600 cursor-help"
-                          data-tooltip="基于硬件信息生成的SHA256哈希值，用于设备识别。包含CPU、内存、网络接口等硬件特征，确保同一设备ID稳定。"
-                          >稳定设备ID</span
-                        >
+                        <div class="flex items-center gap-1">
+                          <span class="text-xs font-medium text-gray-600"
+                            >稳定设备ID</span
+                          >
+                          <svg
+                            class="w-3 h-3 text-gray-400 cursor-help"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                            data-tooltip="⚙️ 生成方式
+基于真实硬件信息生成 SHA256 哈希
+
+📊 数据来源
+• os.platform() - 操作系统平台
+• os.arch() - 系统架构
+• os.hostname() - 主机名
+• os.cpus() - CPU信息
+• os.totalmem() - 内存大小
+• os.userInfo().username - 用户名
+• os.networkInterfaces() - 网络接口MAC地址
+
+🎯 用途
+设备识别，确保同一设备ID稳定
+
+🧹 清理效果
+删除缓存后重新生成新的设备ID"
+                          >
+                            <path
+                              fill-rule="evenodd"
+                              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                              clip-rule="evenodd"
+                            />
+                          </svg>
+                        </div>
                         <span
                           id="stable-id-cleanable"
                           class="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800"
@@ -1425,7 +1559,8 @@
                         >
                       </div>
                       <div
-                        class="font-mono text-xs text-gray-800 bg-white border px-2 py-1 rounded break-all"
+                        class="font-mono text-xs text-gray-800 bg-white border px-2 py-1 rounded break-all cursor-pointer hover:bg-gray-50"
+                        title="点击复制完整设备ID"
                       >
                         <span id="stable-device-id">获取中...</span>
                       </div>
@@ -1434,11 +1569,38 @@
                     <!-- 设备指纹 -->
                     <div class="mb-3">
                       <div class="flex justify-between items-center mb-1">
-                        <span
-                          class="text-xs font-medium text-gray-600 cursor-help"
-                          data-tooltip="高级设备检测生成的指纹，包含更详细的硬件信息和系统特征。比稳定设备ID包含更多检测点，用于精确设备识别。"
-                          >设备指纹</span
-                        >
+                        <div class="flex items-center gap-1">
+                          <span class="text-xs font-medium text-gray-600"
+                            >设备指纹</span
+                          >
+                          <svg
+                            class="w-3 h-3 text-gray-400 cursor-help"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                            data-tooltip="🔍 生成方式
+高级设备检测生成的指纹
+
+📊 数据来源
+• 基础硬件信息（CPU、内存、系统架构）
+• 详细系统特征和环境信息
+• 网络接口和硬件标识符
+• 操作系统版本和配置信息
+• 虚拟机检测结果
+
+🎯 用途
+比稳定设备ID包含更多检测点
+用于精确设备识别
+
+🧹 清理效果
+重新收集硬件信息生成新指纹"
+                          >
+                            <path
+                              fill-rule="evenodd"
+                              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                              clip-rule="evenodd"
+                            />
+                          </svg>
+                        </div>
                         <span
                           id="fingerprint-cleanable"
                           class="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800"
@@ -1446,7 +1608,8 @@
                         >
                       </div>
                       <div
-                        class="font-mono text-xs text-gray-800 bg-white border px-2 py-1 rounded break-all"
+                        class="font-mono text-xs text-gray-800 bg-white border px-2 py-1 rounded break-all cursor-pointer hover:bg-gray-50"
+                        title="点击复制完整设备指纹"
                       >
                         <span id="device-fingerprint">获取中...</span>
                       </div>
@@ -1455,11 +1618,36 @@
                     <!-- 设备缓存状态 -->
                     <div class="mb-3">
                       <div class="flex justify-between items-center mb-1">
-                        <span
-                          class="text-xs font-medium text-gray-600 cursor-help"
-                          data-tooltip="设备ID的本地缓存状态。缓存文件保存在用户目录下，确保设备ID在重启后保持稳定。清理后会删除所有缓存文件。"
-                          >设备缓存</span
-                        >
+                        <div class="flex items-center gap-1">
+                          <span class="text-xs font-medium text-gray-600"
+                            >设备缓存</span
+                          >
+                          <svg
+                            class="w-3 h-3 text-gray-400 cursor-help"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                            data-tooltip="💾 缓存机制
+设备ID的本地缓存状态
+
+📍 存储位置
+• 主缓存：C:\Users\[用户名]\.augment-device-manager\stable-device-id.cache
+• 备份缓存：C:\Users\[用户名]\.augment-device-manager\stable-device-id.backup
+
+🎯 作用
+确保设备ID在重启后保持稳定
+避免频繁重新生成
+
+🧹 清理效果
+删除所有缓存文件
+下次启动时重新生成新的设备ID"
+                          >
+                            <path
+                              fill-rule="evenodd"
+                              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                              clip-rule="evenodd"
+                            />
+                          </svg>
+                        </div>
                         <span
                           id="cache-cleanable"
                           class="px-2 py-1 text-xs rounded bg-gray-100 text-gray-600"
@@ -1471,6 +1659,7 @@
                         <span
                           id="device-cache-status"
                           class="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800"
+                          title="缓存状态详情：已缓存表示设备ID已保存到本地文件，无缓存表示需要重新生成"
                           >检查中</span
                         >
                       </div>
@@ -1583,29 +1772,87 @@
               <div
                 class="mt-6 p-4 bg-purple-50 rounded-lg border border-purple-200"
               >
-                <h4
-                  class="text-sm font-semibold text-purple-700 mb-3 flex items-center gap-2"
-                >
-                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"
-                    />
-                  </svg>
-                  Cursor IDE 遥测标识符
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <svg
+                      class="w-4 h-4 text-purple-700"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"
+                      />
+                    </svg>
+                    <h4 class="text-sm font-semibold text-purple-700">
+                      Cursor IDE 遥测标识符
+                    </h4>
+                    <svg
+                      class="w-3 h-3 text-purple-400 cursor-help"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                      data-tooltip="📁 数据来源
+直接从 Cursor IDE 配置文件读取
+
+📍 存储位置
+C:\Users\[用户名]\AppData\Roaming\Cursor\User\globalStorage\storage.json
+
+🔑 包含的真实ID
+• devDeviceId - Cursor主设备标识符
+• machineId - 机器唯一标识符
+• macMachineId - MAC地址相关机器ID
+• sessionId - 会话标识符
+• sqmId - 软件质量监控ID
+
+🧹 清理效果
+重写 storage.json 文件，生成全新的遥测标识符
+让 Cursor IDE 认为是新设备"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                  </div>
                   <span
                     id="cursor-telemetry-cleanable"
                     class="px-2 py-1 text-xs rounded bg-purple-100 text-purple-800"
                     >可清理</span
                   >
-                </h4>
+                </div>
 
                 <!-- 主设备ID -->
                 <div class="mb-2">
-                  <div class="text-xs font-medium text-purple-600 mb-1">
-                    主设备ID (devDeviceId)
+                  <div class="flex items-center gap-1 mb-1">
+                    <span class="text-xs font-medium text-purple-600"
+                      >主设备ID (devDeviceId)</span
+                    >
+                    <svg
+                      class="w-3 h-3 text-purple-400 cursor-help"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                      data-tooltip="🔑 telemetry.devDeviceId
+Cursor IDE 的主要设备标识符
+
+🎯 用途
+用户识别和扩展授权验证
+
+📋 格式
+UUID格式的唯一标识符
+
+🧹 清理后
+生成新的UUID，扩展将认为是新设备"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
                   </div>
                   <div
-                    class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all"
+                    class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all cursor-pointer hover:bg-purple-50"
+                    title="点击复制完整设备ID"
                   >
                     <span id="cursor-dev-device-id">获取中...</span>
                   </div>
@@ -1613,11 +1860,36 @@
 
                 <!-- 机器ID -->
                 <div class="mb-2">
-                  <div class="text-xs font-medium text-purple-600 mb-1">
-                    机器ID (machineId)
+                  <div class="flex items-center gap-1 mb-1">
+                    <span class="text-xs font-medium text-purple-600"
+                      >机器ID (machineId)</span
+                    >
+                    <svg
+                      class="w-3 h-3 text-purple-400 cursor-help"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                      data-tooltip="🖥️ telemetry.machineId
+机器唯一标识符
+
+🎯 用途
+硬件级别的设备识别
+
+📋 格式
+UUID格式
+
+🧹 清理后
+生成新的机器ID，改变硬件指纹"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
                   </div>
                   <div
-                    class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all"
+                    class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all cursor-pointer hover:bg-purple-50"
+                    title="点击复制完整机器ID"
                   >
                     <span id="cursor-machine-id">获取中...</span>
                   </div>
@@ -1625,11 +1897,37 @@
 
                 <!-- MAC机器ID -->
                 <div class="mb-2">
-                  <div class="text-xs font-medium text-purple-600 mb-1">
-                    MAC机器ID (macMachineId)
+                  <div class="flex items-center gap-1 mb-1">
+                    <span class="text-xs font-medium text-purple-600"
+                      >MAC机器ID (macMachineId)</span
+                    >
+                    <svg
+                      class="w-3 h-3 text-purple-400 cursor-help"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                      data-tooltip="🌐 telemetry.macMachineId
+MAC地址相关机器ID
+
+🎯 用途
+基于网络接口的设备识别
+
+📋 格式
+UUID格式
+
+🧹 清理后
+生成新的MAC机器ID
+改变网络层面的设备标识"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
                   </div>
                   <div
-                    class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all"
+                    class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all cursor-pointer hover:bg-purple-50"
+                    title="点击复制完整MAC机器ID"
                   >
                     <span id="cursor-mac-machine-id">获取中...</span>
                   </div>
@@ -1637,11 +1935,36 @@
 
                 <!-- 会话ID -->
                 <div class="mb-2">
-                  <div class="text-xs font-medium text-purple-600 mb-1">
-                    会话ID (sessionId)
+                  <div class="flex items-center gap-1 mb-1">
+                    <span class="text-xs font-medium text-purple-600"
+                      >会话ID (sessionId)</span
+                    >
+                    <svg
+                      class="w-3 h-3 text-purple-400 cursor-help"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                      data-tooltip="📱 telemetry.sessionId
+会话标识符
+
+🎯 用途
+跟踪用户会话和活动状态
+
+📋 格式
+UUID格式
+
+🧹 清理后
+生成新的会话ID，重置会话状态"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
                   </div>
                   <div
-                    class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all"
+                    class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all cursor-pointer hover:bg-purple-50"
+                    title="点击复制完整会话ID"
                   >
                     <span id="cursor-session-id">获取中...</span>
                   </div>
@@ -1649,11 +1972,37 @@
 
                 <!-- SQM ID -->
                 <div class="mb-2">
-                  <div class="text-xs font-medium text-purple-600 mb-1">
-                    SQM ID (sqmId)
+                  <div class="flex items-center gap-1 mb-1">
+                    <span class="text-xs font-medium text-purple-600"
+                      >SQM ID (sqmId)</span
+                    >
+                    <svg
+                      class="w-3 h-3 text-purple-400 cursor-help"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                      data-tooltip="📊 telemetry.sqmId
+软件质量监控ID
+
+🎯 用途
+软件质量数据收集和分析
+
+📋 格式
+GUID格式（大括号包围）
+
+🧹 清理后
+生成新的SQM ID
+重置质量监控数据"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
                   </div>
                   <div
-                    class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all"
+                    class="font-mono text-xs text-purple-800 bg-white border border-purple-200 px-2 py-1 rounded break-all cursor-pointer hover:bg-purple-50"
+                    title="点击复制完整SQM ID"
                   >
                     <span id="cursor-sqm-id">获取中...</span>
                   </div>
@@ -1946,47 +2295,7 @@
           addAnnouncementToHistory(event.detail.content);
         });
 
-        window.refreshGuardianStatus = function () {
-          // 获取刷新按钮并设置loading状态
-          const refreshBtn = document.querySelector(
-            'button[onclick="refreshGuardianStatus()"]'
-          );
-          const originalText = refreshBtn ? refreshBtn.innerHTML : "刷新状态";
-
-          if (refreshBtn) {
-            refreshBtn.innerHTML = "🔄 刷新中...";
-            refreshBtn.disabled = true;
-          }
-
-          // 直接调用IPC获取状态
-          if (typeof require !== "undefined") {
-            const { ipcRenderer } = require("electron");
-            ipcRenderer
-              .invoke("get-enhanced-guardian-status")
-              .then((status) => {
-                updateGuardianStatusPanel(status);
-                showNotification("增强防护状态已刷新", "success");
-              })
-              .catch((err) => {
-                console.error("获取增强防护状态失败:", err);
-                showNotification("获取增强防护状态失败", "error");
-              })
-              .finally(() => {
-                // 恢复按钮状态
-                if (refreshBtn) {
-                  refreshBtn.innerHTML = originalText;
-                  refreshBtn.disabled = false;
-                }
-              });
-          } else {
-            // 恢复按钮状态（如果没有require）
-            if (refreshBtn) {
-              refreshBtn.innerHTML = originalText;
-              refreshBtn.disabled = false;
-            }
-            showNotification("无法获取增强防护状态", "error");
-          }
-        };
+        // 删除重复的refreshGuardianStatus函数定义，使用renderer.js中的版本
 
         window.updateGuardianStatusPanel = function (status) {
           // 更新防护模式显示（详细面板）
@@ -2072,17 +2381,109 @@
             "protection-restored"
           );
 
+          // 统一使用renderer.js中的数据结构
+          let stats = {
+            interceptedAttempts: 0,
+            backupFilesRemoved: 0,
+            protectionRestored: 0,
+          };
+
+          if (
+            status.standalone &&
+            status.standalone.isRunning &&
+            status.standalone.recentLogs
+          ) {
+            // 从独立服务日志解析统计
+            stats = parseStatsFromLogs(status.standalone.recentLogs);
+          } else if (status.inProcess && status.inProcess.stats) {
+            // 从内置进程直接获取统计
+            stats = {
+              interceptedAttempts:
+                status.inProcess.stats.interceptedAttempts || 0,
+              backupFilesRemoved:
+                status.inProcess.stats.backupFilesRemoved || 0,
+              protectionRestored:
+                status.inProcess.stats.protectionRestored || 0,
+            };
+          }
+
           if (toolsInterceptCount)
-            toolsInterceptCount.textContent = status.stats?.interceptCount || 0;
+            toolsInterceptCount.textContent = stats.interceptedAttempts;
           if (toolsBackupRemoved)
-            toolsBackupRemoved.textContent = status.stats?.backupRemoved || 0;
+            toolsBackupRemoved.textContent = stats.backupFilesRemoved;
           if (toolsProtectionRestored)
-            toolsProtectionRestored.textContent =
-              status.stats?.protectionRestored || 0;
+            toolsProtectionRestored.textContent = stats.protectionRestored;
 
           // 更新最近拦截记录
           updateRecentIntercepts(status.recentIntercepts || []);
         };
+
+        // 从日志解析统计信息（与renderer.js保持一致）
+        function parseStatsFromLogs(logs) {
+          const stats = {
+            interceptedAttempts: 0,
+            backupFilesRemoved: 0,
+            protectionRestored: 0,
+          };
+
+          if (!logs || !Array.isArray(logs)) {
+            return stats;
+          }
+
+          logs.forEach((logEntry) => {
+            // 处理不同格式的日志条目
+            let logText = "";
+            if (typeof logEntry === "string") {
+              logText = logEntry;
+            } else if (logEntry && typeof logEntry === "object") {
+              // 处理对象格式的日志
+              logText =
+                logEntry.message ||
+                logEntry.text ||
+                logEntry.content ||
+                JSON.stringify(logEntry);
+            }
+
+            // 拦截相关关键词（包括保护恢复事件）
+            if (
+              logText.includes("拦截") ||
+              logText.includes("检测到") ||
+              logText.includes("阻止") ||
+              logText.includes("修改被拦截") ||
+              logText.includes("IDE尝试") ||
+              logText.includes("已拦截") ||
+              logText.includes("保护恢复事件") ||
+              logText.includes("设备ID已恢复") ||
+              logText.includes("设备ID被篡改")
+            ) {
+              stats.interceptedAttempts++;
+            }
+
+            // 删除备份相关关键词
+            if (
+              logText.includes("删除备份") ||
+              logText.includes("已删除") ||
+              logText.includes("备份文件") ||
+              logText.includes("清理备份") ||
+              logText.includes("实时删除备份")
+            ) {
+              stats.backupFilesRemoved++;
+            }
+
+            // 恢复保护相关关键词
+            if (
+              logText.includes("恢复") ||
+              logText.includes("已恢复") ||
+              logText.includes("保护恢复") ||
+              logText.includes("重新保护") ||
+              logText.includes("设备ID已恢复")
+            ) {
+              stats.protectionRestored++;
+            }
+          });
+
+          return stats;
+        }
 
         window.updateRecentIntercepts = function (intercepts) {
           const container = document.getElementById("panel-recent-intercepts");
@@ -2132,34 +2533,7 @@
           container.innerHTML = interceptsHtml;
         };
 
-        window.stopGuardianService = function () {
-          if (
-            confirm(
-              "确定要停止增强防护服务吗？\n\n停止后将无法拦截IDE的设备ID恢复操作。"
-            )
-          ) {
-            if (typeof require !== "undefined") {
-              const { ipcRenderer } = require("electron");
-              ipcRenderer
-                .invoke("stop-enhanced-guardian")
-                .then((result) => {
-                  if (result.success) {
-                    refreshGuardianStatus();
-                    showNotification("增强防护服务已停止", "warning");
-                  } else {
-                    showNotification(
-                      `停止防护服务失败: ${result.message}`,
-                      "error"
-                    );
-                  }
-                })
-                .catch((err) => {
-                  console.error("停止增强防护服务失败:", err);
-                  showNotification("停止增强防护服务失败", "error");
-                });
-            }
-          }
-        };
+        // 删除重复的stopGuardianService函数定义，使用renderer.js中的版本
 
         window.viewGuardianLogs = function () {
           // 获取查看日志按钮并设置loading状态
@@ -2254,10 +2628,17 @@
         };
       });
     </script>
-    <script src="renderer.js"></script>
 
     <!-- 确保函数在全局作用域中可用 -->
     <script>
+      // 调试：检查renderer.js函数是否可用
+      console.log("🔍 HTML脚本执行时的函数检查:", {
+        updateGuardianStatusDisplay: typeof window.updateGuardianStatusDisplay,
+        refreshGuardianStatus: typeof window.refreshGuardianStatus,
+        startGuardianService: typeof window.startGuardianService,
+        stopGuardianService: typeof window.stopGuardianService,
+      });
+
       // 等待renderer.js加载完成后再初始化
       document.addEventListener("DOMContentLoaded", function () {
         // 确保函数可用
