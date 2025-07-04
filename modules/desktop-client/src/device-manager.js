@@ -4405,19 +4405,172 @@ class DeviceManager {
       const inProcessStatus = await this.enhancedGuardian.getStatus();
       const standaloneStatus = await this.standaloneService.getServiceStatus();
 
+      // 增强独立服务状态检测 - 即使PID文件有问题也要检查实际进程
+      let enhancedStandaloneStatus = { ...standaloneStatus };
+
+      if (!standaloneStatus.isRunning) {
+        // 如果基础检查显示未运行，进行深度进程扫描
+        const actuallyRunning = await this.checkActualGuardianProcesses();
+        if (actuallyRunning.hasStandaloneProcess) {
+          console.log("🔍 检测到独立守护进程实际在运行，但PID文件可能有问题");
+          enhancedStandaloneStatus.isRunning = true;
+          enhancedStandaloneStatus.pid = actuallyRunning.pid;
+          enhancedStandaloneStatus.detectionMethod = "process-scan";
+          enhancedStandaloneStatus.warning =
+            "PID文件可能不同步，但进程正在运行";
+        }
+      }
+
+      const isActuallyGuarding =
+        inProcessStatus.isGuarding || enhancedStandaloneStatus.isRunning;
+      const currentMode = enhancedStandaloneStatus.isRunning
+        ? "standalone"
+        : inProcessStatus.isGuarding
+        ? "inprocess"
+        : "none";
+
+      console.log(
+        `🔍 状态检查结果: 内置进程=${inProcessStatus.isGuarding}, 独立服务=${enhancedStandaloneStatus.isRunning}, 总体防护=${isActuallyGuarding}`
+      );
+
       return {
         inProcess: inProcessStatus,
-        standalone: standaloneStatus,
-        isGuarding: inProcessStatus.isGuarding || standaloneStatus.isRunning,
-        mode: standaloneStatus.isRunning
-          ? "standalone"
-          : inProcessStatus.isGuarding
-          ? "inprocess"
-          : "none",
+        standalone: enhancedStandaloneStatus,
+        isGuarding: isActuallyGuarding,
+        mode: currentMode,
+        timestamp: new Date().toISOString(),
+        detectionDetails: {
+          inProcessGuarding: inProcessStatus.isGuarding,
+          standaloneRunning: enhancedStandaloneStatus.isRunning,
+          detectionMethod:
+            enhancedStandaloneStatus.detectionMethod || "standard",
+        },
       };
     } catch (error) {
+      console.error("获取增强防护状态失败:", error);
       return {
         isGuarding: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  // 检查实际运行的守护进程（深度扫描）
+  async checkActualGuardianProcesses() {
+    try {
+      const { exec } = require("child_process");
+      const { promisify } = require("util");
+      const execAsync = promisify(exec);
+
+      const result = {
+        hasStandaloneProcess: false,
+        hasInProcessGuardian: false,
+        pid: null,
+        processes: [],
+      };
+
+      if (process.platform === "win32") {
+        // Windows系统进程扫描
+        try {
+          const { stdout } = await execAsync(
+            "wmic process get processid,commandline /format:csv"
+          );
+          const lines = stdout.split("\n").filter((line) => line.trim());
+
+          for (const line of lines) {
+            if (line.includes("node.exe")) {
+              const parts = line.split(",");
+              if (parts.length >= 2) {
+                const pid = parts[1].replace(/"/g, "");
+                const commandLine = parts[2] || "";
+
+                // 检查是否是独立守护服务
+                if (
+                  commandLine.includes("standalone-guardian-service") ||
+                  commandLine.includes("guardian-service-worker")
+                ) {
+                  result.hasStandaloneProcess = true;
+                  result.pid = parseInt(pid);
+                  result.processes.push({
+                    pid: pid,
+                    type: "standalone",
+                    command: commandLine,
+                  });
+                  console.log(`🎯 发现独立守护进程: PID ${pid}`);
+                }
+
+                // 检查是否是增强守护进程
+                if (commandLine.includes("enhanced-device-guardian")) {
+                  result.hasInProcessGuardian = true;
+                  result.processes.push({
+                    pid: pid,
+                    type: "inprocess",
+                    command: commandLine,
+                  });
+                  console.log(`🎯 发现内置守护进程: PID ${pid}`);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.log("Windows进程扫描失败:", error.message);
+        }
+      } else {
+        // Unix/Linux/macOS系统进程扫描
+        try {
+          const { stdout } = await execAsync(
+            'ps aux | grep -E "(standalone-guardian|enhanced-device-guardian|guardian-service-worker)" | grep -v grep'
+          );
+          const lines = stdout.trim().split("\n");
+
+          for (const line of lines) {
+            if (line.trim()) {
+              const parts = line.trim().split(/\s+/);
+              const pid = parts[1];
+              const command = parts.slice(10).join(" ");
+
+              if (
+                command.includes("standalone-guardian") ||
+                command.includes("guardian-service-worker")
+              ) {
+                result.hasStandaloneProcess = true;
+                result.pid = parseInt(pid);
+                result.processes.push({
+                  pid: pid,
+                  type: "standalone",
+                  command: command,
+                });
+                console.log(`🎯 发现独立守护进程: PID ${pid}`);
+              }
+
+              if (command.includes("enhanced-device-guardian")) {
+                result.hasInProcessGuardian = true;
+                result.processes.push({
+                  pid: pid,
+                  type: "inprocess",
+                  command: command,
+                });
+                console.log(`🎯 发现内置守护进程: PID ${pid}`);
+              }
+            }
+          }
+        } catch (error) {
+          console.log("Unix进程扫描失败:", error.message);
+        }
+      }
+
+      console.log(
+        `🔍 进程扫描结果: 独立服务=${result.hasStandaloneProcess}, 内置进程=${result.hasInProcessGuardian}`
+      );
+      return result;
+    } catch (error) {
+      console.error("检查实际守护进程失败:", error);
+      return {
+        hasStandaloneProcess: false,
+        hasInProcessGuardian: false,
+        pid: null,
+        processes: [],
         error: error.message,
       };
     }

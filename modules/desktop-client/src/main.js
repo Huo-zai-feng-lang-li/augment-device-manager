@@ -1857,6 +1857,65 @@ ipcMain.handle("stop-enhanced-guardian", async () => {
   }
 });
 
+// 停止所有node进程
+ipcMain.handle("stop-all-node-processes", async () => {
+  try {
+    const { exec } = require("child_process");
+    const { promisify } = require("util");
+    const execAsync = promisify(exec);
+    const results = { actions: [], errors: [] };
+
+    console.log("🛑 开始停止所有Node.js进程...");
+
+    if (process.platform === "win32") {
+      // Windows系统
+      try {
+        // 强制终止所有node.exe进程
+        await execAsync("taskkill /F /IM node.exe 2>nul");
+        results.actions.push("✅ 已终止所有Node.js进程");
+        console.log("✅ Windows: 已终止所有Node.js进程");
+      } catch (error) {
+        if (error.message.includes("找不到该进程")) {
+          results.actions.push("ℹ️ 未发现运行中的Node.js进程");
+          console.log("ℹ️ Windows: 未发现运行中的Node.js进程");
+        } else {
+          results.errors.push(`终止Node.js进程失败: ${error.message}`);
+          console.error("❌ Windows: 终止Node.js进程失败:", error.message);
+        }
+      }
+    } else {
+      // Unix/Linux/macOS系统
+      try {
+        await execAsync("pkill -f node");
+        results.actions.push("✅ 已终止所有Node.js进程");
+        console.log("✅ Unix: 已终止所有Node.js进程");
+      } catch (error) {
+        if (error.code === 1) {
+          // pkill返回1表示没有找到匹配的进程
+          results.actions.push("ℹ️ 未发现运行中的Node.js进程");
+          console.log("ℹ️ Unix: 未发现运行中的Node.js进程");
+        } else {
+          results.errors.push(`终止Node.js进程失败: ${error.message}`);
+          console.error("❌ Unix: 终止Node.js进程失败:", error.message);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      message: "Node.js进程停止操作完成",
+      actions: results.actions,
+      errors: results.errors,
+    };
+  } catch (error) {
+    console.error("停止所有Node.js进程失败:", error);
+    return {
+      success: false,
+      message: error.message,
+    };
+  }
+});
+
 // 测试服务器连接
 ipcMain.handle("test-server-connection", async () => {
   try {

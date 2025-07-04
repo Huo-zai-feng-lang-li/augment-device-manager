@@ -9,6 +9,8 @@
     "package:remote": "echo 🧹 清理ngrok进程... && taskkill /IM ngrok.exe /F 2>nul || echo 无ngrok进程需要清理 && echo 🚀 简洁远程打包... && node scripts/build/remote-package.js",
     "npm:1min-code": "node scripts/generators/generate-1min-code.js",
     "npm:5min-code": "node scripts/generators/generate-5min-test-code.js",
+    "stop:all-node": "node modules/desktop-client/test/fix-process-management.js --full",
+    "stop:all-client": "node modules/desktop-client/test/fix-process-management.js --quick",
     "clean": "echo 🧹 清理构建文件... && node scripts/build/clean-build.js",
     "build": "echo 🚀 智能打包本地控制版本... && node scripts/build/smart-build.js",
     "server:start": "echo 🧹 清理ngrok进程... && taskkill /IM ngrok.exe /F 2>nul || echo 无ngrok进程需要清理 && echo 🚀 启动持久远程控制服务... && node scripts/server/start-server.js",

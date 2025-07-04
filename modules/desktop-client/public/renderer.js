@@ -3259,8 +3259,22 @@ function updateGuardianStatusDisplay(status) {
 
     // 更新状态文字和指示器
     if (guardianStatus) {
-      const modeText =
+      let modeText =
         status.mode === "standalone" ? "独立服务运行中" : "内置进程运行中";
+
+      // 如果是通过进程扫描检测到的，添加特殊标识
+      if (
+        status.standalone &&
+        status.standalone.detectionMethod === "process-scan"
+      ) {
+        modeText = "独立服务运行中 (进程扫描检测)";
+      } else if (
+        status.detectionDetails &&
+        status.detectionDetails.detectionMethod === "process-scan"
+      ) {
+        modeText += " (进程扫描检测)";
+      }
+
       guardianStatus.textContent = modeText;
       guardianStatus.className = "text-sm font-medium text-emerald-600";
     }
@@ -3404,6 +3418,21 @@ function checkActualGuardianStatus(status) {
   // 如果没有状态信息，返回false
   if (!status) return false;
 
+  // 优先使用新的综合状态检查结果
+  if (status.isGuarding !== undefined) {
+    console.log(`🔍 使用综合状态检查结果: ${status.isGuarding}`);
+
+    // 如果检测方法是进程扫描，显示特殊提示
+    if (
+      status.detectionDetails &&
+      status.detectionDetails.detectionMethod === "process-scan"
+    ) {
+      console.log("🔍 通过进程扫描检测到防护状态");
+    }
+
+    return status.isGuarding;
+  }
+
   // 检查独立服务状态
   if (status.standalone && status.standalone.isRunning) {
     // 独立服务报告运行中，进一步验证
@@ -3416,11 +3445,18 @@ function checkActualGuardianStatus(status) {
       hasPid,
       configDeviceId: status.standalone.config?.deviceId,
       isRunning: status.standalone.isRunning,
+      detectionMethod: status.standalone.detectionMethod || "standard",
     });
 
-    // 如果有有效配置和PID，认为服务正常运行
+    // 如果通过进程扫描检测到，即使没有完整配置也认为有效
+    if (status.standalone.detectionMethod === "process-scan") {
+      console.log("✅ 通过进程扫描检测到独立服务正在运行");
+      return true;
+    }
+
+    // 标准检查：如果有有效配置和PID，认为服务正常运行
     if (hasValidConfig && hasPid) {
-      console.log("✅ 独立服务正在运行");
+      console.log("✅ 独立服务正在运行（标准检测）");
       return true;
     }
   }
@@ -3428,12 +3464,6 @@ function checkActualGuardianStatus(status) {
   // 检查内置进程状态
   if (status.inProcess && status.inProcess.isGuarding) {
     console.log(`✅ 内置进程正在守护`);
-    return true;
-  }
-
-  // 兼容旧版本状态格式
-  if (status.isGuarding === true) {
-    console.log(`✅ 兼容模式: 报告运行中`);
     return true;
   }
 
@@ -3662,68 +3692,74 @@ async function startGuardianService() {
   }
 }
 
-// 停止增强防护服务
-async function stopGuardianService() {
+// 停止所有node进程
+async function stopAllNodeProcesses() {
   try {
-    // 显示停止中状态
-    updateGuardianButtonState("stopping");
-    showAlert("正在停止增强防护服务...", "info");
+    // 显示确认对话框
+    const confirmed = await ipcRenderer.invoke("show-message-box", {
+      type: "warning",
+      title: "确认操作",
+      message: "停止所有Node.js进程",
+      detail:
+        "此操作将强制终止所有Node.js进程，包括本应用程序。\n\n确定要继续吗？",
+      buttons: ["取消", "确定停止"],
+      defaultId: 0,
+      cancelId: 0,
+    });
 
-    const result = await ipcRenderer.invoke("stop-enhanced-guardian");
+    if (confirmed.response !== 1) {
+      return;
+    }
+
+    showAlert("正在停止所有Node.js进程...", "info");
+
+    const result = await ipcRenderer.invoke("stop-all-node-processes");
     if (result.success) {
-      showAlert("增强防护服务已停止", "success");
-      updateGuardianButtonState("stopped");
-      hideGuardianStatusCard();
-      // 事件驱动刷新状态
-      triggerStatusRefresh("guardian-stopped", 500);
+      // 显示操作结果
+      const message =
+        result.actions.length > 0 ? result.actions.join("\n") : "操作完成";
+
+      showAlert(message, "success");
+
+      // 如果有错误，也显示出来
+      if (result.errors.length > 0) {
+        setTimeout(() => {
+          showAlert(`部分操作失败:\n${result.errors.join("\n")}`, "warning");
+        }, 2000);
+      }
     } else {
-      updateGuardianButtonState("running");
-      showAlert(`停止防护服务失败: ${result.message}`, "error");
-      // 停止失败刷新状态
-      triggerStatusRefresh("guardian-stop-failed", 500);
+      showAlert(`停止Node.js进程失败: ${result.message}`, "error");
     }
   } catch (error) {
-    updateGuardianButtonState("running");
-    showAlert(`停止防护服务失败: ${error.message}`, "error");
-    // 异常情况刷新状态
-    triggerStatusRefresh("guardian-stop-error", 500);
+    showAlert(`停止Node.js进程失败: ${error.message}`, "error");
   }
 }
 
 // 更新增强防护按钮状态
 function updateGuardianButtonState(state) {
   const startBtn = document.getElementById("start-guardian-btn");
-  const stopBtn = document.getElementById("stop-guardian-btn");
 
-  if (!startBtn || !stopBtn) return;
+  if (!startBtn) return;
 
   switch (state) {
     case "stopped":
-      startBtn.style.display = "flex";
-      stopBtn.style.display = "none";
       startBtn.disabled = false;
       startBtn.innerHTML = `启动防护`;
       break;
 
     case "starting":
-      startBtn.style.display = "flex";
-      stopBtn.style.display = "none";
       startBtn.disabled = true;
       startBtn.innerHTML = `启动中...`;
       break;
 
     case "running":
-      startBtn.style.display = "none";
-      stopBtn.style.display = "flex";
-      stopBtn.disabled = false;
-      stopBtn.innerHTML = `停止防护`;
+      startBtn.disabled = false;
+      startBtn.innerHTML = `启动防护`;
       break;
 
     case "stopping":
-      startBtn.style.display = "none";
-      stopBtn.style.display = "flex";
-      stopBtn.disabled = true;
-      stopBtn.innerHTML = `停止中...`;
+      startBtn.disabled = true;
+      startBtn.innerHTML = `停止中...`;
       break;
   }
 }
@@ -3774,7 +3810,7 @@ async function viewGuardianLogs() {
 // 将函数暴露到全局作用域 - 立即暴露，确保HTML中的onclick可以访问
 window.viewGuardianLogs = viewGuardianLogs;
 window.refreshGuardianStatus = refreshGuardianStatus;
-window.stopGuardianService = stopGuardianService;
+window.stopAllNodeProcesses = stopAllNodeProcesses;
 window.showAlert = showAlert;
 window.updateGuardianStatusDisplay = updateGuardianStatusDisplay;
 window.startGuardianService = startGuardianService;
@@ -3790,7 +3826,7 @@ window.forceRefreshGuardianStatus = function () {
 console.log("🔧 renderer.js函数已暴露到全局作用域:", {
   viewGuardianLogs: typeof window.viewGuardianLogs,
   refreshGuardianStatus: typeof window.refreshGuardianStatus,
-  stopGuardianService: typeof window.stopGuardianService,
+  stopAllNodeProcesses: typeof window.stopAllNodeProcesses,
   showAlert: typeof window.showAlert,
   updateGuardianStatusDisplay: typeof window.updateGuardianStatusDisplay,
   startGuardianService: typeof window.startGuardianService,
