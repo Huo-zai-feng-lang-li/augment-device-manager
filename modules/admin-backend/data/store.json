@@ -174,6 +174,18 @@
       "status": "expired",
       "notes": "1分钟测试激活码",
       "last_verified_at": "2025-07-03T14:01:32.070Z"
+    },
+    {
+      "id": 15,
+      "code": "02E8549751C8590EB72D1C246EACCD2E",
+      "device_id": null,
+      "created_at": "2025-07-04T13:09:52.269Z",
+      "expires_at": "2025-08-03T13:09:52.269Z",
+      "used_at": "2025-07-04T13:09:57.507Z",
+      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "status": "used",
+      "notes": "",
+      "last_verified_at": "2025-07-04T15:05:38.637Z"
     }
   ],
   "usageLogs": [
@@ -423,6 +435,22 @@
       "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
       "action": "activated",
       "timestamp": "2025-07-03T14:01:00.785Z",
+      "details": "激活码验证成功"
+    },
+    {
+      "id": 32,
+      "activation_code": "02E8549751C8590EB72D1C246EACCD2E",
+      "device_id": "admin",
+      "action": "created",
+      "timestamp": "2025-07-04T13:09:52.269Z",
+      "details": "管理员创建激活码"
+    },
+    {
+      "id": 33,
+      "activation_code": "02E8549751C8590EB72D1C246EACCD2E",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "activated",
+      "timestamp": "2025-07-04T13:09:57.507Z",
       "details": "激活码验证成功"
     }
   ],

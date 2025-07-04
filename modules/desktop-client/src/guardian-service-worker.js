@@ -1,6 +1,7 @@
 
 const fs = require("fs-extra");
 const path = require("path");
+const os = require("os");
 const { EnhancedDeviceGuardian } = require("./enhanced-device-guardian");
 
 // 服务工作进程
@@ -115,11 +116,10 @@ class GuardianServiceWorker {
 
   log(message) {
     const timestamp = new Date().toISOString();
-    const logEntry = '[' + timestamp + '] ' + message + '
-';
-    
+    const logEntry = '[' + timestamp + '] ' + message + '\n';
+
     console.log(message);
-    
+
     // 异步写入日志文件
     fs.appendFile(this.logPath, logEntry).catch(() => {});
   }

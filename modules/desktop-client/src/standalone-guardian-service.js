@@ -58,7 +58,10 @@ class StandaloneGuardianService {
       // 创建服务工作进程
       await this.createServiceWorker();
 
-      const child = spawn(process.execPath, [serviceScript, this.configPath], {
+      // 确保使用正确的Node.js可执行文件
+      const nodeExePath = process.platform === "win32" ? "node.exe" : "node";
+
+      const child = spawn(nodeExePath, [serviceScript, this.configPath], {
         detached: true,
         stdio: ["ignore", "ignore", "ignore"],
         windowsHide: true,
@@ -353,6 +356,7 @@ class StandaloneGuardianService {
     const workerScript = `
 const fs = require("fs-extra");
 const path = require("path");
+const os = require("os");
 const { EnhancedDeviceGuardian } = require("./enhanced-device-guardian");
 
 // 服务工作进程
@@ -467,10 +471,10 @@ class GuardianServiceWorker {
 
   log(message) {
     const timestamp = new Date().toISOString();
-    const logEntry = '[' + timestamp + '] ' + message + '\n';
-    
+    const logEntry = '[' + timestamp + '] ' + message + '\\n';
+
     console.log(message);
-    
+
     // 异步写入日志文件
     fs.appendFile(this.logPath, logEntry).catch(() => {});
   }
