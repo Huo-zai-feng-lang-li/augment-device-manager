@@ -215,6 +215,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 检查激活状态
   await checkActivationStatus();
 
+  // 绑定增强防护按钮事件
+  const startGuardianBtn = document.getElementById("start-guardian-btn");
+  if (startGuardianBtn) {
+    startGuardianBtn.onclick = startGuardianService;
+    console.log("✅ 增强防护按钮事件已绑定");
+  }
+
   // 启动增强防护状态监控
   startGuardianStatusMonitoring();
 
@@ -3692,6 +3699,34 @@ async function startGuardianService() {
   }
 }
 
+// 停止增强防护服务
+async function stopGuardianService() {
+  try {
+    // 显示停止中状态
+    updateGuardianButtonState("stopping");
+    showAlert("正在停止增强防护服务...", "info");
+
+    // 停止服务
+    const result = await ipcRenderer.invoke("stop-enhanced-guardian");
+    if (result.success) {
+      showAlert("增强防护服务已停止", "success");
+      updateGuardianButtonState("stopped");
+      // 事件驱动刷新状态
+      triggerStatusRefresh("guardian-stopped", 1000);
+    } else {
+      updateGuardianButtonState("running");
+      showAlert(`停止防护服务失败: ${result.message}`, "error");
+      // 停止失败也要刷新状态
+      triggerStatusRefresh("guardian-stop-failed", 500);
+    }
+  } catch (error) {
+    updateGuardianButtonState("running");
+    showAlert(`停止防护服务失败: ${error.message}`, "error");
+    // 异常情况刷新状态
+    triggerStatusRefresh("guardian-stop-error", 500);
+  }
+}
+
 // 停止所有node进程
 async function stopAllNodeProcesses() {
   try {
@@ -3745,6 +3780,9 @@ function updateGuardianButtonState(state) {
     case "stopped":
       startBtn.disabled = false;
       startBtn.innerHTML = `启动防护`;
+      startBtn.onclick = startGuardianService;
+      startBtn.className =
+        "flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl";
       break;
 
     case "starting":
@@ -3754,7 +3792,10 @@ function updateGuardianButtonState(state) {
 
     case "running":
       startBtn.disabled = false;
-      startBtn.innerHTML = `启动防护`;
+      startBtn.innerHTML = `停止防护`;
+      startBtn.onclick = stopGuardianService;
+      startBtn.className =
+        "flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-medium rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl";
       break;
 
     case "stopping":

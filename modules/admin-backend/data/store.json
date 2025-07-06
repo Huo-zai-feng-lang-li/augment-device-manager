@@ -185,7 +185,7 @@
       "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
       "status": "used",
       "notes": "",
-      "last_verified_at": "2025-07-04T18:04:24.243Z"
+      "last_verified_at": "2025-07-05T17:43:26.864Z"
     }
   ],
   "usageLogs": [
@@ -459,6 +459,22 @@
       "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
       "action": "operation_cleanup",
       "timestamp": "2025-07-04T16:09:04.896Z",
+      "details": "客户端执行操作: cleanup"
+    },
+    {
+      "id": 35,
+      "activation_code": "02E8549751C8590EB72D1C246EACCD2E",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-05T17:33:54.839Z",
+      "details": "客户端执行操作: cleanup"
+    },
+    {
+      "id": 36,
+      "activation_code": "02E8549751C8590EB72D1C246EACCD2E",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-05T17:34:26.845Z",
       "details": "客户端执行操作: cleanup"
     }
   ],

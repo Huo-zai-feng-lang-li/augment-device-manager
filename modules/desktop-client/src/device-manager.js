@@ -1029,34 +1029,16 @@ class DeviceManager {
         errors: [],
       };
 
-      // 保护MCP配置文件
-      const mcpConfigPath = path.join(
-        this.cursorPaths.augmentStorage,
-        "augment-global-state",
-        "mcpServers.json"
-      );
-      let mcpConfig = null;
+      // 使用通用保护机制保护所有MCP配置
+      const mcpConfigs = await this.protectMCPConfigUniversal(results);
 
-      if (await fs.pathExists(mcpConfigPath)) {
-        try {
-          mcpConfig = await fs.readJson(mcpConfigPath);
-          results.actions.push(
-            `🛡️ 已保护MCP配置文件: ${path.basename(mcpConfigPath)}`
-          );
-        } catch (error) {
-          results.actions.push(
-            `⚠️ 读取MCP配置失败，将跳过保护: ${error.message}`
-          );
-        }
-      }
-
-      // 重新创建干净的存储目录
+      // 重新创建干净的存储目录（只重置Cursor，不影响VS Code）
       if (await fs.pathExists(this.cursorPaths.augmentStorage)) {
         await fs.remove(this.cursorPaths.augmentStorage);
       }
 
       await fs.ensureDir(this.cursorPaths.augmentStorage);
-      results.actions.push("已重置Augment存储目录");
+      results.actions.push("已重置Cursor Augment存储目录");
 
       // 创建新的配置文件（如果需要）
       const newConfigPath = path.join(
@@ -1087,15 +1069,8 @@ class DeviceManager {
       });
       results.actions.push("已创建新的配置文件");
 
-      // 恢复MCP配置文件
-      if (mcpConfig) {
-        // 重新构建MCP配置路径（因为目录已被重新创建）
-        const newMcpConfigPath = path.join(newConfigPath, "mcpServers.json");
-        await fs.writeJson(newMcpConfigPath, mcpConfig, { spaces: 2 });
-        results.actions.push(
-          `🔄 已恢复MCP配置文件: ${path.basename(newMcpConfigPath)}`
-        );
-      }
+      // 恢复所有MCP配置文件
+      await this.restoreMCPConfigUniversal(results, mcpConfigs);
 
       return results;
     } catch (error) {
@@ -1533,10 +1508,7 @@ class DeviceManager {
   // 专门清理Cursor IDE扩展数据，让其认为是新设备（保护MCP配置）
   async cleanCursorExtensionData(results, options = {}) {
     try {
-      // 1. 保护MCP配置
-      const mcpConfig = await this.protectCursorMCPConfig(results);
-
-      // 2. 清理Augment扩展的特定存储数据
+      // 1. 清理Augment扩展的特定存储数据（已包含MCP保护）
       await this.cleanAugmentExtensionStorage(results, options);
 
       const cursorPaths = [
@@ -1838,10 +1810,7 @@ class DeviceManager {
         results.errors.push(`生成新Cursor设备ID失败: ${deviceIdError.message}`);
       }
 
-      // 3. 恢复MCP配置
-      if (mcpConfig) {
-        await this.restoreCursorMCPConfig(results, mcpConfig);
-      }
+      // MCP配置已在cleanAugmentExtensionStorage中自动保护和恢复
 
       results.actions.push("🎯 Cursor IDE扩展数据已完全重置，将被识别为新设备");
     } catch (error) {
@@ -1849,9 +1818,180 @@ class DeviceManager {
     }
   }
 
+  // 通用MCP配置保护函数 - 自动检测所有可能的MCP配置路径
+  async protectMCPConfigUniversal(results) {
+    const mcpConfigs = new Map();
+
+    // 定义所有可能的MCP配置路径
+    const possibleMCPPaths = [
+      // Windows路径
+      path.join(
+        os.homedir(),
+        "AppData",
+        "Roaming",
+        "Cursor",
+        "User",
+        "globalStorage",
+        "augment.vscode-augment",
+        "augment-global-state",
+        "mcpServers.json"
+      ),
+      path.join(
+        os.homedir(),
+        "AppData",
+        "Local",
+        "Cursor",
+        "User",
+        "globalStorage",
+        "augment.vscode-augment",
+        "augment-global-state",
+        "mcpServers.json"
+      ),
+      // macOS路径
+      path.join(
+        os.homedir(),
+        "Library",
+        "Application Support",
+        "Cursor",
+        "User",
+        "globalStorage",
+        "augment.vscode-augment",
+        "augment-global-state",
+        "mcpServers.json"
+      ),
+      // Linux路径
+      path.join(
+        os.homedir(),
+        ".config",
+        "Cursor",
+        "User",
+        "globalStorage",
+        "augment.vscode-augment",
+        "augment-global-state",
+        "mcpServers.json"
+      ),
+      // VS Code Windows路径
+      path.join(
+        os.homedir(),
+        "AppData",
+        "Roaming",
+        "Code",
+        "User",
+        "globalStorage",
+        "augment.vscode-augment",
+        "augment-global-state",
+        "mcpServers.json"
+      ),
+      path.join(
+        os.homedir(),
+        "AppData",
+        "Local",
+        "Code",
+        "User",
+        "globalStorage",
+        "augment.vscode-augment",
+        "augment-global-state",
+        "mcpServers.json"
+      ),
+      // VS Code macOS路径
+      path.join(
+        os.homedir(),
+        "Library",
+        "Application Support",
+        "Code",
+        "User",
+        "globalStorage",
+        "augment.vscode-augment",
+        "augment-global-state",
+        "mcpServers.json"
+      ),
+      // VS Code Linux路径
+      path.join(
+        os.homedir(),
+        ".config",
+        "Code",
+        "User",
+        "globalStorage",
+        "augment.vscode-augment",
+        "augment-global-state",
+        "mcpServers.json"
+      ),
+      // VS Code Insiders Windows路径
+      path.join(
+        os.homedir(),
+        "AppData",
+        "Roaming",
+        "Code - Insiders",
+        "User",
+        "globalStorage",
+        "augment.vscode-augment",
+        "augment-global-state",
+        "mcpServers.json"
+      ),
+      // VS Code Insiders macOS路径
+      path.join(
+        os.homedir(),
+        "Library",
+        "Application Support",
+        "Code - Insiders",
+        "User",
+        "globalStorage",
+        "augment.vscode-augment",
+        "augment-global-state",
+        "mcpServers.json"
+      ),
+      // VS Code Insiders Linux路径
+      path.join(
+        os.homedir(),
+        ".config",
+        "Code - Insiders",
+        "User",
+        "globalStorage",
+        "augment.vscode-augment",
+        "augment-global-state",
+        "mcpServers.json"
+      ),
+    ];
+
+    // 检测并保护所有存在的MCP配置
+    for (const mcpPath of possibleMCPPaths) {
+      try {
+        if (await fs.pathExists(mcpPath)) {
+          const mcpConfig = await fs.readJson(mcpPath);
+          mcpConfigs.set(mcpPath, mcpConfig);
+          results.actions.push(`🛡️ 已保护MCP配置: ${mcpPath}`);
+        }
+      } catch (error) {
+        results.actions.push(`⚠️ 读取MCP配置失败 ${mcpPath}: ${error.message}`);
+      }
+    }
+
+    return mcpConfigs;
+  }
+
+  // 通用MCP配置恢复函数
+  async restoreMCPConfigUniversal(results, mcpConfigs) {
+    if (!mcpConfigs || mcpConfigs.size === 0) {
+      return;
+    }
+
+    for (const [mcpPath, mcpConfig] of mcpConfigs) {
+      try {
+        await fs.ensureDir(path.dirname(mcpPath));
+        await fs.writeJson(mcpPath, mcpConfig, { spaces: 2 });
+        results.actions.push(`🔄 已恢复MCP配置: ${mcpPath}`);
+      } catch (error) {
+        results.actions.push(`⚠️ 恢复MCP配置失败 ${mcpPath}: ${error.message}`);
+      }
+    }
+  }
+
   // 专门清理Augment扩展的存储数据（包括登录会话，保护MCP配置）
   async cleanAugmentExtensionStorage(results, options = {}) {
     try {
+      // 1. 首先使用通用保护机制保护所有MCP配置
+      const mcpConfigs = await this.protectMCPConfigUniversal(results);
+
       const augmentStoragePaths = [
         // Augment扩展的globalStorage目录
         path.join(
@@ -1898,28 +2038,7 @@ class DeviceManager {
       for (const augmentPath of augmentStoragePaths) {
         try {
           if (await fs.pathExists(augmentPath)) {
-            // 1. 保护MCP配置文件
-            const mcpConfigPath = path.join(
-              augmentPath,
-              "augment-global-state",
-              "mcpServers.json"
-            );
-            let mcpConfig = null;
-
-            if (await fs.pathExists(mcpConfigPath)) {
-              try {
-                mcpConfig = await fs.readJson(mcpConfigPath);
-                results.actions.push(
-                  `🛡️ 已保护MCP配置文件: ${path.basename(mcpConfigPath)}`
-                );
-              } catch (error) {
-                results.actions.push(
-                  `⚠️ 读取MCP配置失败，将跳过保护: ${error.message}`
-                );
-              }
-            }
-
-            // 2. 备份Augment扩展数据（可选）
+            // 1. 备份Augment扩展数据（可选）
             if (!options.skipBackup) {
               const backupDir = path.join(
                 os.tmpdir(),
@@ -1931,20 +2050,11 @@ class DeviceManager {
               results.actions.push(`📁 Augment数据备份至: ${backupPath}`);
             }
 
-            // 3. 删除Augment扩展存储目录
+            // 2. 删除Augment扩展存储目录
             await fs.remove(augmentPath);
             results.actions.push(
               `✅ 已清理Augment扩展存储: ${path.basename(augmentPath)}`
             );
-
-            // 4. 恢复MCP配置文件
-            if (mcpConfig) {
-              await fs.ensureDir(path.dirname(mcpConfigPath));
-              await fs.writeJson(mcpConfigPath, mcpConfig, { spaces: 2 });
-              results.actions.push(
-                `🔄 已恢复MCP配置文件: ${path.basename(mcpConfigPath)}`
-              );
-            }
 
             cleanedCount++;
           }
@@ -1958,6 +2068,9 @@ class DeviceManager {
           }
         }
       }
+
+      // 3. 恢复所有MCP配置
+      await this.restoreMCPConfigUniversal(results, mcpConfigs);
 
       // 清理state.vscdb中的Augment会话数据
       await this.cleanAugmentSessionsFromDatabase(results, options);
@@ -3328,34 +3441,46 @@ class DeviceManager {
   // 执行VS Code选择性清理（保留登录状态和MCP配置）
   async performSelectiveVSCodeCleanup(results, variant, options = {}) {
     try {
-      // 1. 保护MCP配置
-      const mcpConfig = await this.protectVSCodeMCPConfig(results, variant);
+      // 1. 使用通用保护机制保护所有MCP配置
+      const mcpConfigs = await this.protectMCPConfigUniversal(results);
 
-      // 2. 清理Augment扩展存储
+      // 2. 保护VS Code settings.json中的MCP配置（兼容旧版本）
+      const settingsMcpConfig = await this.protectVSCodeMCPConfig(
+        results,
+        variant
+      );
+
+      // 3. 清理Augment扩展存储
       if (await fs.pathExists(variant.augmentStorage)) {
-        const backupDir = path.join(
-          os.tmpdir(),
-          `vscode-${variant.name}-backup-${Date.now()}`
-        );
-        await fs.ensureDir(backupDir);
-        const backupPath = path.join(backupDir, "augment.vscode-augment");
-        await fs.copy(variant.augmentStorage, backupPath);
+        if (!options.skipBackup) {
+          const backupDir = path.join(
+            os.tmpdir(),
+            `vscode-${variant.name}-backup-${Date.now()}`
+          );
+          await fs.ensureDir(backupDir);
+          const backupPath = path.join(backupDir, "augment.vscode-augment");
+          await fs.copy(variant.augmentStorage, backupPath);
+          results.actions.push(`📁 备份至: ${backupPath}`);
+        }
+
         await fs.remove(variant.augmentStorage);
         results.actions.push(
           `🗑️ 已清理VS Code ${variant.name} Augment扩展存储`
         );
-        results.actions.push(`📁 备份至: ${backupPath}`);
       }
 
-      // 3. 清理数据库中的Augment数据（保留其他数据）
+      // 4. 清理数据库中的Augment数据（保留其他数据）
       await this.cleanVSCodeAugmentData(results, variant, true);
 
-      // 4. 更新设备ID
+      // 5. 更新设备ID
       await this.updateVSCodeDeviceId(results, variant);
 
-      // 5. 恢复MCP配置
-      if (mcpConfig) {
-        await this.restoreVSCodeMCPConfig(results, variant, mcpConfig);
+      // 6. 恢复所有MCP配置
+      await this.restoreMCPConfigUniversal(results, mcpConfigs);
+
+      // 7. 恢复settings.json中的MCP配置（兼容旧版本）
+      if (settingsMcpConfig) {
+        await this.restoreVSCodeMCPConfig(results, variant, settingsMcpConfig);
       }
 
       results.actions.push(`✅ VS Code ${variant.name} 选择性清理完成`);
@@ -3369,10 +3494,16 @@ class DeviceManager {
   // 执行VS Code完全重置（保护MCP配置）
   async performCompleteVSCodeReset(results, variant, options = {}) {
     try {
-      // 1. 保护MCP配置
-      const mcpConfig = await this.protectVSCodeMCPConfig(results, variant);
+      // 1. 使用通用保护机制保护所有MCP配置
+      const mcpConfigs = await this.protectMCPConfigUniversal(results);
 
-      // 2. 备份所有数据（可选）
+      // 2. 保护VS Code settings.json中的MCP配置（兼容旧版本）
+      const settingsMcpConfig = await this.protectVSCodeMCPConfig(
+        results,
+        variant
+      );
+
+      // 3. 备份所有数据（可选）
       let backupDir = null;
       if (!options.skipBackup) {
         backupDir = path.join(
@@ -3382,7 +3513,7 @@ class DeviceManager {
         await fs.ensureDir(backupDir);
       }
 
-      // 3. 清理所有VS Code数据
+      // 4. 清理所有VS Code数据
       const pathsToClean = [
         variant.globalStorage,
         variant.workspaceStorage,
@@ -3401,16 +3532,21 @@ class DeviceManager {
         }
       }
 
-      // 4. 生成全新的VS Code身份
+      // 5. 生成全新的VS Code身份
       await this.generateFreshVSCodeIdentity(results, variant);
 
-      // 5. 恢复MCP配置
-      if (mcpConfig) {
-        await this.restoreVSCodeMCPConfig(results, variant, mcpConfig);
+      // 6. 恢复所有MCP配置
+      await this.restoreMCPConfigUniversal(results, mcpConfigs);
+
+      // 7. 恢复settings.json中的MCP配置（兼容旧版本）
+      if (settingsMcpConfig) {
+        await this.restoreVSCodeMCPConfig(results, variant, settingsMcpConfig);
       }
 
       results.actions.push(`🔄 VS Code ${variant.name} 完全重置完成`);
-      results.actions.push(`📁 完整备份至: ${backupDir}`);
+      if (backupDir) {
+        results.actions.push(`📁 完整备份至: ${backupDir}`);
+      }
     } catch (error) {
       results.errors.push(
         `VS Code ${variant.name} 完全重置失败: ${error.message}`

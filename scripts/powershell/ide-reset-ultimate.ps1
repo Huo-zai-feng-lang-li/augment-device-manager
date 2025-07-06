@@ -39,7 +39,7 @@ $IDEConfigs = @{
         'ProcessNames' = @('Cursor', 'cursor')
         'UserDataPath' = "$env:APPDATA\Cursor\User"
         'StorageFile' = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
-        'AugmentPath' = "$env:APPDATA\Cursor\User\globalStorage\augmentcode.augment"
+        'AugmentPath' = "$env:APPDATA\Cursor\User\globalStorage\augment.vscode-augment"
         'ExePaths' = @(
             "$env:LOCALAPPDATA\Programs\cursor\Cursor.exe",
             "$env:LOCALAPPDATA\cursor\Cursor.exe",
@@ -51,7 +51,7 @@ $IDEConfigs = @{
         'ProcessNames' = @('Code', 'code')
         'UserDataPath' = "$env:APPDATA\Code\User"
         'StorageFile' = "$env:APPDATA\Code\User\globalStorage\storage.json"
-        'AugmentPath' = "$env:APPDATA\Code\User\globalStorage\augmentcode.augment"
+        'AugmentPath' = "$env:APPDATA\Code\User\globalStorage\augment.vscode-augment"
         'ExePaths' = @(
             "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe",
             "$env:PROGRAMFILES\Microsoft VS Code\Code.exe",
