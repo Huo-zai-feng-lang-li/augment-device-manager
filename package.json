@@ -39,7 +39,7 @@
   "license": "MIT",
   "devDependencies": {
     "axios": "^1.10.0",
-    "concurrently": "^8.2.2"
+    "concurrently": "^9.2.0"
   },
   "dependencies": {
     "chokidar": "^4.0.3",

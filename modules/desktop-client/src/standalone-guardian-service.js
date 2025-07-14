@@ -252,6 +252,47 @@ class StandaloneGuardianService {
   }
 
   /**
+   * 获取快速统计数据（优化性能）
+   */
+  async getFastStats() {
+    try {
+      const statsCachePath = path.join(
+        os.tmpdir(),
+        "augment-guardian-stats.json"
+      );
+
+      if (await fs.pathExists(statsCachePath)) {
+        const cacheData = await fs.readJson(statsCachePath);
+
+        if (cacheData && cacheData.stats) {
+          return {
+            interceptedAttempts: cacheData.stats.interceptedAttempts || 0,
+            backupFilesRemoved: cacheData.stats.backupFilesRemoved || 0,
+            protectionRestored: cacheData.stats.protectionRestored || 0,
+            uptime: cacheData.startTime
+              ? Date.now() - new Date(cacheData.startTime).getTime()
+              : 0,
+            sessionId: cacheData.sessionId,
+            lastUpdated: cacheData.lastUpdated,
+          };
+        }
+      }
+    } catch (error) {
+      // 静默处理错误，返回默认值
+    }
+
+    // 返回默认统计数据
+    return {
+      interceptedAttempts: 0,
+      backupFilesRemoved: 0,
+      protectionRestored: 0,
+      uptime: 0,
+      sessionId: null,
+      lastUpdated: null,
+    };
+  }
+
+  /**
    * 获取服务状态
    */
   async getServiceStatus() {

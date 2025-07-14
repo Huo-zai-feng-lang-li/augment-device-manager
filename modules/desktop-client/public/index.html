@@ -755,6 +755,92 @@
               </div>
             </div>
 
+            <!-- 清理模式选择区域 -->
+            <div
+              class="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg"
+            >
+              <h3 class="text-lg font-semibold text-blue-800 mb-3">
+                🎯 选择清理模式
+              </h3>
+              <div class="space-y-3">
+                <label
+                  class="flex items-start gap-3 text-sm cursor-pointer p-3 bg-white rounded-lg border border-green-200 hover:border-green-300 transition-colors"
+                >
+                  <input
+                    type="radio"
+                    name="cleanup-mode"
+                    value="intelligent"
+                    checked
+                    class="mt-1 text-green-600 focus:ring-green-500"
+                  />
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                      <span class="text-slate-800 font-medium"
+                        >🧠 智能清理</span
+                      >
+                      <span
+                        class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full"
+                        >推荐</span
+                      >
+                    </div>
+                    <p class="text-xs text-slate-600 mt-1">
+                      只清理设备身份数据，保留所有用户配置和设置。无风险，适合日常使用。
+                    </p>
+                  </div>
+                </label>
+
+                <label
+                  class="flex items-start gap-3 text-sm cursor-pointer p-3 bg-white rounded-lg border border-orange-200 hover:border-orange-300 transition-colors"
+                >
+                  <input
+                    type="radio"
+                    name="cleanup-mode"
+                    value="standard"
+                    class="mt-1 text-orange-600 focus:ring-orange-500"
+                  />
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                      <span class="text-slate-800 font-medium"
+                        >🔧 标准清理</span
+                      >
+                      <span
+                        class="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full"
+                        >中等风险</span
+                      >
+                    </div>
+                    <p class="text-xs text-slate-600 mt-1">
+                      清理大部分IDE数据，保留核心配置。需要重新配置部分设置。
+                    </p>
+                  </div>
+                </label>
+
+                <label
+                  class="flex items-start gap-3 text-sm cursor-pointer p-3 bg-white rounded-lg border border-red-200 hover:border-red-300 transition-colors"
+                >
+                  <input
+                    type="radio"
+                    name="cleanup-mode"
+                    value="complete"
+                    class="mt-1 text-red-600 focus:ring-red-500"
+                  />
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                      <span class="text-slate-800 font-medium"
+                        >💥 完全清理</span
+                      >
+                      <span
+                        class="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full"
+                        >高风险</span
+                      >
+                    </div>
+                    <p class="text-xs text-slate-600 mt-1">
+                      彻底重置IDE，回到全新安装状态。仅保护MCP配置。
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
             <!-- IDE选择区域 -->
             <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <h3 class="text-lg font-semibold text-blue-800 mb-3">
@@ -787,8 +873,8 @@
               </div>
             </div>
 
-            <!-- PowerShell辅助选项 -->
-            <div class="mb-4">
+            <!-- PowerShell辅助选项 - 隐藏，由清理模式自动控制 -->
+            <div class="mb-4" style="display: none">
               <label class="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -797,13 +883,7 @@
                   checked
                 />
                 <span class="text-slate-800">🚀 启用PowerShell辅助清理</span>
-                <span class="text-xs text-blue-600 ml-2"
-                  >(推荐，更强的清理能力)</span
-                >
               </label>
-              <div class="text-xs text-slate-500 ml-6 mt-1">
-                • 系统级注册表操作 • 深度Augment风控清理 • 更高的清理成功率
-              </div>
             </div>
 
             <!-- 增强防护选项 - 对用户可见 -->
@@ -904,46 +984,10 @@
               </label>
             </div>
 
-            <!-- 新增：Cursor IDE完全重置选项 -->
-            <div
-              class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg"
-            >
-              <label class="flex items-center gap-3 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  id="reset-cursor-completely"
-                  class="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
-                />
-                <div class="flex-1">
-                  <span class="text-slate-800 font-medium"
-                    >🔄 完全重置Cursor IDE用户身份</span
-                  >
-                  <p class="text-xs text-slate-600 mt-1">
-                    清理所有Cursor
-                    IDE数据，让IDE也认为是全新用户（包括遥测ID、用户设置等）
-                  </p>
-                </div>
-              </label>
-            </div>
-
-            <!-- VS Code重置选项 -->
-            <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <label class="flex items-center gap-3 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  id="reset-vscode-completely"
-                  class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                <div class="flex-1">
-                  <span class="text-slate-800 font-medium"
-                    >🔄 完全重置VS Code用户身份</span
-                  >
-                  <p class="text-xs text-slate-600 mt-1">
-                    清理所有VS
-                    Code数据，让IDE也认为是全新用户（包括遥测ID、用户设置等）
-                  </p>
-                </div>
-              </label>
+            <!-- 重置选项 - 隐藏，由清理模式自动控制 -->
+            <div class="mb-4" style="display: none">
+              <input type="checkbox" id="reset-cursor-completely" />
+              <input type="checkbox" id="reset-vscode-completely" />
             </div>
 
             <button

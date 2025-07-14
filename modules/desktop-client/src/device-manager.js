@@ -432,6 +432,24 @@ class DeviceManager {
         options: options, // 保存选项供后续使用
       };
 
+      // 🔄 第1步：清理前先关闭相关IDE，避免文件占用问题
+      await this.closeIDEsBeforeCleanup(results, options);
+
+      // 🛑 第2步：停止增强防护，避免防护机制干扰清理过程
+      await this.stopEnhancedProtectionBeforeCleanup(results);
+
+      // 根据清理模式调整选项并执行对应的清理策略
+      if (options.intelligentMode) {
+        results.actions.push("🧠 使用智能清理模式 - 精准清理设备身份");
+        return await this.performIntelligentCleanup(results, options);
+      } else if (options.standardMode) {
+        results.actions.push("🔧 使用标准清理模式 - 深度清理保留核心配置");
+        return await this.performStandardModeCleanup(results, options);
+      } else if (options.completeMode) {
+        results.actions.push("💥 使用完全清理模式 - 彻底重置仅保护MCP");
+        return await this.performCompleteModeCleanup(results, options);
+      }
+
       // 检查是否启用智能管理员权限清理
       if (options.useSmartAdminCleanup && this.platform === "win32") {
         return await this.performSmartAdminCleanup(options);
@@ -450,7 +468,10 @@ class DeviceManager {
         results.actions.push("⏳ 等待5秒确保进程完全终止...");
       }
 
-      // 1. 清理本地激活信息（根据选项决定是否保留）
+      // 1. 保护MCP配置（传统清理模式也需要保护）
+      const mcpConfigs = await this.protectMCPConfigUniversal(results);
+
+      // 2. 清理本地激活信息（根据选项决定是否保留）
       await this.cleanActivationData(results, options);
 
       // 2. 清理Augment存储数据
@@ -521,6 +542,9 @@ class DeviceManager {
       ) {
         await this.startEnhancedGuardian(results, options);
       }
+
+      // 13. 恢复MCP配置（传统清理模式也需要恢复）
+      await this.restoreMCPConfigUniversal(results, mcpConfigs);
 
       return results;
     } catch (error) {
@@ -2502,6 +2526,239 @@ class DeviceManager {
     }
   }
 
+  // 强制关闭VS Code IDE
+  async forceCloseVSCodeIDE(results) {
+    try {
+      results.actions.push("🔄 正在强制关闭VS Code IDE...");
+
+      if (this.platform === "win32") {
+        // Windows: 强制关闭所有VS Code进程
+        await execAsync('taskkill /f /im "Code.exe" /t');
+        await execAsync('taskkill /f /im "code.exe" /t');
+
+        // 等待进程完全终止
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        results.actions.push("✅ VS Code IDE已强制关闭");
+      } else if (this.platform === "darwin") {
+        // macOS: 强制关闭
+        await execAsync('pkill -9 -f "Visual Studio Code"');
+        await execAsync("killall -9 'Visual Studio Code'");
+        results.actions.push("✅ VS Code IDE已强制关闭 (macOS)");
+      } else {
+        // Linux: 强制关闭
+        await execAsync('pkill -9 -f "code"');
+        await execAsync("killall -9 code");
+        results.actions.push("✅ VS Code IDE已强制关闭 (Linux)");
+      }
+    } catch (error) {
+      // 如果关闭失败，记录但不阻止清理操作
+      if (
+        error.message.includes("not found") ||
+        error.message.includes("找不到")
+      ) {
+        results.actions.push("ℹ️ VS Code IDE未运行或已关闭");
+      } else {
+        results.actions.push(`⚠️ 强制关闭VS Code可能不完整: ${error.message}`);
+      }
+    }
+  }
+
+  // 启动VS Code IDE
+  async startVSCodeIDE(results) {
+    try {
+      results.actions.push("🚀 正在启动VS Code IDE...");
+
+      if (this.platform === "win32") {
+        // Windows: 智能检测VS Code安装路径
+        const vscodePath = await this.findVSCodePath();
+
+        if (vscodePath) {
+          // 使用spawn启动，不等待
+          const { spawn } = require("child_process");
+          spawn(vscodePath, [], {
+            detached: true,
+            stdio: "ignore",
+          }).unref();
+          results.actions.push(`✅ VS Code IDE已启动: ${vscodePath}`);
+        } else {
+          results.errors.push("❌ 未找到VS Code IDE安装路径");
+        }
+      } else if (this.platform === "darwin") {
+        // macOS: 智能检测并启动
+        const vscodePath = await this.findVSCodePathMacOS();
+        if (vscodePath) {
+          await execAsync(`open "${vscodePath}"`);
+          results.actions.push(`✅ VS Code IDE已启动 (macOS): ${vscodePath}`);
+        } else {
+          // 备用方案：使用应用名称启动
+          await execAsync('open -a "Visual Studio Code"');
+          results.actions.push("✅ VS Code IDE已启动 (macOS - 备用方案)");
+        }
+      } else {
+        // Linux: 智能检测并启动
+        const vscodePath = await this.findVSCodePathLinux();
+        if (vscodePath) {
+          const { spawn } = require("child_process");
+          spawn(vscodePath, [], {
+            detached: true,
+            stdio: "ignore",
+          }).unref();
+          results.actions.push(`✅ VS Code IDE已启动 (Linux): ${vscodePath}`);
+        } else {
+          // 备用方案：使用code命令
+          const { spawn } = require("child_process");
+          spawn("code", [], {
+            detached: true,
+            stdio: "ignore",
+          }).unref();
+          results.actions.push("✅ VS Code IDE已启动 (Linux - 备用方案)");
+        }
+      }
+
+      results.actions.push("⏳ VS Code IDE启动中，请稍候...");
+    } catch (error) {
+      results.errors.push(`启动VS Code IDE失败: ${error.message}`);
+    }
+  }
+
+  // 统一的IDE关闭方法（清理前调用）
+  async closeIDEsBeforeCleanup(results, options = {}) {
+    try {
+      results.actions.push("🔄 第1步：清理前关闭相关IDE，避免文件占用问题");
+
+      let needCloseAnyIDE = false;
+
+      // 根据用户选择决定关闭哪些IDE
+      if (options.cleanCursor) {
+        needCloseAnyIDE = true;
+        await this.forceCloseCursorIDE(results);
+      }
+
+      if (options.cleanVSCode) {
+        needCloseAnyIDE = true;
+        await this.forceCloseVSCodeIDE(results);
+      }
+
+      if (!needCloseAnyIDE) {
+        results.actions.push("ℹ️ 未选择清理任何IDE，跳过IDE关闭步骤");
+        return;
+      }
+
+      // 等待所有IDE进程完全终止
+      results.actions.push("⏳ 等待5秒确保所有IDE进程完全终止...");
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      results.actions.push("✅ IDE关闭完成，可以安全进行清理操作");
+    } catch (error) {
+      results.errors.push(`关闭IDE失败: ${error.message}`);
+      // 不阻止清理操作继续进行
+    }
+  }
+
+  // 统一的IDE启动方法（清理后调用）
+  async startIDEsAfterCleanup(results, options = {}) {
+    try {
+      results.actions.push("🚀 最后步骤：重新启动IDE，应用清理结果");
+
+      let needStartAnyIDE = false;
+
+      // 根据用户选择决定启动哪些IDE
+      if (options.cleanCursor && options.autoRestartIDE !== false) {
+        needStartAnyIDE = true;
+        await this.startCursorIDE(results);
+      }
+
+      if (options.cleanVSCode && options.autoRestartIDE !== false) {
+        needStartAnyIDE = true;
+        await this.startVSCodeIDE(results);
+      }
+
+      if (!needStartAnyIDE) {
+        results.actions.push("ℹ️ 未配置自动重启IDE或未选择清理任何IDE");
+        return;
+      }
+
+      results.actions.push("✅ IDE重启完成，新的设备身份已生效");
+    } catch (error) {
+      results.errors.push(`启动IDE失败: ${error.message}`);
+      // 不影响清理操作的成功状态
+    }
+  }
+
+  // 查找VS Code安装路径（Windows）
+  async findVSCodePath() {
+    const possiblePaths = [
+      // 用户安装路径
+      path.join(
+        os.homedir(),
+        "AppData",
+        "Local",
+        "Programs",
+        "Microsoft VS Code",
+        "Code.exe"
+      ),
+      // 系统安装路径
+      "C:\\Program Files\\Microsoft VS Code\\Code.exe",
+      "C:\\Program Files (x86)\\Microsoft VS Code\\Code.exe",
+      // Portable版本
+      path.join(process.cwd(), "VSCode-win32-x64", "Code.exe"),
+    ];
+
+    for (const vscodePath of possiblePaths) {
+      try {
+        if (await fs.pathExists(vscodePath)) {
+          return vscodePath;
+        }
+      } catch (error) {
+        // 继续检查下一个路径
+      }
+    }
+
+    return null;
+  }
+
+  // 查找VS Code安装路径（macOS）
+  async findVSCodePathMacOS() {
+    const possiblePaths = [
+      "/Applications/Visual Studio Code.app",
+      path.join(os.homedir(), "Applications", "Visual Studio Code.app"),
+    ];
+
+    for (const vscodePath of possiblePaths) {
+      try {
+        if (await fs.pathExists(vscodePath)) {
+          return vscodePath;
+        }
+      } catch (error) {
+        // 继续检查下一个路径
+      }
+    }
+
+    return null;
+  }
+
+  // 查找VS Code安装路径（Linux）
+  async findVSCodePathLinux() {
+    const possiblePaths = [
+      "/usr/bin/code",
+      "/usr/local/bin/code",
+      "/snap/bin/code",
+      "/opt/visual-studio-code/code",
+      path.join(os.homedir(), ".local", "bin", "code"),
+    ];
+
+    for (const vscodePath of possiblePaths) {
+      try {
+        if (await fs.pathExists(vscodePath)) {
+          return vscodePath;
+        }
+      } catch (error) {
+        // 继续检查下一个路径
+      }
+    }
+
+    return null;
+  }
+
   // 智能检测Cursor IDE安装路径
   async findCursorPath() {
     try {
@@ -3029,6 +3286,9 @@ class DeviceManager {
     try {
       results.actions.push("🔄 启动多轮清理模式...");
 
+      // 保护MCP配置（多轮清理前）
+      const mcpConfigs = await this.protectMCPConfigUniversal(results);
+
       // 第二轮清理：针对顽固文件
       await new Promise((resolve) => setTimeout(resolve, 2000));
       results.actions.push("🔄 第二轮清理：处理顽固文件...");
@@ -3077,6 +3337,9 @@ class DeviceManager {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       results.actions.push("🔄 第三轮清理：重新生成关键文件...");
       await this.forceRegenerateStorageJson(results, options);
+
+      // 恢复MCP配置（多轮清理后）
+      await this.restoreMCPConfigUniversal(results, mcpConfigs);
 
       results.actions.push("✅ 多轮清理完成");
     } catch (error) {
@@ -3333,6 +3596,631 @@ class DeviceManager {
     }
   }
 
+  // ==================== 分级清理模式实现 ====================
+
+  // 智能清理模式：只清理设备身份，保留所有配置
+  async performIntelligentCleanup(results, options = {}) {
+    try {
+      results.actions.push("🧠 开始智能清理 - 精准清理设备身份数据");
+
+      // 1. 使用通用保护机制保护所有MCP配置
+      const mcpConfigs = await this.protectMCPConfigUniversal(results);
+
+      // 2. 保护IDE核心设置文件
+      const ideSettings = await this.protectIDESettings(results);
+
+      // 3. 保护工作区配置
+      const workspaceSettings = await this.protectWorkspaceSettings(results);
+
+      // 4. 清理设备身份相关数据（最小化清理）
+      await this.cleanDeviceIdentityOnly(results, options);
+
+      // 5. 清理Augment扩展的设备身份数据
+      await this.cleanAugmentDeviceIdentity(results, options);
+
+      // 6. 更新设备指纹（生成新的设备ID）
+      await this.regenerateDeviceFingerprint(results, options);
+
+      // 7. 恢复所有MCP配置
+      await this.restoreMCPConfigUniversal(results, mcpConfigs);
+
+      // 8. 恢复IDE核心设置
+      await this.restoreIDESettings(results, ideSettings);
+
+      // 9. 恢复工作区配置
+      await this.restoreWorkspaceSettings(results, workspaceSettings);
+
+      // 10. 启动增强防护（智能模式默认启用）
+      if (options.enableEnhancedGuardian !== false) {
+        await this.startEnhancedGuardian(results, options);
+      }
+
+      // 11. 处理VS Code（如果启用）
+      if (options.cleanVSCode) {
+        results.actions.push("🔵 智能清理模式 - 处理VS Code设备身份");
+
+        // VS Code智能清理：仅更新设备身份，不清理配置
+        const vscodeVariants = await this.detectInstalledVSCodeVariants();
+        for (const variant of vscodeVariants) {
+          // 智能模式：仅清理设备身份，保护所有配置
+          await this.performVSCodeIntelligentCleanup(results, variant, options);
+        }
+      }
+
+      // 12. 重新启动IDE（如果需要）
+      await this.startIDEsAfterCleanup(results, options);
+
+      results.actions.push("✅ 智能清理完成 - 设备身份已重置，所有配置已保留");
+      results.actions.push(
+        "🛡️ 保护范围: MCP配置 + IDE设置 + 工作区配置 + 登录状态"
+      );
+      results.actions.push("🎯 效果: 扩展识别为新用户，但保留所有个人配置");
+      results.actions.push(
+        "⚠️ 重要提醒: 智能模式仅更新设备身份，不清理任何IDE配置文件"
+      );
+      return results;
+    } catch (error) {
+      results.errors.push(`智能清理失败: ${error.message}`);
+      results.success = false;
+      return results;
+    }
+  }
+
+  // 标准清理模式：深度清理但保留核心配置
+  async performStandardModeCleanup(results, options = {}) {
+    try {
+      results.actions.push("🔧 开始标准清理 - 深度清理保留核心配置");
+
+      // 1. 使用通用保护机制保护所有MCP配置
+      const mcpConfigs = await this.protectMCPConfigUniversal(results);
+
+      // 2. 设置标准清理选项
+      const standardOptions = {
+        ...options,
+        deepClean: true,
+        aggressiveMode: true,
+        multiRoundClean: true,
+        extendedMonitoring: true,
+        skipCursorLogin: true,
+        resetCursorCompletely: false,
+        resetVSCodeCompletely: false,
+      };
+
+      // 3. 执行标准清理流程（复用现有逻辑）
+      const cleanupResults = await this.performStandardCleanup(standardOptions);
+
+      // 4. 恢复所有MCP配置
+      await this.restoreMCPConfigUniversal(results, mcpConfigs);
+
+      // 5. 合并清理结果
+      results.actions.push(...cleanupResults.actions);
+      results.errors.push(...cleanupResults.errors);
+      results.success = cleanupResults.success && results.success;
+
+      // 6. 启动增强防护（标准模式默认启用）
+      if (options.enableEnhancedGuardian !== false) {
+        await this.startEnhancedGuardian(results, options);
+      }
+
+      // 7. 重新启动IDE（如果需要）
+      await this.startIDEsAfterCleanup(results, options);
+
+      results.actions.push("✅ 标准清理完成 - 深度清理已完成，MCP配置已保护");
+      return results;
+    } catch (error) {
+      results.errors.push(`标准清理失败: ${error.message}`);
+      results.success = false;
+      return results;
+    }
+  }
+
+  // 完全清理模式：彻底重置，仅保护MCP配置
+  async performCompleteModeCleanup(results, options = {}) {
+    try {
+      results.actions.push("💥 开始完全清理 - 彻底重置仅保护MCP配置");
+
+      // 1. 使用通用保护机制保护所有MCP配置
+      const mcpConfigs = await this.protectMCPConfigUniversal(results);
+
+      // 2. 强制关闭所有IDE进程
+      if (options.cleanCursor) {
+        await this.forceCloseCursorIDE(results);
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+
+      // 3. 执行完全重置
+      const completeOptions = {
+        ...options,
+        deepClean: true,
+        aggressiveMode: true,
+        multiRoundClean: true,
+        extendedMonitoring: true,
+        skipCursorLogin: false,
+        resetCursorCompletely: true,
+        resetVSCodeCompletely: true,
+        skipBackup: true,
+      };
+
+      // 4. 清理所有数据
+      await this.cleanActivationData(results, completeOptions);
+      await this.cleanAugmentStorage(results);
+      await this.cleanStateDatabase(results, completeOptions);
+
+      if (this.platform === "win32") {
+        await this.cleanWindowsRegistry(results);
+      }
+
+      await this.cleanTempFiles(results);
+      await this.cleanBrowserData(results);
+
+      if (completeOptions.cleanCursor) {
+        await this.performCompleteCursorReset(results, completeOptions);
+      }
+
+      if (completeOptions.cleanVSCode) {
+        const vscodeVariants = await this.detectInstalledVSCodeVariants();
+        for (const variant of vscodeVariants) {
+          await this.performCompleteVSCodeReset(
+            results,
+            variant,
+            completeOptions
+          );
+        }
+      }
+
+      // 5. 恢复MCP配置
+      await this.restoreMCPConfigUniversal(results, mcpConfigs);
+
+      // 6. 启动增强防护（完全模式默认启用）
+      if (options.enableEnhancedGuardian !== false) {
+        await this.startEnhancedGuardian(results, options);
+      }
+
+      // 7. 重新启动IDE（如果需要）
+      await this.startIDEsAfterCleanup(results, options);
+
+      results.actions.push("✅ 完全清理完成 - IDE已彻底重置，MCP配置已恢复");
+      return results;
+    } catch (error) {
+      results.errors.push(`完全清理失败: ${error.message}`);
+      results.success = false;
+      return results;
+    }
+  }
+
+  // 清理设备身份数据（智能模式专用）
+  async cleanDeviceIdentityOnly(results, options = {}) {
+    try {
+      results.actions.push("🧠 智能模式：精准更新设备身份，让扩展认为是新用户");
+
+      // 1. 更新Cursor storage.json中的关键设备ID字段
+      const cursorStorageJsonPath = path.join(
+        os.homedir(),
+        "AppData",
+        "Roaming",
+        "Cursor",
+        "User",
+        "globalStorage",
+        "storage.json"
+      );
+
+      await this.updateIDEDeviceIdentity(
+        results,
+        cursorStorageJsonPath,
+        "Cursor"
+      );
+
+      // 2. 更新VS Code storage.json中的关键设备ID字段
+      const vscodeStorageJsonPath = path.join(
+        os.homedir(),
+        "AppData",
+        "Roaming",
+        "Code",
+        "User",
+        "globalStorage",
+        "storage.json"
+      );
+
+      await this.updateIDEDeviceIdentity(
+        results,
+        vscodeStorageJsonPath,
+        "VS Code"
+      );
+    } catch (error) {
+      results.errors.push(`设备身份清理失败: ${error.message}`);
+    }
+  }
+
+  // 更新IDE设备身份的通用方法
+  async updateIDEDeviceIdentity(results, storageJsonPath, ideName) {
+    try {
+      if (await fs.pathExists(storageJsonPath)) {
+        const storageData = await fs.readJson(storageJsonPath);
+
+        // 精准更新设备身份字段，保留其他所有配置
+        const deviceIdentityFields = [
+          "telemetry.devDeviceId", // 最关键：扩展用户识别
+          "telemetry.machineId", // 机器标识
+          "telemetry.sqmId", // 遥测标识
+          "storage.serviceMachineId", // 服务机器ID
+        ];
+
+        let updated = false;
+        for (const field of deviceIdentityFields) {
+          if (storageData[field]) {
+            const oldValue = storageData[field];
+            storageData[field] = crypto.randomUUID();
+            updated = true;
+            results.actions.push(`🔄 ${ideName} - 已更新设备ID: ${field}`);
+          }
+        }
+
+        if (updated) {
+          await fs.writeJson(storageJsonPath, storageData, { spaces: 2 });
+          results.actions.push(
+            `✅ ${ideName} - 设备身份已更新，扩展将识别为新用户`
+          );
+        } else {
+          results.actions.push(`ℹ️ ${ideName} - 未发现需要更新的设备身份字段`);
+        }
+      } else {
+        results.actions.push(
+          `ℹ️ ${ideName} - 配置文件不存在，跳过设备身份更新`
+        );
+      }
+    } catch (error) {
+      results.actions.push(
+        `⚠️ ${ideName} - 设备身份更新失败: ${error.message}`
+      );
+    }
+  }
+
+  // 清理Augment扩展的设备身份数据（智能模式专用）
+  async cleanAugmentDeviceIdentity(results, options = {}) {
+    try {
+      results.actions.push("🧠 智能模式：清理扩展用户识别数据，保护配置和设置");
+
+      // 1. 清理state.vscdb中的Augment用户识别记录
+      await this.cleanAugmentSessionsFromDatabase(results, {
+        skipCursorLogin: true, // 保留Cursor登录状态
+        intelligentMode: true, // 智能模式标记
+      });
+
+      // 2. 清理Cursor Augment扩展存储中的用户身份文件
+      const cursorAugmentStoragePath = path.join(
+        os.homedir(),
+        "AppData",
+        "Roaming",
+        "Cursor",
+        "User",
+        "globalStorage",
+        "augment.vscode-augment"
+      );
+
+      await this.cleanAugmentIdentityFiles(
+        results,
+        cursorAugmentStoragePath,
+        "Cursor"
+      );
+
+      // 3. 清理VS Code Augment扩展存储中的用户身份文件
+      const vscodeAugmentStoragePath = path.join(
+        os.homedir(),
+        "AppData",
+        "Roaming",
+        "Code",
+        "User",
+        "globalStorage",
+        "augment.vscode-augment"
+      );
+
+      await this.cleanAugmentIdentityFiles(
+        results,
+        vscodeAugmentStoragePath,
+        "VS Code"
+      );
+    } catch (error) {
+      results.errors.push(`清理Augment设备身份失败: ${error.message}`);
+    }
+  }
+
+  // 清理Augment身份文件的通用方法
+  async cleanAugmentIdentityFiles(results, augmentStoragePath, ideName) {
+    try {
+      if (await fs.pathExists(augmentStoragePath)) {
+        // 智能模式：只清理明确的用户身份文件，保留配置
+        const files = await fs.readdir(augmentStoragePath);
+        const identityFiles = files.filter(
+          (file) =>
+            file.includes("user-") || // 用户相关
+            file.includes("session-") || // 会话相关
+            file.includes("auth-") || // 认证相关
+            file.includes("device-") || // 设备相关
+            file.includes("fingerprint") || // 指纹相关
+            (file.includes("cache") && !file.includes("mcp")) // 缓存但不是MCP
+        );
+
+        let cleanedCount = 0;
+        for (const file of identityFiles) {
+          // 额外保护：跳过明确的配置文件
+          if (
+            file.includes("config") ||
+            file.includes("settings") ||
+            file.includes("mcp") ||
+            file.includes("server")
+          ) {
+            continue;
+          }
+
+          const filePath = path.join(augmentStoragePath, file);
+          await fs.remove(filePath);
+          results.actions.push(`🗑️ ${ideName} - 已清理用户身份文件: ${file}`);
+          cleanedCount++;
+        }
+
+        if (cleanedCount > 0) {
+          results.actions.push(`✅ ${ideName} - Augment用户身份数据已清理`);
+        } else {
+          results.actions.push(`ℹ️ ${ideName} - 未发现需要清理的用户身份文件`);
+        }
+      } else {
+        results.actions.push(`ℹ️ ${ideName} - Augment扩展目录不存在，跳过清理`);
+      }
+    } catch (error) {
+      results.actions.push(
+        `⚠️ ${ideName} - Augment身份文件清理失败: ${error.message}`
+      );
+    }
+  }
+
+  // 保护IDE核心设置文件（智能模式专用）
+  async protectIDESettings(results) {
+    const ideSettings = new Map();
+
+    try {
+      // 定义需要保护的IDE设置文件路径
+      const settingsPaths = [
+        // Cursor主要设置文件
+        this.cursorPaths.settingsJson,
+        // 快捷键配置
+        path.join(
+          path.dirname(this.cursorPaths.settingsJson),
+          "keybindings.json"
+        ),
+        // 任务配置
+        path.join(path.dirname(this.cursorPaths.settingsJson), "tasks.json"),
+        // 启动配置
+        path.join(path.dirname(this.cursorPaths.settingsJson), "launch.json"),
+      ];
+
+      // 保护代码片段目录
+      const snippetsDir = path.join(
+        path.dirname(this.cursorPaths.settingsJson),
+        "snippets"
+      );
+
+      for (const settingsPath of settingsPaths) {
+        try {
+          if (await fs.pathExists(settingsPath)) {
+            const content = await fs.readJson(settingsPath);
+            ideSettings.set(settingsPath, content);
+            results.actions.push(
+              `🛡️ 已保护IDE设置: ${path.basename(settingsPath)}`
+            );
+          }
+        } catch (error) {
+          // 文件可能不是JSON格式，跳过
+          results.actions.push(
+            `⚠️ 跳过非JSON设置文件: ${path.basename(settingsPath)}`
+          );
+        }
+      }
+
+      // 保护代码片段目录
+      if (await fs.pathExists(snippetsDir)) {
+        try {
+          const snippetsBackup = {};
+          const snippetFiles = await fs.readdir(snippetsDir);
+
+          for (const snippetFile of snippetFiles) {
+            if (snippetFile.endsWith(".json")) {
+              const snippetPath = path.join(snippetsDir, snippetFile);
+              const snippetContent = await fs.readJson(snippetPath);
+              snippetsBackup[snippetFile] = snippetContent;
+            }
+          }
+
+          if (Object.keys(snippetsBackup).length > 0) {
+            ideSettings.set(snippetsDir, snippetsBackup);
+            results.actions.push(
+              `🛡️ 已保护代码片段: ${Object.keys(snippetsBackup).length} 个文件`
+            );
+          }
+        } catch (error) {
+          results.actions.push(`⚠️ 保护代码片段失败: ${error.message}`);
+        }
+      }
+
+      if (ideSettings.size > 0) {
+        results.actions.push(
+          `✅ IDE设置保护完成，共保护 ${ideSettings.size} 项配置`
+        );
+      } else {
+        results.actions.push("ℹ️ 未发现需要保护的IDE设置文件");
+      }
+    } catch (error) {
+      results.errors.push(`保护IDE设置失败: ${error.message}`);
+    }
+
+    return ideSettings;
+  }
+
+  // 恢复IDE核心设置文件（智能模式专用）
+  async restoreIDESettings(results, ideSettings) {
+    if (!ideSettings || ideSettings.size === 0) {
+      return;
+    }
+
+    try {
+      for (const [settingsPath, content] of ideSettings) {
+        try {
+          // 处理代码片段目录
+          if (path.basename(settingsPath) === "snippets") {
+            await fs.ensureDir(settingsPath);
+            for (const [snippetFile, snippetContent] of Object.entries(
+              content
+            )) {
+              const snippetPath = path.join(settingsPath, snippetFile);
+              await fs.writeJson(snippetPath, snippetContent, { spaces: 2 });
+            }
+            results.actions.push(
+              `🔄 已恢复代码片段: ${Object.keys(content).length} 个文件`
+            );
+          } else {
+            // 处理普通设置文件
+            await fs.ensureDir(path.dirname(settingsPath));
+            await fs.writeJson(settingsPath, content, { spaces: 2 });
+            results.actions.push(
+              `🔄 已恢复IDE设置: ${path.basename(settingsPath)}`
+            );
+          }
+        } catch (error) {
+          results.actions.push(
+            `⚠️ 恢复设置失败 ${path.basename(settingsPath)}: ${error.message}`
+          );
+        }
+      }
+
+      results.actions.push("✅ IDE设置恢复完成");
+    } catch (error) {
+      results.errors.push(`恢复IDE设置失败: ${error.message}`);
+    }
+  }
+
+  // 保护工作区配置（智能模式专用）
+  async protectWorkspaceSettings(results) {
+    const workspaceSettings = new Map();
+
+    try {
+      // 获取跨平台的工作区存储目录
+      let workspaceStorageDir;
+      if (this.platform === "win32") {
+        workspaceStorageDir = path.join(
+          os.homedir(),
+          "AppData",
+          "Roaming",
+          "Cursor",
+          "User",
+          "workspaceStorage"
+        );
+      } else if (this.platform === "darwin") {
+        workspaceStorageDir = path.join(
+          os.homedir(),
+          "Library",
+          "Application Support",
+          "Cursor",
+          "User",
+          "workspaceStorage"
+        );
+      } else {
+        workspaceStorageDir = path.join(
+          os.homedir(),
+          ".config",
+          "Cursor",
+          "User",
+          "workspaceStorage"
+        );
+      }
+
+      if (await fs.pathExists(workspaceStorageDir)) {
+        // 只保护重要的工作区配置，不保护临时数据
+        const workspaceDirs = await fs.readdir(workspaceStorageDir);
+
+        for (const workspaceDir of workspaceDirs) {
+          const workspacePath = path.join(workspaceStorageDir, workspaceDir);
+          const stat = await fs.stat(workspacePath);
+
+          if (stat.isDirectory()) {
+            // 检查是否包含重要配置文件
+            const configFiles = [
+              "workspace.json",
+              "settings.json",
+              "tasks.json",
+            ];
+            const workspaceConfig = {};
+            let hasImportantConfig = false;
+
+            for (const configFile of configFiles) {
+              const configPath = path.join(workspacePath, configFile);
+              if (await fs.pathExists(configPath)) {
+                try {
+                  const configContent = await fs.readJson(configPath);
+                  workspaceConfig[configFile] = configContent;
+                  hasImportantConfig = true;
+                } catch (error) {
+                  // 跳过损坏的配置文件
+                }
+              }
+            }
+
+            if (hasImportantConfig) {
+              workspaceSettings.set(workspacePath, workspaceConfig);
+            }
+          }
+        }
+
+        if (workspaceSettings.size > 0) {
+          results.actions.push(
+            `🛡️ 已保护工作区配置: ${workspaceSettings.size} 个工作区`
+          );
+        } else {
+          results.actions.push("ℹ️ 未发现需要保护的工作区配置");
+        }
+      } else {
+        results.actions.push("ℹ️ 工作区存储目录不存在");
+      }
+    } catch (error) {
+      results.errors.push(`保护工作区配置失败: ${error.message}`);
+    }
+
+    return workspaceSettings;
+  }
+
+  // 恢复工作区配置（智能模式专用）
+  async restoreWorkspaceSettings(results, workspaceSettings) {
+    if (!workspaceSettings || workspaceSettings.size === 0) {
+      return;
+    }
+
+    try {
+      for (const [workspacePath, configFiles] of workspaceSettings) {
+        try {
+          await fs.ensureDir(workspacePath);
+
+          for (const [configFile, configContent] of Object.entries(
+            configFiles
+          )) {
+            const configPath = path.join(workspacePath, configFile);
+            await fs.writeJson(configPath, configContent, { spaces: 2 });
+          }
+
+          const workspaceName = path.basename(workspacePath);
+          results.actions.push(`🔄 已恢复工作区配置: ${workspaceName}`);
+        } catch (error) {
+          results.actions.push(
+            `⚠️ 恢复工作区失败 ${path.basename(workspacePath)}: ${
+              error.message
+            }`
+          );
+        }
+      }
+
+      results.actions.push("✅ 工作区配置恢复完成");
+    } catch (error) {
+      results.errors.push(`恢复工作区配置失败: ${error.message}`);
+    }
+  }
+
   // ==================== VS Code 支持功能 ====================
 
   // 检测已安装的VS Code变体
@@ -3435,6 +4323,78 @@ class DeviceManager {
       results.actions.push(`🔄 已恢复VS Code ${variant.name} MCP配置`);
     } catch (error) {
       results.actions.push(`⚠️ 恢复MCP配置时出错: ${error.message}`);
+    }
+  }
+
+  // 执行VS Code智能清理（仅更新设备身份，保护所有配置）
+  async performVSCodeIntelligentCleanup(results, variant, options = {}) {
+    try {
+      results.actions.push(`🧠 VS Code ${variant.name} - 智能清理设备身份`);
+
+      // 1. 使用通用保护机制保护所有MCP配置
+      const mcpConfigs = await this.protectMCPConfigUniversal(results);
+
+      // 2. 保护VS Code settings.json中的MCP配置（兼容旧版本）
+      const settingsMcpConfig = await this.protectVSCodeMCPConfig(
+        results,
+        variant
+      );
+
+      // 3. 智能清理：仅更新VS Code的设备身份，类似Cursor的处理
+      if (
+        variant.globalStorage &&
+        (await fs.pathExists(variant.globalStorage))
+      ) {
+        const storageJsonPath = path.join(
+          variant.globalStorage,
+          "storage.json"
+        );
+        if (await fs.pathExists(storageJsonPath)) {
+          const storageData = await fs.readJson(storageJsonPath);
+
+          // 精准更新设备身份字段，保留其他所有配置
+          const deviceIdentityFields = [
+            "telemetry.devDeviceId", // 最关键：扩展用户识别
+            "telemetry.machineId", // 机器标识
+            "telemetry.sqmId", // 遥测标识
+            "storage.serviceMachineId", // 服务机器ID
+          ];
+
+          let updated = false;
+          for (const field of deviceIdentityFields) {
+            if (storageData[field]) {
+              storageData[field] = crypto.randomUUID();
+              updated = true;
+              results.actions.push(
+                `🔄 VS Code ${variant.name} - 已更新设备ID: ${field}`
+              );
+            }
+          }
+
+          if (updated) {
+            await fs.writeJson(storageJsonPath, storageData, { spaces: 2 });
+            results.actions.push(
+              `✅ VS Code ${variant.name} - 设备身份已更新，扩展将识别为新用户`
+            );
+          } else {
+            results.actions.push(
+              `ℹ️ VS Code ${variant.name} - 未发现需要更新的设备身份字段`
+            );
+          }
+        }
+      }
+
+      // 4. 恢复所有MCP配置
+      await this.restoreMCPConfigUniversal(results, mcpConfigs);
+      await this.restoreVSCodeMCPConfig(results, variant, settingsMcpConfig);
+
+      results.actions.push(
+        `✅ VS Code ${variant.name} - 智能清理完成，所有配置已保护`
+      );
+    } catch (error) {
+      results.errors.push(
+        `VS Code ${variant.name} 智能清理失败: ${error.message}`
+      );
     }
   }
 
@@ -3733,20 +4693,26 @@ class DeviceManager {
     try {
       results.actions.push("🚀 启用PowerShell辅助清理模式");
 
-      // 1. 准备PowerShell脚本参数
+      // 1. 使用通用保护机制保护所有MCP配置
+      const mcpConfigs = await this.protectMCPConfigUniversal(results);
+
+      // 2. 准备PowerShell脚本参数
       const psConfig = await this.preparePowerShellConfig(options);
 
-      // 2. 执行PowerShell脚本
+      // 3. 执行PowerShell脚本
       const psResults = await this.executePowerShellScript(psConfig);
 
-      // 3. 解析PowerShell执行结果
+      // 4. 解析PowerShell执行结果
       results.actions.push(...psResults.actions);
       results.errors.push(...psResults.errors);
 
-      // 4. 执行Node.js补充清理（PowerShell无法处理的部分）
+      // 5. 执行Node.js补充清理（PowerShell无法处理的部分）
       await this.performSupplementaryCleanup(results, options);
 
-      results.actions.push("✅ PowerShell辅助清理完成");
+      // 6. 恢复所有MCP配置
+      await this.restoreMCPConfigUniversal(results, mcpConfigs);
+
+      results.actions.push("✅ PowerShell辅助清理完成 - MCP配置已保护");
     } catch (error) {
       results.success = false;
       results.errors.push(`PowerShell辅助清理失败: ${error.message}`);
@@ -4016,7 +4982,10 @@ class DeviceManager {
 
     results.actions.push("🔄 使用标准清理模式");
 
-    // 执行原有的清理流程
+    // 1. 使用通用保护机制保护所有MCP配置
+    const mcpConfigs = await this.protectMCPConfigUniversal(results);
+
+    // 2. 执行原有的清理流程
     await this.cleanActivationData(results, options);
     await this.cleanAugmentStorage(results);
     await this.cleanStateDatabase(results, options);
@@ -4038,6 +5007,11 @@ class DeviceManager {
 
     await this.regenerateDeviceFingerprint(results, options);
 
+    // 3. 恢复所有MCP配置
+    await this.restoreMCPConfigUniversal(results, mcpConfigs);
+
+    results.actions.push("✅ 标准清理完成 - MCP配置已保护");
+
     return results;
   }
   // 智能管理员权限清理（新增功能）
@@ -4054,7 +5028,10 @@ class DeviceManager {
 
       results.actions.push("🚀 启动智能管理员权限清理模式");
 
-      // 1. 使用AdminHelper进行智能清理
+      // 1. 使用通用保护机制保护所有MCP配置
+      const mcpConfigs = await this.protectMCPConfigUniversal(results);
+
+      // 2. 使用AdminHelper进行智能清理
       const adminResults = await this.adminHelper.performSmartCleanup({
         requestAdmin: options.requestAdmin !== false,
         updateRegistry: options.updateRegistry !== false,
@@ -4104,9 +5081,12 @@ class DeviceManager {
         }
       }
 
-      results.actions.push("✅ 智能管理员权限清理完成");
+      // 5. 恢复所有MCP配置
+      await this.restoreMCPConfigUniversal(results, mcpConfigs);
 
-      // 5. 生成清理报告
+      results.actions.push("✅ 智能管理员权限清理完成 - MCP配置已保护");
+
+      // 6. 生成清理报告
       const summary = this.generateCleanupSummary(results);
       results.actions.push(`📊 清理总结: ${summary}`);
 
@@ -4408,6 +5388,39 @@ class DeviceManager {
       }
     } catch (error) {
       results.errors.push(`停止增强守护进程失败: ${error.message}`);
+    }
+  }
+
+  // 清理前停止增强防护（避免防护机制干扰清理过程）
+  async stopEnhancedProtectionBeforeCleanup(results) {
+    try {
+      results.actions.push("🔍 检查增强防护状态...");
+
+      // 获取当前防护状态
+      const status = await this.getEnhancedGuardianStatus();
+
+      if (status.isGuarding || status.standaloneService?.isRunning) {
+        results.actions.push("🛑 检测到增强防护正在运行，清理前先停止防护...");
+
+        // 停止内置守护进程
+        if (status.isGuarding) {
+          await this.stopEnhancedGuardian(results);
+        }
+
+        // 停止独立守护服务
+        if (status.standaloneService?.isRunning) {
+          await this.stopStandaloneService(results);
+        }
+
+        // 等待防护完全停止
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        results.actions.push("✅ 增强防护已停止，可以安全进行清理");
+      } else {
+        results.actions.push("✅ 增强防护未运行，可以直接进行清理");
+      }
+    } catch (error) {
+      results.errors.push(`停止增强防护失败: ${error.message}`);
+      results.actions.push("⚠️ 防护停止失败，但继续执行清理操作");
     }
   }
 

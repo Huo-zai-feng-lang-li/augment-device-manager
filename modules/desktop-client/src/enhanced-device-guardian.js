@@ -4,6 +4,7 @@ const os = require("os");
 const chokidar = require("chokidar");
 const { exec } = require("child_process");
 const { promisify } = require("util");
+const crypto = require("crypto");
 
 /**
  * 增强设备ID守护进程
@@ -28,6 +29,7 @@ class EnhancedDeviceGuardian {
       backupScanInterval: 5000, // 备份文件扫描间隔(ms)
       protectionCheckInterval: 10000, // 保护状态检查间隔(ms)
       maxLogEntries: 100, // 最大日志条目数
+      statsCacheInterval: 30000, // 统计数据缓存间隔(ms)
     };
 
     this.logs = [];
@@ -38,8 +40,90 @@ class EnhancedDeviceGuardian {
       startTime: null,
     };
 
+    // 统计数据缓存
+    this.sessionId = this.generateSessionId();
+    this.statsCachePath = path.join(os.tmpdir(), "augment-guardian-stats.json");
+    this.statsCacheInterval = null;
+
     // 事件通知回调
     this.eventCallback = null;
+  }
+
+  /**
+   * 生成会话ID
+   */
+  generateSessionId() {
+    return crypto.randomBytes(16).toString("hex");
+  }
+
+  /**
+   * 保存统计数据到缓存文件
+   */
+  async saveStatsCache() {
+    try {
+      const cacheData = {
+        sessionId: this.sessionId,
+        startTime: this.stats.startTime?.toISOString(),
+        stats: {
+          interceptedAttempts: this.stats.interceptedAttempts,
+          backupFilesRemoved: this.stats.backupFilesRemoved,
+          protectionRestored: this.stats.protectionRestored,
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+
+      await fs.writeJson(this.statsCachePath, cacheData, { spaces: 2 });
+    } catch (error) {
+      // 静默处理缓存保存失败
+      console.warn("保存统计缓存失败:", error.message);
+    }
+  }
+
+  /**
+   * 从缓存文件加载统计数据
+   */
+  async loadStatsCache() {
+    try {
+      if (await fs.pathExists(this.statsCachePath)) {
+        const cacheData = await fs.readJson(this.statsCachePath);
+
+        // 检查是否是同一会话
+        if (cacheData.sessionId === this.sessionId && cacheData.stats) {
+          this.stats.interceptedAttempts =
+            cacheData.stats.interceptedAttempts || 0;
+          this.stats.backupFilesRemoved =
+            cacheData.stats.backupFilesRemoved || 0;
+          this.stats.protectionRestored =
+            cacheData.stats.protectionRestored || 0;
+
+          if (cacheData.startTime) {
+            this.stats.startTime = new Date(cacheData.startTime);
+          }
+
+          return true;
+        }
+      }
+    } catch (error) {
+      // 静默处理缓存加载失败
+      console.warn("加载统计缓存失败:", error.message);
+    }
+    return false;
+  }
+
+  /**
+   * 获取快速统计数据（优化性能）
+   */
+  async getFastStats() {
+    // 直接返回内存中的统计数据，避免文件解析
+    return {
+      interceptedAttempts: this.stats.interceptedAttempts,
+      backupFilesRemoved: this.stats.backupFilesRemoved,
+      protectionRestored: this.stats.protectionRestored,
+      uptime: this.stats.startTime
+        ? Date.now() - this.stats.startTime.getTime()
+        : 0,
+      sessionId: this.sessionId,
+    };
   }
 
   /**
@@ -137,6 +221,9 @@ class EnhancedDeviceGuardian {
       this.log("🛡️ 启动增强设备ID守护进程", "info");
       this.log(`🎯 目标设备ID: ${deviceId}`, "info");
 
+      // 0. 初始化统计数据缓存
+      await this.initializeStatsCache();
+
       // 1. 设置初始保护
       await this.setupInitialProtection();
 
@@ -154,6 +241,9 @@ class EnhancedDeviceGuardian {
 
       // 6. 启动激活状态监控
       await this.startActivationMonitoring();
+
+      // 7. 启动统计数据缓存定时器
+      this.startStatsCacheTimer();
 
       this.log("✅ 增强守护进程启动成功", "success");
       return { success: true, message: "守护进程启动成功" };
@@ -299,6 +389,66 @@ class EnhancedDeviceGuardian {
   }
 
   /**
+   * 初始化统计数据缓存
+   */
+  async initializeStatsCache() {
+    // 每次启动时重置统计数据（保持启动归零的正确行为）
+    this.stats = {
+      interceptedAttempts: 0,
+      backupFilesRemoved: 0,
+      protectionRestored: 0,
+      startTime: new Date(),
+    };
+
+    // 保存初始缓存
+    await this.saveStatsCache();
+    this.log("📊 统计数据缓存已初始化", "info");
+  }
+
+  /**
+   * 启动统计数据缓存定时器
+   */
+  startStatsCacheTimer() {
+    // 定期保存统计数据到缓存文件
+    this.statsCacheInterval = setInterval(async () => {
+      await this.saveStatsCache();
+    }, this.config.statsCacheInterval);
+
+    this.log("⏰ 统计数据缓存定时器已启动", "info");
+  }
+
+  /**
+   * 停止统计数据缓存定时器
+   */
+  stopStatsCacheTimer() {
+    if (this.statsCacheInterval) {
+      clearInterval(this.statsCacheInterval);
+      this.statsCacheInterval = null;
+      this.log("⏰ 统计数据缓存定时器已停止", "info");
+    }
+  }
+
+  /**
+   * 更新统计数据并触发缓存保存
+   */
+  async updateStats(type, increment = 1) {
+    switch (type) {
+      case "intercept":
+        this.stats.interceptedAttempts += increment;
+        break;
+      case "backup":
+        this.stats.backupFilesRemoved += increment;
+        break;
+      case "restore":
+        this.stats.protectionRestored += increment;
+        break;
+    }
+
+    // 立即保存重要统计更新
+    await this.saveStatsCache();
+  }
+
+  /**
    * 停止守护进程
    */
   async stopGuarding() {
@@ -330,6 +480,12 @@ class EnhancedDeviceGuardian {
       this.activationCheckInterval = null;
       this.log("🔐 激活状态监控已停止", "info");
     }
+
+    // 停止统计数据缓存定时器
+    this.stopStatsCacheTimer();
+
+    // 最后保存一次统计数据
+    await this.saveStatsCache();
 
     this.log("✅ 守护进程已完全停止", "success");
     return { success: true, message: "守护进程已停止" };
@@ -548,7 +704,7 @@ class EnhancedDeviceGuardian {
         await fs.writeJson(tempFilePath, tempData, { spaces: 2 });
 
         this.log("✅ 已拦截并恢复目标设备ID", "success");
-        this.stats.interceptedAttempts++;
+        await this.updateStats("intercept");
 
         // 通知前端更新状态
         this.notifyEvent("intercept-success", {
@@ -571,7 +727,7 @@ class EnhancedDeviceGuardian {
       if (!(await fs.pathExists(this.paths.storageJson))) {
         this.log("⚠️ 配置文件被删除，正在恢复...", "warn");
         await this.enforceTargetDeviceId();
-        this.stats.protectionRestored++;
+        await this.updateStats("restore");
 
         // 通知前端更新状态
         this.notifyEvent("protection-restored", {
@@ -595,7 +751,7 @@ class EnhancedDeviceGuardian {
         await this.setBasicFileProtection();
 
         this.log("✅ 设备ID已恢复", "success");
-        this.stats.protectionRestored++;
+        await this.updateStats("restore");
 
         // 通知前端更新状态
         this.notifyEvent("protection-restored", {
@@ -759,7 +915,7 @@ class EnhancedDeviceGuardian {
       }
     }
 
-    this.stats.backupFilesRemoved += removedCount;
+    await this.updateStats("backup", removedCount);
     this.log(`✅ 清理完成，共删除 ${removedCount} 个备份文件`, "success");
 
     // 如果删除了备份文件，通知前端更新状态
@@ -805,7 +961,7 @@ class EnhancedDeviceGuardian {
     }
 
     if (removedCount > 0) {
-      this.stats.backupFilesRemoved += removedCount;
+      await this.updateStats("backup", removedCount);
 
       // 通知前端更新状态
       this.notifyEvent("backup-removed", {
@@ -866,7 +1022,7 @@ class EnhancedDeviceGuardian {
 
       try {
         await fs.remove(filePath);
-        this.stats.backupFilesRemoved++;
+        await this.updateStats("backup");
         this.log(`✅ 已立即删除备份: ${fileName}`, "success");
 
         // 通知前端更新状态
@@ -1015,6 +1171,9 @@ class EnhancedDeviceGuardian {
       const memoryUsage = process.memoryUsage();
       const memoryUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
 
+      // 使用快速统计数据获取
+      const fastStats = await this.getFastStats();
+
       return {
         isGuarding: this.isGuarding,
         isClientCleaning: this.isClientCleaning,
@@ -1022,12 +1181,15 @@ class EnhancedDeviceGuardian {
         currentDeviceId: currentDeviceId,
         isProtected: currentDeviceId === this.targetDeviceId,
         configExists: exists,
-        stats: this.stats,
+        stats: {
+          interceptedAttempts: fastStats.interceptedAttempts,
+          backupFilesRemoved: fastStats.backupFilesRemoved,
+          protectionRestored: fastStats.protectionRestored,
+          startTime: this.stats.startTime,
+        },
         recentLogs: this.logs.slice(-10),
         watchersCount: this.watchers.size,
-        uptime: this.stats.startTime
-          ? Date.now() - this.stats.startTime.getTime()
-          : 0,
+        uptime: fastStats.uptime,
         memoryUsage: {
           heapUsed: memoryUsage.heapUsed,
           heapTotal: memoryUsage.heapTotal,

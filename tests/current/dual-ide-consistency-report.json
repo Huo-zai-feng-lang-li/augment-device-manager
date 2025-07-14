@@ -1,0 +1,49 @@
+{
+  "timestamp": "2025-07-06T17:30:22.615Z",
+  "consistency": {
+    "intelligent": {
+      "cursor": [
+        "🧪 [DRY RUN] forceCloseCursorIDE() - 执行模拟操作",
+        "🧪 [DRY RUN] cleanDeviceIdentityOnly() - 执行模拟操作",
+        "🧪 [DRY RUN] cleanAugmentDeviceIdentity() - 执行模拟操作",
+        "🧪 [DRY RUN] startCursorIDE() - 执行模拟操作"
+      ],
+      "vscode": [
+        "🔵 智能清理模式 - 处理VS Code设备身份",
+        "🧪 [DRY RUN] performVSCodeIntelligentCleanup() - 执行模拟操作",
+        "🧪 [DRY RUN] startVSCodeIDE() - 执行模拟操作"
+      ]
+    },
+    "standard": {
+      "cursor": [
+        "🧪 [DRY RUN] forceCloseCursorIDE() - 执行模拟操作",
+        "🧪 [DRY RUN] cleanCursorExtensionData() - 执行模拟操作",
+        "🧪 [DRY RUN] startCursorIDE() - 执行模拟操作"
+      ],
+      "vscode": [
+        "🧪 [DRY RUN] performVSCodeCleanup() - 执行模拟操作",
+        "🧪 [DRY RUN] startVSCodeIDE() - 执行模拟操作"
+      ]
+    },
+    "complete": {
+      "cursor": [
+        "🧪 [DRY RUN] forceCloseCursorIDE() - 执行模拟操作",
+        "🧪 [DRY RUN] forceCloseCursorIDE() - 执行模拟操作",
+        "🧪 [DRY RUN] performCompleteCursorReset() - 执行模拟操作",
+        "🧪 [DRY RUN] startCursorIDE() - 执行模拟操作"
+      ],
+      "vscode": [
+        "🧪 [DRY RUN] performCompleteVSCodeReset() - 执行模拟操作",
+        "🧪 [DRY RUN] startVSCodeIDE() - 执行模拟操作"
+      ]
+    }
+  },
+  "summary": {
+    "intelligent_cursor_ops": 4,
+    "intelligent_vscode_ops": 3,
+    "standard_cursor_ops": 3,
+    "standard_vscode_ops": 2,
+    "complete_cursor_ops": 4,
+    "complete_vscode_ops": 2
+  }
+}

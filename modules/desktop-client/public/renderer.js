@@ -1728,31 +1728,125 @@ async function performCleanup() {
     return;
   }
 
+  // 获取清理模式选择
+  const cleanupMode =
+    document.querySelector('input[name="cleanup-mode"]:checked')?.value ??
+    "intelligent";
+
   // 获取IDE选择选项
   const cleanCursor = document.getElementById("clean-cursor")?.checked ?? true;
   const cleanVSCode = document.getElementById("clean-vscode")?.checked ?? false;
 
-  // 获取PowerShell辅助选项
-  const usePowerShellAssist =
-    document.getElementById("use-powershell-assist")?.checked ?? true;
+  // 根据清理模式设置清理选项
+  let cleanupOptions = {};
 
-  // 获取清理选项 - 所有选项默认为true（已隐藏并预选）
-  const preserveActivation =
-    document.getElementById("preserve-activation")?.checked ?? true;
-  const deepClean = document.getElementById("deep-clean")?.checked ?? true;
-  const cleanCursorExtension =
-    document.getElementById("clean-cursor-extension")?.checked ?? true;
-  const autoRestartCursor =
-    document.getElementById("auto-restart-cursor")?.checked ?? true;
-  const skipBackup = document.getElementById("skip-backup")?.checked ?? true; // 默认跳过备份
-  const enableEnhancedGuardian =
-    document.getElementById("enable-enhanced-guardian")?.checked ?? true; // 默认启用增强守护
+  switch (cleanupMode) {
+    case "intelligent":
+      // 智能清理：只清理设备身份，保留所有配置
+      cleanupOptions = {
+        preserveActivation: true,
+        deepClean: false,
+        cleanCursorExtension: false, // 修复：智能模式不清理Cursor扩展
+        autoRestartCursor: false, // 修复：智能模式不重启Cursor
+        autoRestartIDE: true, // 新增：清理后自动重启IDE
+        skipBackup: true,
+        enableEnhancedGuardian: true,
+        skipCursorLogin: true,
+        resetCursorCompletely: false,
+        resetVSCodeCompletely: false,
+        aggressiveMode: false,
+        multiRoundClean: false,
+        extendedMonitoring: false,
+        usePowerShellAssist: false, // 智能模式不使用PowerShell
+        intelligentMode: true,
+        // 移除硬编码的IDE选择，完全由用户UI控制
+      };
+      break;
 
-  // 获取重置选项
-  const resetCursorCompletely =
-    document.getElementById("reset-cursor-completely")?.checked ?? false;
-  const resetVSCodeCompletely =
-    document.getElementById("reset-vscode-completely")?.checked ?? false;
+    case "standard":
+      // 标准清理：清理大部分数据，保留核心配置
+      cleanupOptions = {
+        preserveActivation: true,
+        deepClean: true,
+        cleanCursorExtension: true,
+        autoRestartCursor: true,
+        autoRestartIDE: true, // 新增：清理后自动重启IDE
+        skipBackup: true,
+        enableEnhancedGuardian: true,
+        skipCursorLogin: true,
+        resetCursorCompletely: false,
+        resetVSCodeCompletely: false,
+        aggressiveMode: true,
+        multiRoundClean: true,
+        extendedMonitoring: true,
+        usePowerShellAssist: true, // 标准模式使用PowerShell辅助
+        standardMode: true,
+        // 移除硬编码的IDE选择，完全由用户UI控制
+      };
+      break;
+
+    case "complete":
+      // 完全清理：彻底重置，仅保护MCP配置
+      cleanupOptions = {
+        preserveActivation: true,
+        deepClean: true,
+        cleanCursorExtension: true,
+        autoRestartCursor: true,
+        autoRestartIDE: true, // 新增：清理后自动重启IDE
+        skipBackup: true,
+        enableEnhancedGuardian: true,
+        skipCursorLogin: false,
+        resetCursorCompletely: true,
+        resetVSCodeCompletely: true,
+        aggressiveMode: true,
+        multiRoundClean: true,
+        extendedMonitoring: true,
+        usePowerShellAssist: true, // 完全模式使用PowerShell辅助
+        completeMode: true,
+        // 移除硬编码的IDE选择，完全由用户UI控制
+      };
+      break;
+
+    default:
+      // 默认使用智能清理
+      cleanupOptions = {
+        preserveActivation: true,
+        deepClean: false,
+        cleanCursorExtension: false, // 修复：默认不清理扩展
+        autoRestartCursor: false, // 修复：默认不重启
+        autoRestartIDE: true, // 新增：清理后自动重启IDE
+        skipBackup: true,
+        enableEnhancedGuardian: true,
+        skipCursorLogin: true,
+        resetCursorCompletely: false,
+        resetVSCodeCompletely: false,
+        aggressiveMode: false,
+        multiRoundClean: false,
+        extendedMonitoring: false,
+        usePowerShellAssist: false,
+        intelligentMode: true,
+        // 移除硬编码的IDE选择，完全由用户UI控制
+      };
+  }
+
+  // 自动设置隐藏的UI控件状态
+  document.getElementById("use-powershell-assist").checked =
+    cleanupOptions.usePowerShellAssist;
+  document.getElementById("reset-cursor-completely").checked =
+    cleanupOptions.resetCursorCompletely;
+  document.getElementById("reset-vscode-completely").checked =
+    cleanupOptions.resetVSCodeCompletely;
+
+  // 使用cleanupOptions中的配置（替代从UI获取）
+  const preserveActivation = cleanupOptions.preserveActivation;
+  const deepClean = cleanupOptions.deepClean;
+  const cleanCursorExtension = cleanupOptions.cleanCursorExtension;
+  const autoRestartCursor = cleanupOptions.autoRestartCursor;
+  const skipBackup = cleanupOptions.skipBackup;
+  const enableEnhancedGuardian = cleanupOptions.enableEnhancedGuardian;
+  const resetCursorCompletely = cleanupOptions.resetCursorCompletely;
+  const resetVSCodeCompletely = cleanupOptions.resetVSCodeCompletely;
+  const usePowerShellAssist = cleanupOptions.usePowerShellAssist;
 
   // 清空之前的日志
   const logElement = document.getElementById("cleanup-log");
@@ -1760,7 +1854,14 @@ async function performCleanup() {
     logElement.innerHTML = "";
   }
 
-  addCleanupLog("🚀 启动激进清理模式（98%成功率）...", "info");
+  // 根据清理模式显示不同的日志信息
+  const modeNames = {
+    intelligent: "智能清理模式",
+    standard: "标准清理模式",
+    complete: "完全清理模式",
+  };
+
+  addCleanupLog(`🚀 启动${modeNames[cleanupMode]}...`, "info");
 
   // 备份当前设备ID和激活信息
   let activationBackup = null;
@@ -1793,41 +1894,148 @@ async function performCleanup() {
     addCleanupLog("设备信息备份失败: " + error.message, "error");
   }
 
-  // 显示美化的确认对话框
-  const confirmResult = await ipcRenderer.invoke("show-message-box", {
-    type: "warning",
-    title: "🚀 激进清理模式",
-    message: "🚀 激进清理模式\n\n您即将执行98%成功率的激进清理操作",
-    detail: `
-🔥 激进清理模式特性：
+  // 根据清理模式生成不同的确认对话框
+  let dialogConfig = {};
+
+  switch (cleanupMode) {
+    case "intelligent":
+      dialogConfig = {
+        type: "info",
+        title: "🧠 智能清理模式",
+        message: "🧠 智能清理模式\n\n您即将执行安全的智能清理操作",
+        detail: `
+🧠 智能清理特性：
+
+🎯 精准清理
+  • 仅清理设备身份相关数据
+  • 保留所有用户配置和设置
+  • 保留IDE登录状态和偏好
+  • 保护MCP配置和工作环境
+
+🛡️ 安全保障
+  • 无风险操作，不影响日常使用
+  • 自动备份重要数据
+  • 保留所有个人设置
+  • 适合日常重置使用
+
+✨ 清理效果
+  • Augment扩展识别为新设备
+  • 重置设备指纹和标识
+  • 需要重新激活设备
+  • IDE功能完全不受影响
+
+🎯 推荐指数：⭐⭐⭐⭐⭐
+确定要继续吗？`,
+        buttons: ["🧠 确定清理", "❌ 取消操作"],
+      };
+      break;
+
+    case "standard":
+      dialogConfig = {
+        type: "warning",
+        title: "🔧 标准清理模式",
+        message: "🔧 标准清理模式\n\n您即将执行标准深度清理操作",
+        detail: `
+🔧 标准清理特性：
 
 📁 深度数据清理
-  • 清理所有 Augment 扩展相关数据
-  • 强制更新 telemetry.devDeviceId（最关键）
-  • 多轮清理确保顽固数据被清除
-  • 实时监控防止数据恢复（60秒）
+  • 清理大部分IDE数据和缓存
+  • 保留核心配置和MCP设置
+  • 多轮清理确保彻底性
+  • 实时监控防止数据恢复
 
 🔧 系统级重置
   • 重置设备指纹和唯一标识
-  • 清理缓存和临时文件
-  • 清理注册表相关项（Windows）
+  • 清理扩展数据和工作区
+  • 清理注册表相关项
   • 保留Cursor IDE登录状态
 
-✨ 清理效果（98%成功率）
-  • Augment扩展将完全识别为新设备
-  • 所有使用记录将被重置
-  • telemetry.devDeviceId强制更新
-  • 需要重新激活设备才能使用
+✨ 清理效果
+  • Augment扩展完全识别为新设备
+  • 部分IDE设置需要重新配置
+  • 需要重新激活设备
+  • 更高的清理成功率
 
-⚠️  重要提醒
-此操作不可撤销！清理后您需要：
-1. 重新激活设备
-2. 重新配置相关设置
-3. Cursor IDE功能不受影响
+⚠️ 注意事项
+  • 需要重新配置部分IDE设置
+  • 扩展可能需要重新配置
+  • 工作区设置可能丢失
 
-🎯 成功率：98%以上
+🎯 成功率：95%以上
 确定要继续吗？`,
-    buttons: ["🚀 确定清理", "❌ 取消操作"],
+        buttons: ["🔧 确定清理", "❌ 取消操作"],
+      };
+      break;
+
+    case "complete":
+      dialogConfig = {
+        type: "error",
+        title: "💥 完全清理模式",
+        message: "💥 完全清理模式\n\n您即将执行彻底的完全重置操作",
+        detail: `
+💥 完全清理特性：
+
+🗑️ 彻底重置
+  • 删除几乎所有IDE数据
+  • 回到全新安装状态
+  • 仅保护MCP配置文件
+  • 最高级别的清理深度
+
+🔥 系统级重置
+  • 完全重置Cursor和VS Code
+  • 清理所有用户数据和设置
+  • 重置所有身份标识
+  • 清理所有缓存和临时文件
+
+✨ 清理效果
+  • IDE完全回到初始状态
+  • 需要重新登录所有服务
+  • 需要重新配置所有设置
+  • 最高的清理成功率
+
+⚠️ 重要警告
+此操作不可撤销！清理后您需要：
+1. 重新登录Cursor IDE
+2. 重新配置所有IDE设置
+3. 重新安装和配置扩展
+4. 重新激活设备
+
+🎯 成功率：99%以上
+确定要继续吗？`,
+        buttons: ["💥 确定清理", "❌ 取消操作"],
+      };
+      break;
+
+    default:
+      // 默认使用智能清理的对话框
+      dialogConfig = {
+        type: "info",
+        title: "🧠 智能清理模式",
+        message: "🧠 智能清理模式\n\n您即将执行安全的智能清理操作",
+        detail: `
+🧠 智能清理特性：
+
+🎯 精准清理
+  • 仅清理设备身份相关数据
+  • 保留所有用户配置和设置
+  • 保留IDE登录状态和偏好
+  • 保护MCP配置和工作环境
+
+✨ 清理效果
+  • Augment扩展识别为新设备
+  • 重置设备指纹和标识
+  • 需要重新激活设备
+  • IDE功能完全不受影响
+
+🎯 推荐指数：⭐⭐⭐⭐⭐
+确定要继续吗？`,
+        buttons: ["🧠 确定清理", "❌ 取消操作"],
+      };
+  }
+
+  // 显示确认对话框
+  const confirmResult = await ipcRenderer.invoke("show-message-box", {
+    ...dialogConfig,
     defaultId: 1,
     cancelId: 1,
     noLink: true,
@@ -1871,33 +2079,38 @@ async function performCleanup() {
     `;
 
     console.log("正在调用设备清理功能...");
-    addCleanupLog("🔥 执行激进清理操作（多轮+实时监控）...", "info");
+
+    // 根据清理模式显示不同的日志信息
+    switch (cleanupMode) {
+      case "intelligent":
+        addCleanupLog("🧠 执行智能清理操作（精准清理设备身份）...", "info");
+        break;
+      case "standard":
+        addCleanupLog("🔧 执行标准清理操作（深度清理保留核心配置）...", "info");
+        break;
+      case "complete":
+        addCleanupLog("💥 执行完全清理操作（彻底重置仅保护MCP）...", "info");
+        break;
+      default:
+        addCleanupLog("🔥 执行清理操作...", "info");
+    }
 
     const result = await ipcRenderer.invoke("perform-device-cleanup", {
-      // IDE选择选项
-      cleanCursor,
-      cleanVSCode,
+      // 使用清理模式配置的所有参数（避免硬编码覆盖）
+      ...cleanupOptions,
 
-      // PowerShell辅助选项
-      usePowerShellAssist,
+      // IDE选择选项（用户选择优先，覆盖清理模式的默认设置）
+      cleanCursor: cleanCursor, // 直接使用用户选择
+      cleanVSCode: cleanVSCode, // 直接使用用户选择
 
-      // 传统清理选项
-      preserveActivation,
-      deepClean,
-      cleanCursorExtension,
-      autoRestartCursor,
-      skipBackup, // 跳过备份文件创建
-      enableEnhancedGuardian, // 启用增强守护进程
+      // PowerShell辅助选项（从清理模式配置获取）
+      usePowerShellAssist:
+        cleanupOptions.usePowerShellAssist ?? usePowerShellAssist,
 
-      // 重置选项
-      skipCursorLogin: !resetCursorCompletely, // 根据用户选择决定是否跳过Cursor IDE登录清理
-      resetCursorCompletely, // 完全重置Cursor IDE选项
-      resetVSCodeCompletely, // 完全重置VS Code选项
-
-      // 启用98%成功率的激进清理模式
-      aggressiveMode: true, // 激进模式
-      multiRoundClean: true, // 多轮清理
-      extendedMonitoring: true, // 延长监控时间(60秒)
+      // 重置选项（保持原有逻辑）
+      skipCursorLogin: !resetCursorCompletely,
+      resetCursorCompletely,
+      resetVSCodeCompletely,
     });
     console.log("设备清理结果:", result);
 
@@ -3300,7 +3513,7 @@ function updateGuardianStatusDisplay(status) {
       window.updateGuardianStatusPanel(status);
     }
 
-    // 更新统计数据
+    // 更新统计数据（性能优化）
     let stats = {
       interceptedAttempts: 0,
       backupFilesRemoved: 0,
@@ -3310,9 +3523,21 @@ function updateGuardianStatusDisplay(status) {
     if (
       status.standalone &&
       status.standalone.isRunning &&
+      status.standalone.fastStats
+    ) {
+      // 独立服务模式 - 优先使用快速统计数据
+      stats = {
+        interceptedAttempts:
+          status.standalone.fastStats.interceptedAttempts || 0,
+        backupFilesRemoved: status.standalone.fastStats.backupFilesRemoved || 0,
+        protectionRestored: status.standalone.fastStats.protectionRestored || 0,
+      };
+    } else if (
+      status.standalone &&
+      status.standalone.isRunning &&
       status.standalone.config
     ) {
-      // 独立服务模式 - 从日志中解析统计
+      // 独立服务模式 - 回退到日志解析（向后兼容）
       stats = parseStatsFromLogs(status.standalone.recentLogs || []);
     } else if (status.inProcess && status.inProcess.stats) {
       // 内置进程模式 - 直接使用统计
@@ -3371,10 +3596,14 @@ function updateGuardianPerformanceInfo(status) {
   let uptime = 0;
   let memoryUsed = 0;
 
-  // 获取运行时间和内存使用情况
+  // 获取运行时间和内存使用情况（性能优化）
   if (status.standalone && status.standalone.isRunning) {
-    // 独立服务模式
-    uptime = status.standalone.uptime || 0;
+    // 独立服务模式 - 优先使用快速统计数据
+    if (status.standalone.fastStats) {
+      uptime = status.standalone.fastStats.uptime || 0;
+    } else {
+      uptime = status.standalone.uptime || 0;
+    }
     memoryUsed = status.standalone.memoryUsage?.usedMB || 0;
   } else if (status.inProcess && status.inProcess.isGuarding) {
     // 内置进程模式

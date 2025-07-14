@@ -1,0 +1,142 @@
+{
+  "timestamp": "2025-07-07T01:46:35.512Z",
+  "report": {
+    "pathComparison": {
+      "cursor": {
+        "types": [
+          "extensions",
+          "globalStorage",
+          "augmentExtension",
+          "augmentStorage",
+          "stateDb",
+          "settingsJson"
+        ],
+        "count": 6
+      },
+      "vscode": {
+        "types": [
+          "globalStorage",
+          "extensions",
+          "stateDb",
+          "augmentStorage",
+          "workspaceStorage",
+          "storageJson",
+          "settingsJson"
+        ],
+        "count": 21
+      },
+      "commonTypes": [
+        "extensions",
+        "globalStorage",
+        "augmentStorage",
+        "stateDb",
+        "settingsJson"
+      ],
+      "structureMatch": false
+    },
+    "stepComparison": {},
+    "protectionComparison": {},
+    "modeComparison": {
+      "智能清理模式": {
+        "cursorOps": 0,
+        "vscodeOps": 0,
+        "commonOps": 3,
+        "totalOps": 0,
+        "cursorProtections": 0,
+        "vscodeProtections": 0,
+        "commonProtections": 0,
+        "operationBalance": true,
+        "protectionBalance": true,
+        "consistencyScore": 100,
+        "success": true
+      },
+      "标准清理模式": {
+        "cursorOps": 0,
+        "vscodeOps": 0,
+        "commonOps": 3,
+        "totalOps": 0,
+        "cursorProtections": 0,
+        "vscodeProtections": 0,
+        "commonProtections": 0,
+        "operationBalance": true,
+        "protectionBalance": true,
+        "consistencyScore": 100,
+        "success": true
+      },
+      "完全清理模式": {
+        "cursorOps": 0,
+        "vscodeOps": 0,
+        "commonOps": 3,
+        "totalOps": 0,
+        "cursorProtections": 0,
+        "vscodeProtections": 0,
+        "commonProtections": 0,
+        "operationBalance": true,
+        "protectionBalance": true,
+        "consistencyScore": 100,
+        "success": true
+      }
+    },
+    "consistencyScore": {
+      "pathConsistency": 75,
+      "averageModeScore": 100,
+      "errorCount": 0,
+      "errorPenalty": 0,
+      "finalScore": 87.5,
+      "grade": "A"
+    }
+  },
+  "operations": {
+    "cursor": {
+      "paths": [
+        "C:\\Users\\Administrator\\.cursor\\extensions",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Cursor\\User\\globalStorage",
+        "C:\\Users\\Administrator\\.cursor\\extensions\\augment.vscode-augment-*",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Cursor\\User\\globalStorage\\augment.vscode-augment",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Cursor\\User\\globalStorage\\state.vscdb",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Cursor\\User\\settings.json"
+      ],
+      "steps": [],
+      "protections": [],
+      "errors": []
+    },
+    "vscode": {
+      "paths": [
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code\\User\\globalStorage",
+        "C:\\Users\\Administrator\\.vscode\\extensions",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code\\User\\globalStorage\\state.vscdb",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code\\User\\globalStorage\\augment.vscode-augment",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code\\User\\workspaceStorage",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code\\User\\globalStorage\\storage.json",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code\\User\\settings.json",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code - Insiders\\User\\globalStorage",
+        "C:\\Users\\Administrator\\.vscode-insiders\\extensions",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code - Insiders\\User\\globalStorage\\state.vscdb",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code - Insiders\\User\\globalStorage\\augment.vscode-augment",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code - Insiders\\User\\workspaceStorage",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code - Insiders\\User\\globalStorage\\storage.json",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code - Insiders\\User\\settings.json",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code - OSS\\User\\globalStorage",
+        "C:\\Users\\Administrator\\.vscode-oss\\extensions",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code - OSS\\User\\globalStorage\\state.vscdb",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code - OSS\\User\\globalStorage\\augment.vscode-augment",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code - OSS\\User\\workspaceStorage",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code - OSS\\User\\globalStorage\\storage.json",
+        "C:\\Users\\Administrator\\AppData\\Roaming\\Code - OSS\\User\\settings.json"
+      ],
+      "steps": [],
+      "protections": [],
+      "errors": []
+    },
+    "common": {
+      "paths": [],
+      "steps": [
+        "closeIDEsBeforeCleanup",
+        "stopEnhancedProtectionBeforeCleanup",
+        "performCompleteModeCleanup"
+      ],
+      "protections": [],
+      "errors": []
+    }
+  }
+}
