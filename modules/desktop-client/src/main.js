@@ -70,6 +70,120 @@ function getSharedPath(relativePath) {
   }
 }
 
+/**
+ * 确保所有防护进程都停止
+ * 在客户端启动和关闭时调用
+ */
+async function ensureAllGuardianProcessesStopped() {
+  try {
+    console.log("🔍 检查防护进程状态...");
+
+    // 如果设备管理器已初始化，使用它来停止防护
+    if (deviceManager) {
+      try {
+        const results = { actions: [], errors: [] };
+
+        // 停止内置守护进程
+        await deviceManager.stopEnhancedGuardian(results);
+
+        // 停止独立守护服务
+        await deviceManager.stopStandaloneService(results);
+
+        console.log("✅ 通过设备管理器停止防护完成");
+        if (results.actions.length > 0) {
+          console.log("停止操作:", results.actions.join(", "));
+        }
+        if (results.errors.length > 0) {
+          console.warn("停止错误:", results.errors.join(", "));
+        }
+      } catch (error) {
+        console.warn("通过设备管理器停止防护失败:", error.message);
+      }
+    }
+
+    // 强制停止所有Node.js守护进程
+    await forceStopAllGuardianProcesses();
+  } catch (error) {
+    console.error("确保防护进程停止失败:", error);
+  }
+}
+
+/**
+ * 强制停止所有守护进程
+ */
+async function forceStopAllGuardianProcesses() {
+  try {
+    const { exec } = require("child_process");
+    const { promisify } = require("util");
+    const execAsync = promisify(exec);
+
+    console.log("🔍 扫描并强制停止所有守护进程...");
+
+    if (process.platform === "win32") {
+      // Windows系统 - 查找并终止守护进程
+      try {
+        // 获取所有Node.js进程的详细信息
+        const { stdout } = await execAsync(
+          "wmic process where \"name='node.exe'\" get processid,commandline"
+        );
+        const lines = stdout.split("\n");
+        const guardianProcesses = [];
+
+        for (const line of lines) {
+          if (
+            line.includes("guardian-service-worker.js") ||
+            line.includes("enhanced-device-guardian") ||
+            line.includes("device-id-guardian") ||
+            line.includes("standalone-guardian-service")
+          ) {
+            // 提取PID - 改进的正则表达式
+            const pidMatch = line.trim().match(/\s+(\d+)\s*$/);
+            if (pidMatch) {
+              guardianProcesses.push(pidMatch[1]);
+              console.log(`发现守护进程 PID: ${pidMatch[1]}`);
+            }
+          }
+        }
+
+        if (guardianProcesses.length > 0) {
+          console.log(
+            `🎯 发现 ${guardianProcesses.length} 个守护进程，正在终止...`
+          );
+
+          for (const pid of guardianProcesses) {
+            try {
+              await execAsync(`taskkill /F /PID ${pid}`);
+              console.log(`✅ 已终止守护进程 PID: ${pid}`);
+            } catch (error) {
+              console.log(`⚠️ 终止进程 ${pid} 失败: ${error.message}`);
+            }
+          }
+        } else {
+          console.log("✅ 未发现运行中的守护进程");
+        }
+      } catch (error) {
+        console.warn("扫描守护进程失败:", error.message);
+      }
+    } else {
+      // Unix/Linux/macOS系统
+      try {
+        await execAsync(
+          "pkill -f 'guardian-service-worker\\|enhanced-device-guardian\\|device-id-guardian\\|standalone-guardian-service'"
+        );
+        console.log("✅ 已终止所有守护进程");
+      } catch (error) {
+        if (error.code === 1) {
+          console.log("✅ 未发现运行中的守护进程");
+        } else {
+          console.warn("终止守护进程失败:", error.message);
+        }
+      }
+    }
+  } catch (error) {
+    console.error("强制停止守护进程失败:", error);
+  }
+}
+
 // 导入共享模块
 const {
   generateDeviceFingerprint,
@@ -180,9 +294,39 @@ app.whenReady().then(() => {
 });
 
 // 所有窗口关闭时退出应用
-app.on("window-all-closed", () => {
+app.on("window-all-closed", async () => {
+  try {
+    // 🛑 关闭客户端时确保所有防护进程都被关闭
+    console.log("🛑 关闭客户端时停止所有防护进程...");
+    await ensureAllGuardianProcessesStopped();
+  } catch (error) {
+    console.error("停止防护进程失败:", error);
+  }
+
   if (process.platform !== "darwin") {
     app.quit();
+  }
+});
+
+// 应用退出前的清理
+app.on("before-quit", async (event) => {
+  try {
+    console.log("🛑 应用退出前清理...");
+
+    // 阻止默认退出，先进行清理
+    event.preventDefault();
+
+    // 确保所有防护进程都停止
+    await ensureAllGuardianProcessesStopped();
+
+    console.log("✅ 清理完成，退出应用");
+
+    // 现在可以安全退出
+    app.exit(0);
+  } catch (error) {
+    console.error("退出前清理失败:", error);
+    // 即使清理失败也要退出
+    app.exit(1);
   }
 });
 
@@ -191,6 +335,10 @@ async function initializeApp() {
   try {
     // 确保配置目录存在
     await fs.ensureDir(APP_CONFIG.configPath);
+
+    // 🛑 启动时确保所有防护进程都停止
+    console.log("🛑 启动时检查并停止所有防护进程...");
+    await ensureAllGuardianProcessesStopped();
 
     // 尝试自动发现服务器（如果当前配置无法连接）
     await attemptServerDiscovery();

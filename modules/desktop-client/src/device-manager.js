@@ -2146,16 +2146,18 @@ class DeviceManager {
   async cleanAugmentSessionsFromDatabase(results, options = {}) {
     try {
       // 支持自定义数据库路径（用于VSCode）
-      const stateDbPath = options.dbPath || path.join(
-        os.homedir(),
-        "AppData",
-        "Roaming",
-        "Cursor",
-        "User",
-        "globalStorage",
-        "state.vscdb"
-      );
-      
+      const stateDbPath =
+        options.dbPath ||
+        path.join(
+          os.homedir(),
+          "AppData",
+          "Roaming",
+          "Cursor",
+          "User",
+          "globalStorage",
+          "state.vscdb"
+        );
+
       const ideName = options.ideName || "Cursor";
 
       if (!(await fs.pathExists(stateDbPath))) {
@@ -2249,7 +2251,9 @@ class DeviceManager {
         results.actions.push(`⚠️ ${ideName}数据库会话清理跳过（sql.js不可用）`);
       }
     } catch (error) {
-      results.errors.push(`清理${ideName} Augment数据库会话失败: ${error.message}`);
+      results.errors.push(
+        `清理${ideName} Augment数据库会话失败: ${error.message}`
+      );
     }
   }
 
@@ -2716,13 +2720,13 @@ class DeviceManager {
       if (needStartGuardian && options.enableEnhancedGuardian !== false) {
         results.actions.push("⏳ 等待3秒后启动增强防护...");
         await new Promise((resolve) => setTimeout(resolve, 3000));
-        
+
         // 传递必要的选项，确保增强防护使用正确的IDE设备ID
         const guardianOptions = {
           ...options,
           selectedIDE: options.cleanVSCode ? "vscode" : "cursor", // 确保selectedIDE正确设置
         };
-        
+
         await this.startEnhancedGuardian(results, guardianOptions);
       }
     } catch (error) {
@@ -3683,7 +3687,7 @@ class DeviceManager {
 
         // 在清理前先关闭VS Code
         await this.forceCloseVSCodeIDE(results);
-        
+
         // 等待VS Code完全关闭
         await new Promise((resolve) => setTimeout(resolve, 3000));
 
@@ -4537,7 +4541,7 @@ class DeviceManager {
         variant.globalStorage,
         "augment.vscode-augment"
       );
-      
+
       await this.cleanAugmentIdentityFiles(
         results,
         vscodeAugmentStoragePath,
@@ -4550,7 +4554,7 @@ class DeviceManager {
           skipCursorLogin: true, // 保留登录状态
           intelligentMode: true, // 智能模式标记
           dbPath: variant.stateDb, // 指定VSCode的数据库路径
-          ideName: `VS Code ${variant.name}`
+          ideName: `VS Code ${variant.name}`,
         });
       }
 
@@ -5473,7 +5477,7 @@ class DeviceManager {
     try {
       // 生成新的设备ID作为目标ID - 使用IDE特定的稳定ID
       let newDeviceId;
-      
+
       // 根据选择的IDE生成对应的稳定设备ID
       if (options.selectedIDE === "vscode" || options.cleanVSCode) {
         // 为VSCode生成稳定的设备ID
@@ -5626,11 +5630,20 @@ class DeviceManager {
         return canStart;
       }
 
-      // 获取当前设备ID
-      const deviceId = await this.getCurrentDeviceId();
+      // 获取设备ID - 优先使用传入的目标设备ID
+      let deviceId = options.targetDeviceId;
       if (!deviceId) {
-        return { success: false, message: "无法获取设备ID" };
+        deviceId = await this.getCurrentDeviceId();
+        if (!deviceId) {
+          return { success: false, message: "无法获取设备ID" };
+        }
       }
+
+      console.log(
+        `🎯 使用设备ID: ${deviceId} (来源: ${
+          options.targetDeviceId ? "传入参数" : "当前设备"
+        })`
+      );
 
       // 优先尝试启动独立服务
       console.log("🚀 尝试启动独立守护服务...");
@@ -5763,6 +5776,21 @@ class DeviceManager {
         }
       }
 
+      // 从独立服务配置中获取selectedIDE和targetDeviceId
+      let selectedIDE = null;
+      let targetDeviceId = null;
+
+      if (
+        enhancedStandaloneStatus.isRunning &&
+        enhancedStandaloneStatus.config
+      ) {
+        selectedIDE = enhancedStandaloneStatus.config.options?.selectedIDE;
+        targetDeviceId = enhancedStandaloneStatus.config.deviceId;
+      } else if (inProcessStatus.isGuarding) {
+        selectedIDE = this.enhancedGuardian.selectedIDE;
+        targetDeviceId = inProcessStatus.targetDeviceId;
+      }
+
       const isActuallyGuarding =
         inProcessStatus.isGuarding || enhancedStandaloneStatus.isRunning;
       const currentMode = enhancedStandaloneStatus.isRunning
@@ -5780,6 +5808,8 @@ class DeviceManager {
         standalone: enhancedStandaloneStatus,
         isGuarding: isActuallyGuarding,
         mode: currentMode,
+        selectedIDE: selectedIDE,
+        targetDeviceId: targetDeviceId,
         timestamp: new Date().toISOString(),
         detectionDetails: {
           inProcessGuarding: inProcessStatus.isGuarding,

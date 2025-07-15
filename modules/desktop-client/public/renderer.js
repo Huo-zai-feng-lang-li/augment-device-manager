@@ -983,16 +983,18 @@ function updateDeviceIdDisplay(deviceIdInfo) {
   const isVSCode = selectedIDE === "vscode";
 
   // 更新IDE遥测标识符区域的标题
-  const telemetryTitle = document.getElementById('ide-telemetry-title');
+  const telemetryTitle = document.getElementById("ide-telemetry-title");
   if (telemetryTitle) {
-    telemetryTitle.textContent = isVSCode ? 'VS Code IDE 遥测标识符' : 'Cursor IDE 遥测标识符';
+    telemetryTitle.textContent = isVSCode
+      ? "VS Code IDE 遥测标识符"
+      : "Cursor IDE 遥测标识符";
   }
 
   // 更新tooltip内容
-  const telemetryTooltip = document.getElementById('ide-telemetry-tooltip');
+  const telemetryTooltip = document.getElementById("ide-telemetry-tooltip");
   if (telemetryTooltip) {
-    const tooltipContent = isVSCode ? 
-      `📁 数据来源
+    const tooltipContent = isVSCode
+      ? `📁 数据来源
 直接从 VS Code IDE 配置文件读取
 
 📍 存储位置
@@ -1007,8 +1009,8 @@ C:\\Users\\[用户名]\\AppData\\Roaming\\Code\\User\\globalStorage\\storage.jso
 
 🧹 清理效果
 重写 storage.json 文件，生成全新的遥测标识符
-让 VS Code IDE 认为是新设备` :
-      `📁 数据来源
+让 VS Code IDE 认为是新设备`
+      : `📁 数据来源
 直接从 Cursor IDE 配置文件读取
 
 📍 存储位置
@@ -1024,8 +1026,8 @@ C:\\Users\\[用户名]\\AppData\\Roaming\\Cursor\\User\\globalStorage\\storage.j
 🧹 清理效果
 重写 storage.json 文件，生成全新的遥测标识符
 让 Cursor IDE 认为是新设备`;
-    
-    telemetryTooltip.setAttribute('data-tooltip', tooltipContent);
+
+    telemetryTooltip.setAttribute("data-tooltip", tooltipContent);
   }
 
   // 更新Cursor遥测ID（或VSCode遥测ID）
@@ -4146,9 +4148,44 @@ async function startGuardianService() {
       return;
     }
 
-    // 启动服务
+    // 获取当前选择的IDE
+    const selectedIDE = getCurrentSelectedIDE();
+    console.log(`🎯 启动防护 - 选择的IDE: ${selectedIDE}`);
+
+    // 获取设备ID详情以确定目标设备ID
+    const deviceIdDetails = await ipcRenderer.invoke("get-device-id-details");
+    let targetDeviceId = null;
+
+    if (deviceIdDetails.success) {
+      if (
+        selectedIDE === "vscode" &&
+        deviceIdDetails.vscodeTelemetry?.devDeviceId
+      ) {
+        targetDeviceId = deviceIdDetails.vscodeTelemetry.devDeviceId;
+      } else if (
+        selectedIDE === "cursor" &&
+        deviceIdDetails.cursorTelemetry?.devDeviceId
+      ) {
+        targetDeviceId = deviceIdDetails.cursorTelemetry.devDeviceId;
+      } else {
+        // 如果没有对应IDE的遥测ID，则使用设备指纹作为备用
+        const deviceInfo = await ipcRenderer.invoke("get-device-info");
+        targetDeviceId = deviceInfo.deviceId;
+      }
+    }
+
+    console.log(`🎯 启动防护 - 目标设备ID: ${targetDeviceId}`);
+
+    // 启动服务（传递正确的参数）
     const result = await ipcRenderer.invoke(
-      "start-enhanced-guardian-independent"
+      "start-enhanced-guardian-independent",
+      {
+        selectedIDE: selectedIDE,
+        targetDeviceId: targetDeviceId,
+        enableBackupMonitoring: true,
+        enableDatabaseMonitoring: true,
+        enableEnhancedProtection: true,
+      }
     );
     if (result.success) {
       showAlert("增强防护服务已启动", "success");
