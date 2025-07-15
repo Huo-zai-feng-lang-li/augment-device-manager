@@ -17,37 +17,46 @@ class StableDeviceId {
   /**
    * 生成稳定的设备指纹
    * 优先从缓存读取，确保设备ID的稳定性
+   * @param {string} ideType - IDE类型 ('cursor', 'vscode', 或 null 为通用)
    */
-  async generateStableDeviceId() {
+  async generateStableDeviceId(ideType = null) {
     try {
+      // 根据IDE类型确定缓存文件路径
+      const cacheFile = ideType
+        ? this.getIDESpecificCacheFile(ideType)
+        : this.cacheFile;
+      const backupFile = ideType
+        ? this.getIDESpecificBackupFile(ideType)
+        : this.backupFile;
+
       // 1. 尝试从主缓存文件读取
-      const cachedId = await this.readFromCache(this.cacheFile);
+      const cachedId = await this.readFromCache(cacheFile);
       if (cachedId) {
         // 同时更新备份文件
-        await this.writeToCache(this.backupFile, cachedId);
+        await this.writeToCache(backupFile, cachedId);
         return cachedId;
       }
 
       // 2. 尝试从备份文件读取
-      const backupId = await this.readFromCache(this.backupFile);
+      const backupId = await this.readFromCache(backupFile);
       if (backupId) {
         // 恢复主缓存文件
-        await this.writeToCache(this.cacheFile, backupId);
+        await this.writeToCache(cacheFile, backupId);
         return backupId;
       }
 
-      // 3. 生成新的设备ID
-      const newId = await this.generateNewDeviceId();
+      // 3. 生成新的设备ID（根据IDE类型）
+      const newId = await this.generateNewDeviceId(ideType);
 
       // 4. 同时保存到主缓存和备份文件
-      await this.writeToCache(this.cacheFile, newId);
-      await this.writeToCache(this.backupFile, newId);
+      await this.writeToCache(cacheFile, newId);
+      await this.writeToCache(backupFile, newId);
 
       return newId;
     } catch (error) {
       console.error("生成稳定设备ID失败:", error);
       // 降级到基础设备指纹生成
-      return this.generateBasicDeviceId();
+      return this.generateBasicDeviceId(ideType);
     }
   }
 
@@ -86,8 +95,9 @@ class StableDeviceId {
 
   /**
    * 生成新的设备ID（基于稳定的硬件信息）
+   * @param {string} ideType - IDE类型 ('cursor', 'vscode', 或 null 为通用)
    */
-  async generateNewDeviceId() {
+  async generateNewDeviceId(ideType = null) {
     const deviceInfo = {
       platform: os.platform(),
       arch: os.arch(),
@@ -101,6 +111,9 @@ class StableDeviceId {
       homedir: os.homedir(),
       // 添加网络接口信息（相对稳定）
       networkInterfaces: this.getStableNetworkInfo(),
+      // 根据IDE类型添加特定标识符，确保不同IDE有不同的设备ID
+      ideType: ideType || "generic",
+      ideSpecific: ideType ? `${ideType}-device-id` : "generic-device-id",
     };
 
     // 生成哈希
@@ -141,14 +154,18 @@ class StableDeviceId {
 
   /**
    * 生成基础设备ID（降级方案）
+   * @param {string} ideType - IDE类型 ('cursor', 'vscode', 或 null 为通用)
    */
-  generateBasicDeviceId() {
+  generateBasicDeviceId(ideType = null) {
     const basicInfo = {
       platform: os.platform(),
       arch: os.arch(),
       hostname: os.hostname(),
       username: os.userInfo().username,
       totalmem: os.totalmem(),
+      // 根据IDE类型添加特定标识符
+      ideType: ideType || "generic",
+      ideSpecific: ideType ? `${ideType}-basic-id` : "generic-basic-id",
     };
 
     return crypto
@@ -176,118 +193,94 @@ class StableDeviceId {
   }
 
   /**
-   * 强制生成新的设备ID（激进模式专用）
-   * 清理所有缓存并生成全新的设备ID，包含随机元素确保每次都不同
+   * 强制生成新的设备ID（用于清理模式）
+   * 清理所有缓存并生成新的设备ID
    */
-  async forceGenerateNewDeviceId() {
+  async forceGenerateNewDeviceId(ideType = null) {
     try {
-      // 1. 清理所有缓存
-      await this.clearCache();
+      // 1. 清理所有相关缓存
+      if (ideType) {
+        // 清理特定IDE的缓存
+        const cacheFile = this.getIDESpecificCacheFile(ideType);
+        const backupFile = this.getIDESpecificBackupFile(ideType);
+        
+        if (fs.existsSync(cacheFile)) {
+          fs.unlinkSync(cacheFile);
+        }
+        if (fs.existsSync(backupFile)) {
+          fs.unlinkSync(backupFile);
+        }
+      } else {
+        // 清理通用缓存
+        await this.clearCache();
+      }
 
-      // 2. 生成包含随机元素的新设备ID（激进模式专用）
-      const deviceInfo = {
-        platform: os.platform(),
-        arch: os.arch(),
-        hostname: os.hostname(),
-        cpus: os
-          .cpus()
-          .map((cpu) => cpu.model)
-          .join(""),
-        totalmem: os.totalmem(),
-        username: os.userInfo().username,
-        homedir: os.homedir(),
-        networkInterfaces: this.getStableNetworkInfo(),
-        // 激进模式：添加随机元素确保设备ID变化
-        randomSeed: crypto.randomBytes(32).toString("hex"),
-        timestamp: Date.now(),
-        aggressiveMode: true,
-        forceGenerated: crypto.randomUUID(),
-      };
-
-      // 生成新的哈希
-      const newId = crypto
-        .createHash("sha256")
-        .update(JSON.stringify(deviceInfo))
-        .digest("hex");
+      // 2. 生成新的设备ID（不包含随机元素，基于硬件信息）
+      const newId = await this.generateNewDeviceId(ideType);
 
       // 3. 保存到缓存
-      await this.writeToCache(this.cacheFile, newId);
-      await this.writeToCache(this.backupFile, newId);
+      if (ideType) {
+        const cacheFile = this.getIDESpecificCacheFile(ideType);
+        const backupFile = this.getIDESpecificBackupFile(ideType);
+        await this.writeToCache(cacheFile, newId);
+        await this.writeToCache(backupFile, newId);
+      } else {
+        await this.writeToCache(this.cacheFile, newId);
+        await this.writeToCache(this.backupFile, newId);
+      }
 
       return newId;
     } catch (error) {
       console.error("强制生成新设备ID失败:", error);
       // 降级到基础设备指纹生成
-      return this.generateBasicDeviceId();
+      return this.generateBasicDeviceId(ideType);
     }
   }
 
   /**
-   * 生成Cursor IDE专用的设备ID（包含随机元素）
-   * 用于让Cursor IDE扩展认为是新设备
+   * 生成Cursor IDE专用的设备ID（稳定版本）
+   * 用于让Cursor IDE扩展认为是新设备，但保持稳定性
    */
   async generateCursorDeviceId() {
-    const crypto = require("crypto");
-    const os = require("os");
-
-    // 为Cursor IDE生成包含随机元素的设备信息
-    const cursorDeviceInfo = {
-      platform: os.platform(),
-      arch: os.arch(),
-      hostname: os.hostname(),
-      cpus: os
-        .cpus()
-        .map((cpu) => cpu.model)
-        .join(""),
-      totalmem: os.totalmem(),
-      username: os.userInfo().username,
-      // 添加随机元素，确保每次清理后Cursor IDE认为是新设备
-      randomSeed: crypto.randomBytes(16).toString("hex"),
-      timestamp: Date.now(),
-      cursorSpecific: crypto.randomBytes(8).toString("hex"),
-    };
-
-    return crypto
-      .createHash("sha256")
-      .update(JSON.stringify(cursorDeviceInfo))
-      .digest("hex");
+    // 使用与generateStableDeviceId相同的逻辑，但指定IDE类型为cursor
+    return await this.generateStableDeviceId("cursor");
   }
 
   /**
-   * 生成VS Code专用的设备ID（包含随机元素）
-   * 用于让VS Code扩展认为是新设备
+   * 生成VS Code专用的设备ID（稳定版本）
+   * 用于让VS Code扩展认为是新设备，但保持稳定性
    */
   async generateVSCodeDeviceId() {
-    const crypto = require("crypto");
-    const os = require("os");
+    // 使用与generateStableDeviceId相同的逻辑，但指定IDE类型为vscode
+    return await this.generateStableDeviceId("vscode");
+  }
 
-    // 为VS Code生成包含随机元素的设备信息
-    const vscodeDeviceInfo = {
-      platform: os.platform(),
-      arch: os.arch(),
-      hostname: os.hostname(),
-      cpus: os
-        .cpus()
-        .map((cpu) => cpu.model)
-        .join(""),
-      totalmem: os.totalmem(),
-      username: os.userInfo().username,
-      // 添加VS Code专用随机元素，确保每次清理后VS Code认为是新设备
-      randomSeed: crypto.randomBytes(16).toString("hex"),
-      timestamp: Date.now(),
-      vscodeSpecific: crypto.randomBytes(8).toString("hex"),
-    };
+  /**
+   * 获取IDE特定的缓存文件路径
+   * @param {string} ideType - IDE类型 ('cursor', 'vscode')
+   */
+  getIDESpecificCacheFile(ideType) {
+    return path.join(this.cacheDir, `stable-device-id-${ideType}.cache`);
+  }
 
-    return crypto
-      .createHash("sha256")
-      .update(JSON.stringify(vscodeDeviceInfo))
-      .digest("hex");
+  /**
+   * 获取IDE特定的备份文件路径
+   * @param {string} ideType - IDE类型 ('cursor', 'vscode')
+   */
+  getIDESpecificBackupFile(ideType) {
+    return path.join(this.cacheDir, `stable-device-id-${ideType}.backup`);
   }
 
   /**
    * 检查设备ID是否存在缓存
+   * @param {string} ideType - IDE类型 ('cursor', 'vscode', 或 null 为通用)
    */
-  hasCachedId() {
+  hasCachedId(ideType = null) {
+    if (ideType) {
+      const cacheFile = this.getIDESpecificCacheFile(ideType);
+      const backupFile = this.getIDESpecificBackupFile(ideType);
+      return fs.existsSync(cacheFile) || fs.existsSync(backupFile);
+    }
     return fs.existsSync(this.cacheFile) || fs.existsSync(this.backupFile);
   }
 }
@@ -297,12 +290,16 @@ const stableDeviceId = new StableDeviceId();
 
 module.exports = {
   StableDeviceId,
-  generateStableDeviceId: async () =>
-    await stableDeviceId.generateStableDeviceId(),
+  generateStableDeviceId: async (ideType = null) =>
+    await stableDeviceId.generateStableDeviceId(ideType),
   generateCursorDeviceId: async () =>
     await stableDeviceId.generateCursorDeviceId(),
   generateVSCodeDeviceId: async () =>
     await stableDeviceId.generateVSCodeDeviceId(),
   clearDeviceIdCache: () => stableDeviceId.clearCache(),
-  hasDeviceIdCache: () => stableDeviceId.hasCachedId(),
+  hasDeviceIdCache: (ideType = null) => stableDeviceId.hasCachedId(ideType),
+  // 新增：IDE特定的设备ID生成
+  generateIDESpecificDeviceId: async (ideType) =>
+    await stableDeviceId.generateStableDeviceId(ideType),
+  hasIDESpecificCache: (ideType) => stableDeviceId.hasCachedId(ideType),
 };

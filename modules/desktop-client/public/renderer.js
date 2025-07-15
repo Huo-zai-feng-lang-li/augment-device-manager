@@ -215,6 +215,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 检查激活状态
   await checkActivationStatus();
 
+  // 初始化选择的IDE（确保后端知道当前选择）
+  await initializeSelectedIDE();
+
   // 绑定增强防护按钮事件
   const startGuardianBtn = document.getElementById("start-guardian-btn");
   if (startGuardianBtn) {
@@ -248,6 +251,62 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 启动激活状态定期检查（每30秒检查一次）
   startActivationStatusMonitoring();
+
+  // 添加IDE选择变化监听器
+  const ideSelectionInputs = document.querySelectorAll(
+    'input[name="ide-selection"]'
+  );
+  ideSelectionInputs.forEach((input) => {
+    input.addEventListener("change", async () => {
+      // 检查增强防护状态，如果正在运行则阻止切换
+      const guardianStatus = await getEnhancedGuardianStatus();
+      const isProtectionRunning =
+        guardianStatus.isGuarding ||
+        (guardianStatus.standalone && guardianStatus.standalone.isRunning) ||
+        (guardianStatus.inProcess && guardianStatus.inProcess.isGuarding);
+
+      if (isProtectionRunning) {
+        // 恢复到之前的选择
+        const previousSelection = document.querySelector(
+          'input[name="ide-selection"]:not(:checked)'
+        );
+        if (previousSelection) {
+          previousSelection.checked = true;
+          input.checked = false;
+        }
+
+        showAlert(
+          `⚠️ 无法切换IDE<br><br>` +
+            `增强防护正在运行中，无法切换IDE选择。<br><br>` +
+            `请先在"增强防护"模块中停止防护服务，然后再切换IDE。`,
+          "warning"
+        );
+        return;
+      }
+
+      // 当IDE选择变化时，立即刷新相关信息
+      console.log(`IDE选择已切换到: ${input.value}`);
+
+      // 显示loading状态
+      showLoading(true);
+
+      try {
+        // 首先通知后端更新选择的IDE
+        await ipcRenderer.invoke("set-selected-ide", input.value);
+
+        // 并行刷新所有相关信息
+        await Promise.allSettled([
+          loadSystemInfo(), // 设备ID显示（现在会根据新选择的IDE获取对应的系统模块ID）
+          getAugmentInfo(), // 扩展信息
+          refreshGuardianStatus("ide-change"), // 增强防护状态
+        ]);
+      } catch (error) {
+        console.error("IDE切换时刷新信息失败:", error);
+      } finally {
+        showLoading(false);
+      }
+    });
+  });
 
   console.log("初始化完成");
 
@@ -574,28 +633,92 @@ function switchTab(tabName) {
   }
 }
 
+// 获取当前选择的IDE
+function getCurrentSelectedIDE() {
+  const selectedIDE = document.querySelector(
+    'input[name="ide-selection"]:checked'
+  )?.value;
+  return selectedIDE || "cursor"; // 默认为cursor
+}
+
+// 初始化选择的IDE
+async function initializeSelectedIDE() {
+  try {
+    const currentIDE = getCurrentSelectedIDE();
+    console.log(`🎯 初始化选择的IDE: ${currentIDE}`);
+
+    // 通知后端当前选择的IDE
+    await ipcRenderer.invoke("set-selected-ide", currentIDE);
+    console.log(`✅ 后端已更新选择的IDE: ${currentIDE}`);
+  } catch (error) {
+    console.error("初始化选择的IDE失败:", error);
+  }
+}
+
+// 更新IDE选择的可用性（根据增强防护状态）
+function updateIDESelectionAvailability(isProtectionRunning) {
+  const ideSelectionInputs = document.querySelectorAll(
+    'input[name="ide-selection"]'
+  );
+  const ideSelectionLabels = document.querySelectorAll('label[for*="ide-"]');
+
+  ideSelectionInputs.forEach((input) => {
+    input.disabled = isProtectionRunning;
+  });
+
+  ideSelectionLabels.forEach((label) => {
+    if (isProtectionRunning) {
+      label.style.opacity = "0.5";
+      label.style.cursor = "not-allowed";
+      label.title = "增强防护运行时无法切换IDE";
+    } else {
+      label.style.opacity = "1";
+      label.style.cursor = "pointer";
+      label.title = "";
+    }
+  });
+}
+
+// 获取增强防护状态（统一函数）
+async function getEnhancedGuardianStatus() {
+  const selectedIDE = getCurrentSelectedIDE();
+  return await ipcRenderer.invoke("get-enhanced-guardian-status", {
+    selectedIDE,
+  });
+}
+
 // 系统监控功能
 async function loadSystemInfo() {
   try {
     const systemInfo = await ipcRenderer.invoke("get-system-info");
 
-    // 获取Cursor遥测设备ID作为主要设备ID（清理成功标志）
+    // 根据用户选择的IDE获取对应的设备ID作为主要设备ID
     if (!systemInfo.deviceId) {
       try {
         const deviceIdDetails = await ipcRenderer.invoke(
           "get-device-id-details"
         );
-        if (
-          deviceIdDetails.success &&
-          deviceIdDetails.cursorTelemetry?.devDeviceId
-        ) {
-          // 使用Cursor的telemetry.devDeviceId作为主要设备ID
-          systemInfo.deviceId = deviceIdDetails.cursorTelemetry.devDeviceId;
-        } else {
-          // 如果没有Cursor遥测ID，则使用设备指纹作为备用
-          const deviceInfo = await ipcRenderer.invoke("get-device-info");
-          if (deviceInfo.success && deviceInfo.deviceId) {
-            systemInfo.deviceId = deviceInfo.deviceId;
+        const selectedIDE = getCurrentSelectedIDE();
+
+        if (deviceIdDetails.success) {
+          if (
+            selectedIDE === "vscode" &&
+            deviceIdDetails.vscodeTelemetry?.devDeviceId
+          ) {
+            // 使用VSCode的telemetry.devDeviceId作为主要设备ID
+            systemInfo.deviceId = deviceIdDetails.vscodeTelemetry.devDeviceId;
+          } else if (
+            selectedIDE === "cursor" &&
+            deviceIdDetails.cursorTelemetry?.devDeviceId
+          ) {
+            // 使用Cursor的telemetry.devDeviceId作为主要设备ID
+            systemInfo.deviceId = deviceIdDetails.cursorTelemetry.devDeviceId;
+          } else {
+            // 如果没有对应IDE的遥测ID，则使用设备指纹作为备用
+            const deviceInfo = await ipcRenderer.invoke("get-device-info");
+            if (deviceInfo.success && deviceInfo.deviceId) {
+              systemInfo.deviceId = deviceInfo.deviceId;
+            }
           }
         }
       } catch (deviceError) {
@@ -855,8 +978,86 @@ function updateDeviceIdDisplay(deviceIdInfo) {
     }
   }
 
-  // 更新Cursor遥测ID
-  if (deviceIdInfo.cursorTelemetry) {
+  // 获取当前选择的IDE类型
+  const selectedIDE = getCurrentSelectedIDE();
+  const isVSCode = selectedIDE === "vscode";
+
+  // 更新IDE遥测标识符区域的标题
+  const telemetryTitle = document.getElementById('ide-telemetry-title');
+  if (telemetryTitle) {
+    telemetryTitle.textContent = isVSCode ? 'VS Code IDE 遥测标识符' : 'Cursor IDE 遥测标识符';
+  }
+
+  // 更新tooltip内容
+  const telemetryTooltip = document.getElementById('ide-telemetry-tooltip');
+  if (telemetryTooltip) {
+    const tooltipContent = isVSCode ? 
+      `📁 数据来源
+直接从 VS Code IDE 配置文件读取
+
+📍 存储位置
+C:\\Users\\[用户名]\\AppData\\Roaming\\Code\\User\\globalStorage\\storage.json
+
+🔑 包含的真实ID
+• devDeviceId - VS Code主设备标识符
+• machineId - 机器唯一标识符
+• macMachineId - MAC地址相关机器ID
+• sessionId - 会话标识符
+• sqmId - 软件质量监控ID
+
+🧹 清理效果
+重写 storage.json 文件，生成全新的遥测标识符
+让 VS Code IDE 认为是新设备` :
+      `📁 数据来源
+直接从 Cursor IDE 配置文件读取
+
+📍 存储位置
+C:\\Users\\[用户名]\\AppData\\Roaming\\Cursor\\User\\globalStorage\\storage.json
+
+🔑 包含的真实ID
+• devDeviceId - Cursor主设备标识符
+• machineId - 机器唯一标识符
+• macMachineId - MAC地址相关机器ID
+• sessionId - 会话标识符
+• sqmId - 软件质量监控ID
+
+🧹 清理效果
+重写 storage.json 文件，生成全新的遥测标识符
+让 Cursor IDE 认为是新设备`;
+    
+    telemetryTooltip.setAttribute('data-tooltip', tooltipContent);
+  }
+
+  // 更新Cursor遥测ID（或VSCode遥测ID）
+  if (isVSCode && deviceIdInfo.vscodeTelemetry) {
+    // 显示VSCode数据
+    const vscodeIds = deviceIdInfo.vscodeTelemetry;
+
+    const updateElement = (id, value, name) => {
+      const element = document.getElementById(id);
+      if (element && value) {
+        element.textContent = value;
+        element.title = `完整ID: ${value}`;
+        // 添加点击复制功能
+        element.parentElement.onclick = () => copyToClipboard(value, name);
+      }
+    };
+
+    updateElement(
+      "cursor-dev-device-id",
+      vscodeIds.devDeviceId,
+      "VS Code主设备ID"
+    );
+    updateElement("cursor-machine-id", vscodeIds.machineId, "VS Code机器ID");
+    updateElement(
+      "cursor-mac-machine-id",
+      vscodeIds.macMachineId,
+      "VS Code MAC机器ID"
+    );
+    updateElement("cursor-session-id", vscodeIds.sessionId, "VS Code会话ID");
+    updateElement("cursor-sqm-id", vscodeIds.sqmId, "VS Code SQM ID");
+  } else if (deviceIdInfo.cursorTelemetry) {
+    // 显示Cursor数据
     const cursorIds = deviceIdInfo.cursorTelemetry;
 
     const updateElement = (id, value, name) => {
@@ -1728,14 +1929,44 @@ async function performCleanup() {
     return;
   }
 
+  // 检查增强防护状态
+  try {
+    console.log("🔍 检查增强防护状态...");
+    const guardianStatus = await getEnhancedGuardianStatus();
+
+    const isProtectionRunning =
+      guardianStatus.isGuarding ||
+      (guardianStatus.standalone && guardianStatus.standalone.isRunning) ||
+      (guardianStatus.inProcess && guardianStatus.inProcess.isGuarding);
+
+    if (isProtectionRunning) {
+      const selectedIDE = getCurrentSelectedIDE();
+      const ideDisplayName = selectedIDE === "vscode" ? "VS Code" : "Cursor";
+
+      showAlert(
+        `⚠️ 增强防护正在运行中<br><br>` +
+          `当前正在保护 ${ideDisplayName} 的设备ID，无法执行清理操作。<br><br>` +
+          `请先在"增强防护"模块中停止防护服务，然后再进行清理。`,
+        "warning"
+      );
+      return;
+    }
+  } catch (error) {
+    console.warn("检查增强防护状态失败:", error);
+    // 如果检查失败，继续执行清理（避免阻塞正常操作）
+  }
+
   // 获取清理模式选择
   const cleanupMode =
     document.querySelector('input[name="cleanup-mode"]:checked')?.value ??
     "intelligent";
 
-  // 获取IDE选择选项
-  const cleanCursor = document.getElementById("clean-cursor")?.checked ?? true;
-  const cleanVSCode = document.getElementById("clean-vscode")?.checked ?? false;
+  // 获取IDE选择选项（单选模式）
+  const selectedIDE =
+    document.querySelector('input[name="ide-selection"]:checked')?.value ??
+    "cursor";
+  const cleanCursor = selectedIDE === "cursor";
+  const cleanVSCode = selectedIDE === "vscode";
 
   // 根据清理模式设置清理选项
   let cleanupOptions = {};
@@ -1869,19 +2100,31 @@ async function performCleanup() {
 
   addCleanupLog("备份当前设备信息...", "info");
   try {
-    // 获取Cursor遥测设备ID作为主要设备ID（清理成功标志）
+    // 根据用户选择的IDE获取对应的设备ID作为主要设备ID（清理成功标志）
     const deviceIdDetails = await ipcRenderer.invoke("get-device-id-details");
-    if (
-      deviceIdDetails.success &&
-      deviceIdDetails.cursorTelemetry?.devDeviceId
-    ) {
-      originalDeviceId = deviceIdDetails.cursorTelemetry.devDeviceId;
-    } else {
-      // 如果没有Cursor遥测ID，则使用设备指纹作为备用
-      const deviceInfo = await ipcRenderer.invoke("get-device-info");
-      originalDeviceId = deviceInfo.deviceId;
+    const selectedIDE = getCurrentSelectedIDE();
+
+    if (deviceIdDetails.success) {
+      if (
+        selectedIDE === "vscode" &&
+        deviceIdDetails.vscodeTelemetry?.devDeviceId
+      ) {
+        originalDeviceId = deviceIdDetails.vscodeTelemetry.devDeviceId;
+      } else if (
+        selectedIDE === "cursor" &&
+        deviceIdDetails.cursorTelemetry?.devDeviceId
+      ) {
+        originalDeviceId = deviceIdDetails.cursorTelemetry.devDeviceId;
+      } else {
+        // 如果没有对应IDE的遥测ID，则使用设备指纹作为备用
+        const deviceInfo = await ipcRenderer.invoke("get-device-info");
+        originalDeviceId = deviceInfo.deviceId;
+      }
     }
-    addCleanupLog(`当前设备ID: ${originalDeviceId}`, "info");
+    addCleanupLog(
+      `当前设备ID (${selectedIDE.toUpperCase()}): ${originalDeviceId}`,
+      "info"
+    );
 
     if (preserveActivation) {
       activationBackup = {
@@ -2102,6 +2345,7 @@ async function performCleanup() {
       // IDE选择选项（用户选择优先，覆盖清理模式的默认设置）
       cleanCursor: cleanCursor, // 直接使用用户选择
       cleanVSCode: cleanVSCode, // 直接使用用户选择
+      selectedIDE: selectedIDE, // 新增：传递选择的IDE
 
       // PowerShell辅助选项（从清理模式配置获取）
       usePowerShellAssist:
@@ -2251,20 +2495,29 @@ async function performCleanup() {
       addCleanupLog("检查清理效果...", "info");
       setTimeout(async () => {
         try {
-          // 获取清理后的设备ID（使用Cursor遥测ID）
+          // 根据用户选择的IDE获取清理后的设备ID
           let newDeviceId = null;
           const newDeviceIdDetails = await ipcRenderer.invoke(
             "get-device-id-details"
           );
-          if (
-            newDeviceIdDetails.success &&
-            newDeviceIdDetails.cursorTelemetry?.devDeviceId
-          ) {
-            newDeviceId = newDeviceIdDetails.cursorTelemetry.devDeviceId;
-          } else {
-            // 如果没有Cursor遥测ID，则使用设备指纹作为备用
-            const newDeviceInfo = await ipcRenderer.invoke("get-device-info");
-            newDeviceId = newDeviceInfo.deviceId;
+          const selectedIDE = getCurrentSelectedIDE();
+
+          if (newDeviceIdDetails.success) {
+            if (
+              selectedIDE === "vscode" &&
+              newDeviceIdDetails.vscodeTelemetry?.devDeviceId
+            ) {
+              newDeviceId = newDeviceIdDetails.vscodeTelemetry.devDeviceId;
+            } else if (
+              selectedIDE === "cursor" &&
+              newDeviceIdDetails.cursorTelemetry?.devDeviceId
+            ) {
+              newDeviceId = newDeviceIdDetails.cursorTelemetry.devDeviceId;
+            } else {
+              // 如果没有对应IDE的遥测ID，则使用设备指纹作为备用
+              const newDeviceInfo = await ipcRenderer.invoke("get-device-info");
+              newDeviceId = newDeviceInfo.deviceId;
+            }
           }
 
           if (originalDeviceId && newDeviceId !== originalDeviceId) {
@@ -2565,13 +2818,22 @@ async function resetUsageCount() {
 async function getAugmentInfo() {
   try {
     showLoading(true);
-    const result = await ipcRenderer.invoke("get-augment-info");
+
+    // 获取当前选择的IDE
+    const selectedIDE = getCurrentSelectedIDE();
+    const result = await ipcRenderer.invoke("get-augment-info", {
+      selectedIDE,
+    });
 
     const infoDiv = document.getElementById("augment-info");
 
     if (result.success && result.data) {
       const data = result.data;
       let html = '<div class="device-info">';
+
+      // IDE信息显示
+      const ideDisplayName = selectedIDE === "vscode" ? "VS Code" : "Cursor";
+      html += `<p style="margin-bottom: 10px;"><strong>目标IDE:</strong> <span class="text-blue-600">${ideDisplayName}</span></p>`;
 
       // 扩展状态显示
       const statusColor = data.installed ? "text-green-600" : "text-red-600";
@@ -2600,7 +2862,8 @@ async function getAugmentInfo() {
           html += `<p><strong>存储路径:</strong> <span class="text-xs text-gray-600">${data.storagePath}</span></p>`;
         }
       } else {
-        html += '<p class="text-gray-600">请先在Cursor中安装Augment扩展</p>';
+        html +=
+          '<p class="text-gray-600">请先在Cursor/VSCode中安装Augment扩展</p>';
       }
 
       html += "</div>";
@@ -3332,7 +3595,7 @@ function startHealthCheck() {
   guardianHealthCheckInterval = setInterval(async () => {
     try {
       console.log("🏥 执行健康检查...");
-      const status = await ipcRenderer.invoke("get-enhanced-guardian-status");
+      const status = await getEnhancedGuardianStatus();
 
       // 只有在状态发生重要变化时才更新UI
       if (hasSignificantStatusChange(status)) {
@@ -3354,7 +3617,7 @@ function startStatsRefresh() {
   // 每10秒刷新一次统计数据，确保拦截计数及时更新
   const statsRefreshInterval = setInterval(async () => {
     try {
-      const status = await ipcRenderer.invoke("get-enhanced-guardian-status");
+      const status = await getEnhancedGuardianStatus();
 
       // 只有在防护运行时才更新统计
       if (status.isGuarding) {
@@ -3397,7 +3660,7 @@ async function refreshGuardianStatus(eventType = "manual") {
       showAlert("正在刷新防护状态...", "info");
     }
 
-    const status = await ipcRenderer.invoke("get-enhanced-guardian-status");
+    const status = await getEnhancedGuardianStatus();
 
     // 更新UI显示
     updateGuardianStatusDisplay(status);
@@ -3586,6 +3849,9 @@ function updateGuardianStatusDisplay(status) {
     // 重置性能信息
     resetGuardianPerformanceInfo();
   }
+
+  // 更新IDE选择的可用性（根据防护状态）
+  updateIDESelectionAvailability(isActuallyRunning);
 }
 
 // 更新防护性能信息
@@ -4037,7 +4303,7 @@ function updateGuardianButtonState(state) {
 // 查看增强防护日志
 async function viewGuardianLogs() {
   try {
-    const status = await ipcRenderer.invoke("get-enhanced-guardian-status");
+    const status = await getEnhancedGuardianStatus();
 
     let logs = [];
     let logSource = "无日志";

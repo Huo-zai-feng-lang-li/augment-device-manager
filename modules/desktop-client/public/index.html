@@ -844,30 +844,34 @@
             <!-- IDE选择区域 -->
             <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <h3 class="text-lg font-semibold text-blue-800 mb-3">
-                🎯 选择要清理的IDE
+                🎯 选择要清理和防护的IDE
               </h3>
               <div class="space-y-2">
                 <label class="flex items-center gap-3 text-sm cursor-pointer">
                   <input
-                    type="checkbox"
+                    type="radio"
+                    name="ide-selection"
                     id="clean-cursor"
+                    value="cursor"
                     checked
-                    class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    class="border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span class="text-slate-800">🎨 Cursor IDE</span>
                   <span class="text-xs text-slate-500 ml-2"
-                    >(默认清理Augment扩展数据)</span
+                    >(清理Augment扩展数据并启用增强防护)</span
                   >
                 </label>
                 <label class="flex items-center gap-3 text-sm cursor-pointer">
                   <input
-                    type="checkbox"
+                    type="radio"
+                    name="ide-selection"
                     id="clean-vscode"
-                    class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    value="vscode"
+                    class="border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span class="text-slate-800">💙 Visual Studio Code</span>
                   <span class="text-xs text-slate-500 ml-2"
-                    >(默认清理Augment扩展数据)</span
+                    >(清理Augment扩展数据并启用增强防护)</span
                   >
                 </label>
               </div>
@@ -1004,24 +1008,6 @@
               <div class="bg-slate-50 rounded-lg p-3 border">
                 <div class="flex items-center justify-between mb-2">
                   <h4 class="text-sm font-medium text-slate-700">清理日志</h4>
-                  <button
-                    onclick="hideCleanupLog()"
-                    class="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1"
-                    title="隐藏清理日志"
-                  >
-                    <svg
-                      class="w-3 h-3"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                    收起
-                  </button>
                 </div>
                 <div
                   id="cleanup-log"
@@ -1832,13 +1818,14 @@
                         d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"
                       />
                     </svg>
-                    <h4 class="text-sm font-semibold text-purple-700">
+                    <h4 class="text-sm font-semibold text-purple-700" id="ide-telemetry-title">
                       Cursor IDE 遥测标识符
                     </h4>
                     <svg
                       class="w-3 h-3 text-purple-400 cursor-help"
                       fill="currentColor"
                       viewBox="0 0 20 20"
+                      id="ide-telemetry-tooltip"
                       data-tooltip="📁 数据来源
 直接从 Cursor IDE 配置文件读取
 

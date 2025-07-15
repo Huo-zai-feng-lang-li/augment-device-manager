@@ -20,6 +20,11 @@ class EnhancedDeviceGuardian {
     this.backupMonitorInterval = null;
     this.execAsync = promisify(exec);
 
+    // 动态IDE选择配置
+    this.selectedIDE = "cursor"; // 默认选择Cursor
+    this.monitorCursor = true; // 兼容性保持
+    this.monitorVSCode = false; // 兼容性保持
+
     // 动态路径配置
     this.paths = this.initializePaths();
 
@@ -30,6 +35,7 @@ class EnhancedDeviceGuardian {
       protectionCheckInterval: 10000, // 保护状态检查间隔(ms)
       maxLogEntries: 100, // 最大日志条目数
       statsCacheInterval: 30000, // 统计数据缓存间隔(ms)
+      deviceIdVerifyInterval: 1000, // 设备ID定期验证间隔(ms) - 新增
     };
 
     this.logs = [];
@@ -47,6 +53,48 @@ class EnhancedDeviceGuardian {
 
     // 事件通知回调
     this.eventCallback = null;
+  }
+
+  /**
+   * 设置选择的IDE
+   */
+  setSelectedIDE(ideType) {
+    this.selectedIDE = ideType;
+    // 更新兼容性标志
+    this.monitorCursor = ideType === "cursor";
+    this.monitorVSCode = ideType === "vscode";
+
+    this.log(
+      `🎯 IDE选择已更新: ${ideType === "cursor" ? "Cursor" : "VS Code"}`,
+      "info"
+    );
+  }
+
+  /**
+   * 获取当前选择的IDE的主要设备ID文件路径
+   */
+  getCurrentIDEStoragePath() {
+    return this.selectedIDE === "cursor"
+      ? this.paths.storageJson
+      : this.paths.vscodeStorageJson;
+  }
+
+  /**
+   * 获取当前选择的IDE的状态数据库路径
+   */
+  getCurrentIDEStatePath() {
+    return this.selectedIDE === "cursor"
+      ? this.paths.stateVscdb
+      : this.paths.vscodeStateVscdb;
+  }
+
+  /**
+   * 获取当前选择的IDE的全局存储路径
+   */
+  getCurrentIDEGlobalStoragePath() {
+    return this.selectedIDE === "cursor"
+      ? this.paths.cursorGlobalStorage
+      : this.paths.vscodeGlobalStorage;
   }
 
   /**
@@ -157,6 +205,49 @@ class EnhancedDeviceGuardian {
         "User"
       ),
 
+      // VS Code 相关路径
+      vscodeGlobalStorage: path.join(
+        userHome,
+        "AppData",
+        "Roaming",
+        "Code",
+        "User",
+        "globalStorage"
+      ),
+      vscodeWorkspaceStorage: path.join(
+        userHome,
+        "AppData",
+        "Roaming",
+        "Code",
+        "User",
+        "workspaceStorage"
+      ),
+      vscodeLocalStorage: path.join(
+        userHome,
+        "AppData",
+        "Local",
+        "Code",
+        "User"
+      ),
+
+      // VS Code Insiders 路径
+      vscodeInsidersGlobalStorage: path.join(
+        userHome,
+        "AppData",
+        "Roaming",
+        "Code - Insiders",
+        "User",
+        "globalStorage"
+      ),
+      vscodeInsidersWorkspaceStorage: path.join(
+        userHome,
+        "AppData",
+        "Roaming",
+        "Code - Insiders",
+        "User",
+        "workspaceStorage"
+      ),
+
       // 关键文件
       storageJson: path.join(
         userHome,
@@ -177,11 +268,52 @@ class EnhancedDeviceGuardian {
         "state.vscdb"
       ),
 
+      // VS Code 关键文件
+      vscodeStorageJson: path.join(
+        userHome,
+        "AppData",
+        "Roaming",
+        "Code",
+        "User",
+        "globalStorage",
+        "storage.json"
+      ),
+      vscodeStateVscdb: path.join(
+        userHome,
+        "AppData",
+        "Roaming",
+        "Code",
+        "User",
+        "globalStorage",
+        "state.vscdb"
+      ),
+
+      // VS Code Insiders 关键文件
+      vscodeInsidersStorageJson: path.join(
+        userHome,
+        "AppData",
+        "Roaming",
+        "Code - Insiders",
+        "User",
+        "globalStorage",
+        "storage.json"
+      ),
+      vscodeInsidersStateVscdb: path.join(
+        userHome,
+        "AppData",
+        "Roaming",
+        "Code - Insiders",
+        "User",
+        "globalStorage",
+        "state.vscdb"
+      ),
+
       // 临时目录
       tempDir: os.tmpdir(),
 
       // 备份监控路径
       backupPaths: [
+        // Cursor 路径
         path.join(
           userHome,
           "AppData",
@@ -199,6 +331,41 @@ class EnhancedDeviceGuardian {
           "workspaceStorage"
         ),
         path.join(userHome, "AppData", "Local", "Cursor", "User"),
+        // VS Code 路径
+        path.join(
+          userHome,
+          "AppData",
+          "Roaming",
+          "Code",
+          "User",
+          "globalStorage"
+        ),
+        path.join(
+          userHome,
+          "AppData",
+          "Roaming",
+          "Code",
+          "User",
+          "workspaceStorage"
+        ),
+        path.join(userHome, "AppData", "Local", "Code", "User"),
+        // VS Code Insiders 路径
+        path.join(
+          userHome,
+          "AppData",
+          "Roaming",
+          "Code - Insiders",
+          "User",
+          "globalStorage"
+        ),
+        path.join(
+          userHome,
+          "AppData",
+          "Roaming",
+          "Code - Insiders",
+          "User",
+          "workspaceStorage"
+        ),
         os.tmpdir(),
       ],
     };
@@ -218,8 +385,30 @@ class EnhancedDeviceGuardian {
       this.isGuarding = true;
       this.stats.startTime = new Date();
 
+      // 处理IDE选择（支持新的单选模式和旧的多选模式）
+      if (options.selectedIDE) {
+        // 新的单选模式
+        this.setSelectedIDE(options.selectedIDE);
+      } else {
+        // 兼容旧的多选模式
+        this.monitorCursor = options.cleanCursor !== false; // 默认监控Cursor
+        this.monitorVSCode = options.cleanVSCode === true; // 只有用户选择时才监控VSCode
+
+        // 根据旧模式设置selectedIDE
+        if (this.monitorVSCode && !this.monitorCursor) {
+          this.selectedIDE = "vscode";
+        } else {
+          this.selectedIDE = "cursor"; // 默认或同时选择时优先Cursor
+        }
+      }
+
       this.log("🛡️ 启动增强设备ID守护进程", "info");
       this.log(`🎯 目标设备ID: ${deviceId}`, "info");
+      this.log(
+        `🎯 选择的IDE: ${this.selectedIDE === "cursor" ? "Cursor" : "VS Code"}`,
+        "info"
+      );
+      this.log(`📁 监控路径: ${this.getCurrentIDEStoragePath()}`, "info");
 
       // 0. 初始化统计数据缓存
       await this.initializeStatsCache();
@@ -242,7 +431,10 @@ class EnhancedDeviceGuardian {
       // 6. 启动激活状态监控
       await this.startActivationMonitoring();
 
-      // 7. 启动统计数据缓存定时器
+      // 7. 启动设备ID定期验证（新增）
+      await this.startDeviceIdVerification();
+
+      // 8. 启动统计数据缓存定时器
       this.startStatsCacheTimer();
 
       this.log("✅ 增强守护进程启动成功", "success");
@@ -481,6 +673,13 @@ class EnhancedDeviceGuardian {
       this.log("🔐 激活状态监控已停止", "info");
     }
 
+    // 停止设备ID定期验证
+    if (this.deviceIdVerifyInterval) {
+      clearInterval(this.deviceIdVerifyInterval);
+      this.deviceIdVerifyInterval = null;
+      this.log("🔍 设备ID定期验证已停止", "info");
+    }
+
     // 停止统计数据缓存定时器
     this.stopStatsCacheTimer();
 
@@ -549,14 +748,46 @@ class EnhancedDeviceGuardian {
    */
   async enforceTargetDeviceId() {
     try {
+      // 根据选择的IDE动态设置设备ID
+      if (this.selectedIDE === "cursor") {
+        await this.enforceDeviceIdForIDE(this.paths.storageJson, "Cursor");
+      } else if (this.selectedIDE === "vscode") {
+        await this.enforceDeviceIdForIDE(
+          this.paths.vscodeStorageJson,
+          "VS Code"
+        );
+
+        // 也处理VS Code Insiders（如果存在）
+        if (
+          await fs.pathExists(
+            path.dirname(this.paths.vscodeInsidersStorageJson)
+          )
+        ) {
+          await this.enforceDeviceIdForIDE(
+            this.paths.vscodeInsidersStorageJson,
+            "VS Code Insiders"
+          );
+        }
+      }
+    } catch (error) {
+      this.log(`❌ 强制设置设备ID失败: ${error.message}`, "error");
+      throw error;
+    }
+  }
+
+  /**
+   * 为特定IDE强制设置设备ID
+   */
+  async enforceDeviceIdForIDE(filePath, ideName) {
+    try {
       let currentData = {};
 
       // 读取现有数据
-      if (await fs.pathExists(this.paths.storageJson)) {
+      if (await fs.pathExists(filePath)) {
         try {
-          currentData = await fs.readJson(this.paths.storageJson);
+          currentData = await fs.readJson(filePath);
         } catch (error) {
-          this.log("⚠️ 读取现有配置失败，将创建新配置", "warn");
+          this.log(`⚠️ 读取${ideName}配置失败，将创建新配置`, "warn");
         }
       }
 
@@ -564,14 +795,17 @@ class EnhancedDeviceGuardian {
       currentData["telemetry.devDeviceId"] = this.targetDeviceId;
 
       // 确保目录存在
-      await fs.ensureDir(path.dirname(this.paths.storageJson));
+      await fs.ensureDir(path.dirname(filePath));
 
       // 写入配置
-      await fs.writeJson(this.paths.storageJson, currentData, { spaces: 2 });
+      await fs.writeJson(filePath, currentData, { spaces: 2 });
 
-      this.log(`✅ 已强制设置设备ID: ${this.targetDeviceId}`, "success");
+      this.log(
+        `✅ 已强制设置${ideName}设备ID: ${this.targetDeviceId}`,
+        "success"
+      );
     } catch (error) {
-      this.log(`❌ 强制设置设备ID失败: ${error.message}`, "error");
+      this.log(`❌ 强制设置${ideName}设备ID失败: ${error.message}`, "error");
       throw error;
     }
   }
@@ -581,50 +815,172 @@ class EnhancedDeviceGuardian {
    */
   async startFileSystemWatcher() {
     try {
-      // 监控 globalStorage 目录
-      const globalWatcher = chokidar.watch(this.paths.cursorGlobalStorage, {
-        ignored: /node_modules/,
-        persistent: true,
-        ignoreInitial: true,
-        awaitWriteFinish: {
-          stabilityThreshold: this.config.fileWatchDebounce,
-          pollInterval: 50,
-        },
-      });
-
-      globalWatcher.on("all", (event, filePath) => {
-        this.handleFileSystemEvent(event, filePath, "global");
-      });
-
-      this.watchers.set("globalStorage", globalWatcher);
-
-      // 监控工作区存储目录
-      if (await fs.pathExists(this.paths.cursorWorkspaceStorage)) {
-        const workspaceWatcher = chokidar.watch(
-          this.paths.cursorWorkspaceStorage,
-          {
-            ignored: /node_modules/,
-            persistent: true,
-            ignoreInitial: true,
-            depth: 2, // 限制监控深度
-            awaitWriteFinish: {
-              stabilityThreshold: this.config.fileWatchDebounce,
-              pollInterval: 50,
-            },
-          }
-        );
-
-        workspaceWatcher.on("all", (event, filePath) => {
-          this.handleFileSystemEvent(event, filePath, "workspace");
-        });
-
-        this.watchers.set("workspaceStorage", workspaceWatcher);
+      // 根据选择的IDE动态监控
+      if (this.selectedIDE === "cursor") {
+        await this.setupCursorWatchers();
+      } else if (this.selectedIDE === "vscode") {
+        await this.setupVSCodeWatchers();
       }
 
-      this.log("👁️ 文件系统监控已启动", "success");
+      this.log(
+        `📡 文件系统监控已启动 - ${
+          this.selectedIDE === "cursor" ? "Cursor" : "VS Code"
+        }`,
+        "success"
+      );
     } catch (error) {
       this.log(`❌ 启动文件系统监控失败: ${error.message}`, "error");
       throw error;
+    }
+  }
+
+  /**
+   * 设置Cursor监控器
+   */
+  async setupCursorWatchers() {
+    // 监控 Cursor globalStorage 目录
+    const globalWatcher = chokidar.watch(this.paths.cursorGlobalStorage, {
+      ignored: /node_modules/,
+      persistent: true,
+      ignoreInitial: true,
+      awaitWriteFinish: {
+        stabilityThreshold: this.config.fileWatchDebounce,
+        pollInterval: 50,
+      },
+    });
+
+    globalWatcher.on("all", (event, filePath) => {
+      this.handleFileSystemEvent(event, filePath, "cursor-global");
+    });
+
+    this.watchers.set("cursorGlobalStorage", globalWatcher);
+
+    // 监控 Cursor 工作区存储目录
+    if (await fs.pathExists(this.paths.cursorWorkspaceStorage)) {
+      const workspaceWatcher = chokidar.watch(
+        this.paths.cursorWorkspaceStorage,
+        {
+          ignored: /node_modules/,
+          persistent: true,
+          ignoreInitial: true,
+          depth: 2, // 限制监控深度
+          awaitWriteFinish: {
+            stabilityThreshold: this.config.fileWatchDebounce,
+            pollInterval: 50,
+          },
+        }
+      );
+
+      workspaceWatcher.on("all", (event, filePath) => {
+        this.handleFileSystemEvent(event, filePath, "cursor-workspace");
+      });
+
+      this.watchers.set("cursorWorkspaceStorage", workspaceWatcher);
+    }
+  }
+
+  /**
+   * 设置VSCode监控器
+   */
+  async setupVSCodeWatchers() {
+    // 监控 VS Code globalStorage 目录
+    if (await fs.pathExists(this.paths.vscodeGlobalStorage)) {
+      const vscodeGlobalWatcher = chokidar.watch(
+        this.paths.vscodeGlobalStorage,
+        {
+          ignored: /node_modules/,
+          persistent: true,
+          ignoreInitial: true,
+          awaitWriteFinish: {
+            stabilityThreshold: this.config.fileWatchDebounce, // 使用与Cursor相同的防抖时间
+            pollInterval: 50, // 与Cursor保持一致
+          },
+        }
+      );
+
+      vscodeGlobalWatcher.on("all", (event, filePath) => {
+        this.handleFileSystemEvent(event, filePath, "vscode-global");
+      });
+
+      this.watchers.set("vscodeGlobalStorage", vscodeGlobalWatcher);
+    }
+
+    // 监控 VS Code 工作区存储目录
+    if (await fs.pathExists(this.paths.vscodeWorkspaceStorage)) {
+      const vscodeWorkspaceWatcher = chokidar.watch(
+        this.paths.vscodeWorkspaceStorage,
+        {
+          ignored: /node_modules/,
+          persistent: true,
+          ignoreInitial: true,
+          depth: 2, // 限制监控深度
+          awaitWriteFinish: {
+            stabilityThreshold: this.config.fileWatchDebounce, // 使用与Cursor相同的防抖时间
+            pollInterval: 50, // 与Cursor保持一致
+          },
+        }
+      );
+
+      vscodeWorkspaceWatcher.on("all", (event, filePath) => {
+        this.handleFileSystemEvent(event, filePath, "vscode-workspace");
+      });
+
+      this.watchers.set("vscodeWorkspaceStorage", vscodeWorkspaceWatcher);
+    }
+
+    // 监控 VS Code Insiders globalStorage 目录（如果存在）
+    if (await fs.pathExists(this.paths.vscodeInsidersGlobalStorage)) {
+      const vscodeInsidersGlobalWatcher = chokidar.watch(
+        this.paths.vscodeInsidersGlobalStorage,
+        {
+          ignored: /node_modules/,
+          persistent: true,
+          ignoreInitial: true,
+          awaitWriteFinish: {
+            stabilityThreshold: this.config.fileWatchDebounce, // 使用与Cursor相同的防抖时间
+            pollInterval: 50, // 与Cursor保持一致
+          },
+        }
+      );
+
+      vscodeInsidersGlobalWatcher.on("all", (event, filePath) => {
+        this.handleFileSystemEvent(event, filePath, "vscode-insiders-global");
+      });
+
+      this.watchers.set(
+        "vscodeInsidersGlobalStorage",
+        vscodeInsidersGlobalWatcher
+      );
+    }
+
+    // 监控 VS Code Insiders 工作区存储目录（如果存在）
+    if (await fs.pathExists(this.paths.vscodeInsidersWorkspaceStorage)) {
+      const vscodeInsidersWorkspaceWatcher = chokidar.watch(
+        this.paths.vscodeInsidersWorkspaceStorage,
+        {
+          ignored: /node_modules/,
+          persistent: true,
+          ignoreInitial: true,
+          depth: 2, // 限制监控深度
+          awaitWriteFinish: {
+            stabilityThreshold: this.config.fileWatchDebounce, // 使用与Cursor相同的防抖时间
+            pollInterval: 50, // 与Cursor保持一致
+          },
+        }
+      );
+
+      vscodeInsidersWorkspaceWatcher.on("all", (event, filePath) => {
+        this.handleFileSystemEvent(
+          event,
+          filePath,
+          "vscode-insiders-workspace"
+        );
+      });
+
+      this.watchers.set(
+        "vscodeInsidersWorkspaceStorage",
+        vscodeInsidersWorkspaceWatcher
+      );
     }
   }
 
@@ -640,7 +996,7 @@ class EnhancedDeviceGuardian {
     try {
       // 监控 storage.json 相关文件
       if (fileName.startsWith("storage.json")) {
-        await this.handleStorageJsonEvent(event, filePath, fileName);
+        await this.handleStorageJsonEvent(event, filePath, fileName, source);
       }
 
       // 监控备份文件
@@ -650,7 +1006,7 @@ class EnhancedDeviceGuardian {
 
       // 监控 state.vscdb 相关文件
       else if (fileName.startsWith("state.vscdb")) {
-        await this.handleDatabaseEvent(event, filePath, fileName);
+        await this.handleDatabaseEvent(event, filePath, fileName, source);
       }
     } catch (error) {
       this.log(`❌ 处理文件事件失败 ${fileName}: ${error.message}`, "error");
@@ -660,25 +1016,30 @@ class EnhancedDeviceGuardian {
   /**
    * 处理 storage.json 事件
    */
-  async handleStorageJsonEvent(event, filePath, fileName) {
-    this.log(`🔍 检测到storage.json事件: ${event} - ${fileName}`, "info");
+  async handleStorageJsonEvent(event, filePath, fileName, source) {
+    const ideName = source.includes("cursor") ? "Cursor" : "VS Code";
+    this.log(
+      `🔍 检测到${ideName} storage.json事件: ${event} - ${fileName}`,
+      "info"
+    );
 
     if (fileName.includes(".tmp") || fileName.includes(".vsctmp")) {
       // IDE创建了临时文件，立即拦截
-      await this.interceptTempFile(filePath);
+      await this.interceptTempFile(filePath, source);
       // 注意：拦截计数在interceptTempFile内部处理，避免重复计数
     } else if (fileName === "storage.json" && event === "change") {
       // 主配置文件被修改，验证设备ID
-      await this.verifyAndRestoreDeviceId();
+      await this.verifyAndRestoreDeviceId(source);
     }
   }
 
   /**
    * 拦截临时文件
    */
-  async interceptTempFile(tempFilePath) {
+  async interceptTempFile(tempFilePath, source) {
     try {
-      this.log("🚨 拦截IDE临时文件修改", "warn");
+      const ideName = source.includes("cursor") ? "Cursor" : "VS Code";
+      this.log(`🚨 拦截${ideName}临时文件修改`, "warn");
 
       // 等待文件写入完成
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -693,9 +1054,10 @@ class EnhancedDeviceGuardian {
         tempData["telemetry.devDeviceId"] &&
         tempData["telemetry.devDeviceId"] !== this.targetDeviceId
       ) {
-        this.log(`⚠️ 检测到设备ID被修改:`, "warn");
+        const interceptedId = tempData["telemetry.devDeviceId"]; // 保存原始ID
+        this.log(`⚠️ 检测到${ideName}设备ID被修改:`, "warn");
         this.log(`  原ID: ${this.targetDeviceId}`, "info");
-        this.log(`  新ID: ${tempData["telemetry.devDeviceId"]}`, "info");
+        this.log(`  新ID: ${interceptedId}`, "info");
 
         // 强制恢复目标设备ID
         tempData["telemetry.devDeviceId"] = this.targetDeviceId;
@@ -703,14 +1065,15 @@ class EnhancedDeviceGuardian {
         // 写回临时文件
         await fs.writeJson(tempFilePath, tempData, { spaces: 2 });
 
-        this.log("✅ 已拦截并恢复目标设备ID", "success");
+        this.log(`✅ 已拦截并恢复${ideName}目标设备ID`, "success");
         await this.updateStats("intercept");
 
         // 通知前端更新状态
         this.notifyEvent("intercept-success", {
           type: "device-id-intercept",
+          ide: ideName,
           targetDeviceId: this.targetDeviceId,
-          interceptedId: tempData["telemetry.devDeviceId"],
+          interceptedId: interceptedId, // 使用保存的原始ID
           timestamp: new Date().toISOString(),
         });
       }
@@ -722,40 +1085,58 @@ class EnhancedDeviceGuardian {
   /**
    * 验证并恢复设备ID
    */
-  async verifyAndRestoreDeviceId() {
+  async verifyAndRestoreDeviceId(source = "cursor-global") {
     try {
-      if (!(await fs.pathExists(this.paths.storageJson))) {
-        this.log("⚠️ 配置文件被删除，正在恢复...", "warn");
-        await this.enforceTargetDeviceId();
+      // 根据source确定要检查的文件
+      let targetPath;
+      let ideName;
+
+      if (source.includes("cursor")) {
+        targetPath = this.paths.storageJson;
+        ideName = "Cursor";
+      } else if (source.includes("vscode")) {
+        targetPath = this.paths.vscodeStorageJson;
+        ideName = "VS Code";
+      } else {
+        // 默认检查所有用户选择的IDE
+        await this.verifyAllSelectedIDEs();
+        return;
+      }
+
+      if (!(await fs.pathExists(targetPath))) {
+        this.log(`⚠️ ${ideName}配置文件被删除，正在恢复...`, "warn");
+        await this.enforceDeviceIdForIDE(targetPath, ideName);
         await this.updateStats("restore");
 
         // 通知前端更新状态
         this.notifyEvent("protection-restored", {
           type: "config-file-restored",
+          ide: ideName,
           targetDeviceId: this.targetDeviceId,
           timestamp: new Date().toISOString(),
         });
         return;
       }
 
-      const currentData = await fs.readJson(this.paths.storageJson);
+      const currentData = await fs.readJson(targetPath);
       const currentDeviceId = currentData["telemetry.devDeviceId"];
 
       if (currentDeviceId !== this.targetDeviceId) {
-        this.log("🚨 设备ID被篡改，正在恢复...", "warn");
+        this.log(`🚨 ${ideName}设备ID被篡改，正在恢复...`, "warn");
         this.log(`  当前ID: ${currentDeviceId}`, "info");
         this.log(`  目标ID: ${this.targetDeviceId}`, "info");
 
         // 强制恢复
-        await this.enforceTargetDeviceId();
+        await this.enforceDeviceIdForIDE(targetPath, ideName);
         await this.setBasicFileProtection();
 
-        this.log("✅ 设备ID已恢复", "success");
+        this.log(`✅ ${ideName}设备ID已恢复`, "success");
         await this.updateStats("restore");
 
         // 通知前端更新状态
         this.notifyEvent("protection-restored", {
           type: "device-id-restored",
+          ide: ideName,
           targetDeviceId: this.targetDeviceId,
           previousId: currentDeviceId,
           timestamp: new Date().toISOString(),
@@ -763,6 +1144,18 @@ class EnhancedDeviceGuardian {
       }
     } catch (error) {
       this.log(`❌ 验证设备ID失败: ${error.message}`, "error");
+    }
+  }
+
+  /**
+   * 验证所有用户选择的IDE的设备ID
+   */
+  async verifyAllSelectedIDEs() {
+    if (this.monitorCursor) {
+      await this.verifyAndRestoreDeviceId("cursor-global");
+    }
+    if (this.monitorVSCode) {
+      await this.verifyAndRestoreDeviceId("vscode-global");
     }
   }
 
@@ -876,6 +1269,35 @@ class EnhancedDeviceGuardian {
     } catch (error) {
       this.log(`❌ 检查激活状态失败: ${error.message}`, "error");
       return false;
+    }
+  }
+
+  /**
+   * 启动设备ID定期验证
+   * 定期检查设备ID是否被修改，确保及时恢复
+   */
+  async startDeviceIdVerification() {
+    try {
+      // 设置定期验证间隔
+      this.deviceIdVerifyInterval = setInterval(async () => {
+        if (!this.isGuarding || this.isClientCleaning) return;
+
+        try {
+          // 根据选择的IDE验证并恢复设备ID
+          if (this.selectedIDE === "vscode") {
+            await this.verifyAndRestoreDeviceId("vscode-global");
+          } else {
+            await this.verifyAndRestoreDeviceId("cursor-global");
+          }
+        } catch (error) {
+          this.log(`⚠️ 设备ID定期验证失败: ${error.message}`, "warning");
+        }
+      }, this.config.deviceIdVerifyInterval);
+
+      this.log("🔍 设备ID定期验证已启动", "success");
+    } catch (error) {
+      this.log(`❌ 启动设备ID定期验证失败: ${error.message}`, "error");
+      throw error;
     }
   }
 
@@ -1159,11 +1581,13 @@ class EnhancedDeviceGuardian {
    */
   async getStatus() {
     try {
-      const exists = await fs.pathExists(this.paths.storageJson);
+      // 根据选择的IDE获取相应的设备ID文件
+      const currentStoragePath = this.getCurrentIDEStoragePath();
+      const exists = await fs.pathExists(currentStoragePath);
       let currentDeviceId = null;
 
       if (exists) {
-        const data = await fs.readJson(this.paths.storageJson);
+        const data = await fs.readJson(currentStoragePath);
         currentDeviceId = data["telemetry.devDeviceId"];
       }
 
@@ -1177,10 +1601,12 @@ class EnhancedDeviceGuardian {
       return {
         isGuarding: this.isGuarding,
         isClientCleaning: this.isClientCleaning,
+        selectedIDE: this.selectedIDE,
         targetDeviceId: this.targetDeviceId,
         currentDeviceId: currentDeviceId,
         isProtected: currentDeviceId === this.targetDeviceId,
         configExists: exists,
+        monitoringPath: currentStoragePath,
         stats: {
           interceptedAttempts: fastStats.interceptedAttempts,
           backupFilesRemoved: fastStats.backupFilesRemoved,

@@ -953,6 +953,20 @@ ipcMain.handle("get-device-info", async () => {
   }
 });
 
+// 设置选择的IDE类型
+ipcMain.handle("set-selected-ide", async (event, ideType) => {
+  console.log(`🎯 设置选择的IDE: ${ideType}`);
+  global.selectedIDE = ideType;
+  return { success: true, selectedIDE: ideType };
+});
+
+// 获取当前选择的IDE类型
+ipcMain.handle("get-selected-ide", async () => {
+  const selectedIDE = global.selectedIDE || "cursor";
+  console.log(`📡 获取当前选择的IDE: ${selectedIDE}`);
+  return { success: true, selectedIDE };
+});
+
 // 获取详细设备ID信息
 ipcMain.handle("get-device-id-details", async () => {
   console.log("📡 收到设备ID详情请求");
@@ -961,19 +975,25 @@ ipcMain.handle("get-device-id-details", async () => {
     const fs = require("fs-extra");
 
     // 导入设备ID相关工具
-    const { generateStableDeviceId, hasDeviceIdCache } = require(getSharedPath(
-      "utils/stable-device-id"
-    ));
+    const {
+      generateStableDeviceId,
+      hasDeviceIdCache,
+      generateIDESpecificDeviceId,
+      hasIDESpecificCache,
+    } = require(getSharedPath("utils/stable-device-id"));
 
     const DeviceDetection = require(getSharedPath("utils/device-detection"));
 
-    // 1. 获取稳定设备ID
-    const stableDeviceId = await generateStableDeviceId();
-    const hasCachedId = hasDeviceIdCache();
+    // 获取当前选择的IDE类型
+    const selectedIDE = global.selectedIDE || "cursor"; // 默认为cursor
 
-    // 2. 获取设备指纹
+    // 1. 获取稳定设备ID（根据选择的IDE）
+    const stableDeviceId = await generateIDESpecificDeviceId(selectedIDE);
+    const hasCachedId = hasIDESpecificCache(selectedIDE);
+
+    // 2. 获取设备指纹（根据选择的IDE）
     const detector = new DeviceDetection();
-    const deviceFingerprint = await detector.generateFingerprint();
+    const deviceFingerprint = await detector.generateFingerprint(selectedIDE);
 
     // 3. 获取Cursor遥测ID
     let cursorTelemetry = null;
@@ -1002,10 +1022,37 @@ ipcMain.handle("get-device-id-details", async () => {
       console.warn("获取Cursor遥测ID失败:", error.message);
     }
 
-    // 4. 虚拟机检测
+    // 4. 获取VSCode遥测ID
+    let vscodeTelemetry = null;
+    try {
+      const vscodeStorageJsonPath = path.join(
+        os.homedir(),
+        "AppData",
+        "Roaming",
+        "Code",
+        "User",
+        "globalStorage",
+        "storage.json"
+      );
+
+      if (await fs.pathExists(vscodeStorageJsonPath)) {
+        const data = await fs.readJson(vscodeStorageJsonPath);
+        vscodeTelemetry = {
+          devDeviceId: data["telemetry.devDeviceId"],
+          machineId: data["telemetry.machineId"],
+          macMachineId: data["telemetry.macMachineId"],
+          sessionId: data["telemetry.sessionId"],
+          sqmId: data["telemetry.sqmId"],
+        };
+      }
+    } catch (error) {
+      console.warn("获取VSCode遥测ID失败:", error.message);
+    }
+
+    // 5. 虚拟机检测
     const vmInfo = await detector.detectVirtualMachine();
 
-    // 5. 系统基础信息
+    // 6. 系统基础信息
     const systemInfo = {
       platform: os.platform(),
       arch: os.arch(),
@@ -1019,6 +1066,7 @@ ipcMain.handle("get-device-id-details", async () => {
       stableDeviceId,
       deviceFingerprint,
       cursorTelemetry,
+      vscodeTelemetry,
       hasCachedId,
       vmInfo,
       systemInfo,
@@ -1026,6 +1074,7 @@ ipcMain.handle("get-device-id-details", async () => {
         stableId: true, // 稳定设备ID可清理
         fingerprint: true, // 设备指纹可重新生成
         cursorTelemetry: !!cursorTelemetry, // Cursor遥测ID可清理（如果存在）
+        vscodeTelemetry: !!vscodeTelemetry, // VSCode遥测ID可清理（如果存在）
         cache: hasCachedId, // 缓存可清理（如果存在）
       },
     };
@@ -1395,11 +1444,15 @@ ipcMain.handle("perform-device-cleanup", async (event, options = {}) => {
       throw new Error("设备管理器未初始化");
     }
 
-    // 传递清理选项给设备管理器 - 所有选项默认为true
+    // 传递清理选项给设备管理器 - 根据用户选择决定默认值
     const cleanupOptions = {
       preserveActivation: options.preserveActivation ?? true,
       deepClean: options.deepClean ?? true,
-      cleanCursorExtension: options.cleanCursorExtension ?? true,
+      // 只有用户选择Cursor时才清理Cursor扩展
+      cleanCursorExtension:
+        options.cleanCursor === true
+          ? options.cleanCursorExtension ?? true
+          : false,
       ...options,
     };
 
@@ -1516,13 +1569,15 @@ ipcMain.handle("verify-operation-permission", async (event, operation) => {
 });
 
 // 获取Augment扩展信息
-ipcMain.handle("get-augment-info", async () => {
+ipcMain.handle("get-augment-info", async (event, options = {}) => {
   try {
     if (!deviceManager) {
       throw new Error("设备管理器未初始化");
     }
 
-    const info = await deviceManager.getAugmentExtensionInfo();
+    // 根据选择的IDE获取对应的扩展信息
+    const selectedIDE = options.selectedIDE || "cursor";
+    const info = await deviceManager.getAugmentExtensionInfo(selectedIDE);
     return info;
   } catch (error) {
     return {
@@ -1765,8 +1820,13 @@ ipcMain.handle("get-websocket-status", async () => {
 });
 
 // 获取增强防护状态
-ipcMain.handle("get-enhanced-guardian-status", async () => {
+ipcMain.handle("get-enhanced-guardian-status", async (event, options = {}) => {
   try {
+    // 如果传递了IDE选择，更新增强防护的IDE配置
+    if (options.selectedIDE && deviceManager.enhancedGuardian) {
+      deviceManager.enhancedGuardian.setSelectedIDE(options.selectedIDE);
+    }
+
     return await deviceManager.getEnhancedGuardianStatus();
   } catch (error) {
     console.error("获取增强防护状态失败:", error);

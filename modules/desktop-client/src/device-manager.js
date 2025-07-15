@@ -380,7 +380,7 @@ class DeviceManager {
   }
 
   // 获取Augment扩展信息
-  async getAugmentExtensionInfo() {
+  async getAugmentExtensionInfo(selectedIDE = "cursor") {
     try {
       const info = {
         installed: false,
@@ -388,26 +388,53 @@ class DeviceManager {
         path: null,
         storageExists: false,
         storagePath: null,
+        ide: selectedIDE,
       };
 
+      // 根据选择的IDE获取对应的路径
+      let extensionsPath, augmentStoragePath;
+
+      if (selectedIDE === "vscode") {
+        // VSCode路径 - 修复扩展目录路径
+        extensionsPath = path.join(os.homedir(), ".vscode", "extensions");
+        augmentStoragePath = path.join(
+          os.homedir(),
+          "AppData",
+          "Roaming",
+          "Code",
+          "User",
+          "globalStorage",
+          "augment.vscode-augment"
+        );
+      } else {
+        // Cursor路径（默认）
+        extensionsPath = this.cursorPaths.extensions;
+        augmentStoragePath = this.cursorPaths.augmentStorage;
+      }
+
       // 检查扩展是否安装
-      if (await fs.pathExists(this.cursorPaths.extensions)) {
-        const extensions = await fs.readdir(this.cursorPaths.extensions);
-        const augmentExt = extensions.find((ext) =>
-          ext.startsWith("augment.vscode-augment-")
+      if (await fs.pathExists(extensionsPath)) {
+        const extensions = await fs.readdir(extensionsPath);
+        const augmentExt = extensions.find(
+          (ext) =>
+            ext.startsWith("augment.vscode-augment-") ||
+            ext.startsWith("augmentcode.augment-")
         );
 
         if (augmentExt) {
           info.installed = true;
-          info.version = augmentExt.replace("augment.vscode-augment-", "");
-          info.path = path.join(this.cursorPaths.extensions, augmentExt);
+          info.version = augmentExt.replace(
+            /^(augment\.vscode-augment-|augmentcode\.augment-)/,
+            ""
+          );
+          info.path = path.join(extensionsPath, augmentExt);
         }
       }
 
       // 检查存储目录
-      if (await fs.pathExists(this.cursorPaths.augmentStorage)) {
+      if (await fs.pathExists(augmentStoragePath)) {
         info.storageExists = true;
-        info.storagePath = this.cursorPaths.augmentStorage;
+        info.storagePath = augmentStoragePath;
       }
 
       return {
@@ -2118,7 +2145,8 @@ class DeviceManager {
   // 清理state.vscdb数据库中的Augment会话数据
   async cleanAugmentSessionsFromDatabase(results, options = {}) {
     try {
-      const stateDbPath = path.join(
+      // 支持自定义数据库路径（用于VSCode）
+      const stateDbPath = options.dbPath || path.join(
         os.homedir(),
         "AppData",
         "Roaming",
@@ -2127,6 +2155,8 @@ class DeviceManager {
         "globalStorage",
         "state.vscdb"
       );
+      
+      const ideName = options.ideName || "Cursor";
 
       if (!(await fs.pathExists(stateDbPath))) {
         return;
@@ -2211,15 +2241,15 @@ class DeviceManager {
 
         if (deletedCount > 0) {
           results.actions.push(
-            `🗑️ 已从数据库清理 ${deletedCount} 条Augment会话记录`
+            `🗑️ 已从${ideName}数据库清理 ${deletedCount} 条Augment会话记录`
           );
         }
       } catch (sqlError) {
         // 如果sql.js操作失败，记录但不阻止其他清理操作
-        results.actions.push("⚠️ 数据库会话清理跳过（sql.js不可用）");
+        results.actions.push(`⚠️ ${ideName}数据库会话清理跳过（sql.js不可用）`);
       }
     } catch (error) {
-      results.errors.push(`清理Augment数据库会话失败: ${error.message}`);
+      results.errors.push(`清理${ideName} Augment数据库会话失败: ${error.message}`);
     }
   }
 
@@ -2660,15 +2690,18 @@ class DeviceManager {
       results.actions.push("🚀 最后步骤：重新启动IDE，应用清理结果");
 
       let needStartAnyIDE = false;
+      let needStartGuardian = false;
 
       // 根据用户选择决定启动哪些IDE
       if (options.cleanCursor && options.autoRestartIDE !== false) {
         needStartAnyIDE = true;
+        needStartGuardian = true;
         await this.startCursorIDE(results);
       }
 
       if (options.cleanVSCode && options.autoRestartIDE !== false) {
         needStartAnyIDE = true;
+        needStartGuardian = true;
         await this.startVSCodeIDE(results);
       }
 
@@ -2678,6 +2711,13 @@ class DeviceManager {
       }
 
       results.actions.push("✅ IDE重启完成，新的设备身份已生效");
+
+      // 如果清理了任何IDE并且启用了增强防护，则启动防护
+      if (needStartGuardian && options.enableEnhancedGuardian !== false) {
+        results.actions.push("⏳ 等待3秒后启动增强防护...");
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await this.startEnhancedGuardian(results, options);
+      }
     } catch (error) {
       results.errors.push(`启动IDE失败: ${error.message}`);
       // 不影响清理操作的成功状态
@@ -3639,6 +3679,12 @@ class DeviceManager {
       if (options.cleanVSCode) {
         results.actions.push("🔵 智能清理模式 - 处理VS Code设备身份");
 
+        // 在清理前先关闭VS Code
+        await this.forceCloseVSCodeIDE(results);
+        
+        // 等待VS Code完全关闭
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+
         // VS Code智能清理：仅更新设备身份，不清理配置
         const vscodeVariants = await this.detectInstalledVSCodeVariants();
         for (const variant of vscodeVariants) {
@@ -4277,7 +4323,40 @@ class DeviceManager {
         return null;
       }
 
-      const settingsContent = await fs.readJson(variant.settingsJson);
+      // VSCode的settings.json可能包含注释，需要特殊处理
+      let settingsContent;
+      try {
+        settingsContent = await fs.readJson(variant.settingsJson);
+      } catch (jsonError) {
+        // 如果JSON解析失败，尝试读取原始内容并处理注释
+        const rawContent = await fs.readFile(variant.settingsJson, "utf8");
+        try {
+          // 简单移除行注释（这不是完美的解决方案，但对大多数情况有效）
+          const cleanedContent = rawContent
+            .split("\n")
+            .map((line) => {
+              const commentIndex = line.indexOf("//");
+              if (commentIndex !== -1) {
+                // 检查是否在字符串内
+                const beforeComment = line.substring(0, commentIndex);
+                const quotes = (beforeComment.match(/"/g) || []).length;
+                if (quotes % 2 === 0) {
+                  // 偶数个引号，注释在字符串外
+                  return line.substring(0, commentIndex).trim();
+                }
+              }
+              return line;
+            })
+            .join("\n");
+
+          settingsContent = JSON.parse(cleanedContent);
+        } catch (parseError) {
+          results.actions.push(
+            `⚠️ VS Code ${variant.name} settings.json格式错误，跳过MCP配置保护`
+          );
+          return null;
+        }
+      }
 
       // 提取MCP配置
       const mcpConfig = {};
@@ -4350,24 +4429,80 @@ class DeviceManager {
           "storage.json"
         );
         if (await fs.pathExists(storageJsonPath)) {
+          // 生成新的VSCode专用设备ID
+          let generateVSCodeDeviceId;
+          try {
+            ({ generateVSCodeDeviceId } = require(getSharedPath(
+              "utils/stable-device-id"
+            )));
+          } catch (error) {
+            // 降级到直接路径
+            ({
+              generateVSCodeDeviceId,
+            } = require("../../../shared/utils/stable-device-id"));
+          }
+          const newVSCodeDeviceId = await generateVSCodeDeviceId();
+
           const storageData = await fs.readJson(storageJsonPath);
 
           // 精准更新设备身份字段，保留其他所有配置
-          const deviceIdentityFields = [
-            "telemetry.devDeviceId", // 最关键：扩展用户识别
-            "telemetry.machineId", // 机器标识
-            "telemetry.sqmId", // 遥测标识
-            "storage.serviceMachineId", // 服务机器ID
-          ];
+          const deviceIdentityUpdates = {
+            "telemetry.devDeviceId": `${newVSCodeDeviceId.substring(
+              0,
+              8
+            )}-${newVSCodeDeviceId.substring(
+              8,
+              12
+            )}-${newVSCodeDeviceId.substring(
+              12,
+              16
+            )}-${newVSCodeDeviceId.substring(
+              16,
+              20
+            )}-${newVSCodeDeviceId.substring(20, 32)}`, // 最关键：扩展用户识别
+            "telemetry.machineId": newVSCodeDeviceId, // 机器标识
+            "telemetry.macMachineId": newVSCodeDeviceId.substring(0, 64), // Mac机器ID
+            "telemetry.sqmId": `{${newVSCodeDeviceId
+              .substring(0, 8)
+              .toUpperCase()}-${newVSCodeDeviceId
+              .substring(8, 12)
+              .toUpperCase()}-${newVSCodeDeviceId
+              .substring(12, 16)
+              .toUpperCase()}-${newVSCodeDeviceId
+              .substring(16, 20)
+              .toUpperCase()}-${newVSCodeDeviceId
+              .substring(20, 32)
+              .toUpperCase()}}`, // 遥测标识
+            "storage.serviceMachineId": newVSCodeDeviceId, // 服务机器ID
+          };
 
           let updated = false;
-          for (const field of deviceIdentityFields) {
-            if (storageData[field]) {
-              storageData[field] = crypto.randomUUID();
+          for (const [field, newValue] of Object.entries(
+            deviceIdentityUpdates
+          )) {
+            if (storageData.hasOwnProperty(field)) {
+              storageData[field] = newValue;
               updated = true;
               results.actions.push(
                 `🔄 VS Code ${variant.name} - 已更新设备ID: ${field}`
               );
+            }
+          }
+
+          // 更新时间戳字段
+          const currentTime = new Date().toUTCString();
+          const timeFields = {
+            "telemetry.firstSessionDate": currentTime,
+            "telemetry.currentSessionDate": currentTime,
+            "telemetry.lastSessionDate": currentTime,
+            "telemetry.installTime": Date.now(),
+            "telemetry.sessionCount": 1,
+          };
+
+          for (const [field, value] of Object.entries(timeFields)) {
+            if (storageData.hasOwnProperty(field)) {
+              storageData[field] = value;
+              updated = true;
             }
           }
 
@@ -4376,15 +4511,43 @@ class DeviceManager {
             results.actions.push(
               `✅ VS Code ${variant.name} - 设备身份已更新，扩展将识别为新用户`
             );
+            results.actions.push(
+              `🆔 新设备ID: ${newVSCodeDeviceId.substring(0, 16)}...`
+            );
           } else {
             results.actions.push(
               `ℹ️ VS Code ${variant.name} - 未发现需要更新的设备身份字段`
             );
           }
+        } else {
+          // 如果storage.json不存在，创建一个新的
+          await this.generateFreshVSCodeIdentity(results, variant);
         }
       }
 
-      // 4. 恢复所有MCP配置
+      // 4. 清理VS Code Augment扩展的用户身份文件（与Cursor保持一致）
+      const vscodeAugmentStoragePath = path.join(
+        variant.globalStorage,
+        "augment.vscode-augment"
+      );
+      
+      await this.cleanAugmentIdentityFiles(
+        results,
+        vscodeAugmentStoragePath,
+        `VS Code ${variant.name}`
+      );
+
+      // 5. 清理state.vscdb中的Augment用户识别记录
+      if (await fs.pathExists(variant.stateDb)) {
+        await this.cleanAugmentSessionsFromDatabase(results, {
+          skipCursorLogin: true, // 保留登录状态
+          intelligentMode: true, // 智能模式标记
+          dbPath: variant.stateDb, // 指定VSCode的数据库路径
+          ideName: `VS Code ${variant.name}`
+        });
+      }
+
+      // 6. 恢复所有MCP配置
       await this.restoreMCPConfigUniversal(results, mcpConfigs);
       await this.restoreVSCodeMCPConfig(results, variant, settingsMcpConfig);
 
@@ -5314,6 +5477,9 @@ class DeviceManager {
             enableBackupMonitoring: true,
             enableDatabaseMonitoring: true,
             enableEnhancedProtection: true,
+            cleanCursor: options.cleanCursor,
+            cleanVSCode: options.cleanVSCode,
+            selectedIDE: options.selectedIDE, // 传递选择的IDE
           });
 
         if (serviceResult.success) {
@@ -5353,6 +5519,9 @@ class DeviceManager {
           enableBackupMonitoring: true,
           enableDatabaseMonitoring: true,
           enableEnhancedProtection: true,
+          cleanCursor: options.cleanCursor,
+          cleanVSCode: options.cleanVSCode,
+          selectedIDE: options.selectedIDE, // 传递选择的IDE
         }
       );
 
