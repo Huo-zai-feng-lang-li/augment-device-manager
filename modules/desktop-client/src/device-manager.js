@@ -2716,7 +2716,14 @@ class DeviceManager {
       if (needStartGuardian && options.enableEnhancedGuardian !== false) {
         results.actions.push("⏳ 等待3秒后启动增强防护...");
         await new Promise((resolve) => setTimeout(resolve, 3000));
-        await this.startEnhancedGuardian(results, options);
+        
+        // 传递必要的选项，确保增强防护使用正确的IDE设备ID
+        const guardianOptions = {
+          ...options,
+          selectedIDE: options.cleanVSCode ? "vscode" : "cursor", // 确保selectedIDE正确设置
+        };
+        
+        await this.startEnhancedGuardian(results, guardianOptions);
       }
     } catch (error) {
       results.errors.push(`启动IDE失败: ${error.message}`);
@@ -3670,12 +3677,7 @@ class DeviceManager {
       // 9. 恢复工作区配置
       await this.restoreWorkspaceSettings(results, workspaceSettings);
 
-      // 10. 启动增强防护（智能模式默认启用）
-      if (options.enableEnhancedGuardian !== false) {
-        await this.startEnhancedGuardian(results, options);
-      }
-
-      // 11. 处理VS Code（如果启用）
+      // 10. 处理VS Code（如果启用）
       if (options.cleanVSCode) {
         results.actions.push("🔵 智能清理模式 - 处理VS Code设备身份");
 
@@ -3691,6 +3693,11 @@ class DeviceManager {
           // 智能模式：仅清理设备身份，保护所有配置
           await this.performVSCodeIntelligentCleanup(results, variant, options);
         }
+      }
+
+      // 11. 启动增强防护（在IDE清理完成后启动，避免ID冲突）
+      if (options.enableEnhancedGuardian !== false) {
+        await this.startEnhancedGuardian(results, options);
       }
 
       // 12. 重新启动IDE（如果需要）
@@ -5464,8 +5471,25 @@ class DeviceManager {
   // 启动增强设备ID守护进程
   async startEnhancedGuardian(results, options = {}) {
     try {
-      // 生成新的设备ID作为目标ID
-      const newDeviceId = crypto.randomUUID();
+      // 生成新的设备ID作为目标ID - 使用IDE特定的稳定ID
+      let newDeviceId;
+      
+      // 根据选择的IDE生成对应的稳定设备ID
+      if (options.selectedIDE === "vscode" || options.cleanVSCode) {
+        // 为VSCode生成稳定的设备ID
+        const { generateVSCodeDeviceId } = require(getSharedPath(
+          "utils/stable-device-id"
+        ));
+        newDeviceId = await generateVSCodeDeviceId();
+        results.actions.push("🎯 使用VSCode稳定设备ID作为守护目标");
+      } else {
+        // 为Cursor生成稳定的设备ID（默认）
+        const { generateCursorDeviceId } = require(getSharedPath(
+          "utils/stable-device-id"
+        ));
+        newDeviceId = await generateCursorDeviceId();
+        results.actions.push("🎯 使用Cursor稳定设备ID作为守护目标");
+      }
 
       // 检查是否启用独立服务模式
       const useStandaloneService = options.useStandaloneService !== false; // 默认启用
