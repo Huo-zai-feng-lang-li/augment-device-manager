@@ -1,3 +1,4 @@
+# 创建你自己的ngrok配置文件 如 ngrok.yml 复制如下内容到ngrok.yml文件中
 # ngrok 配置文件示例
 # 复制此文件为 ngrok.yml 并填入您的认证令牌
 

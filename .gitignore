@@ -165,10 +165,16 @@ config/tokens.js
 *token*
 *secret*
 *key*
-.env*
+.env
+.env.local
+.env.development
+.env.production
 auth.json
 credentials.json
 ngrok.yml
+
+# 但是允许模板文件
+!*.example
 
 # GitHub配置临时目录
 temp-config-repo/
