@@ -21,10 +21,46 @@ function getDefaultConfig() {
     // 开发环境：优先使用本地服务器
     return {
       server: {
-        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式
+        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式
         host: "github-config",
         port: 443,
         protocol: "https",
+        // GitHub配置
+        githubConfig: {
+          enabled: true,
+          owner: "Huo-zai-feng-lang-li",
+          repo: "augment-device-manager",
+          branch: "main",
+          configFile: "server-config.json",
+          // 配置获取URL列表
+          configUrls: [
+            "https://raw.githubusercontent.com/Huo-zai-feng-lang-li/augment-device-manager/main/server-config.json",
+            "https://cdn.jsdelivr.net/gh/Huo-zai-feng-lang-li/augment-device-manager@main/server-config.json",
+            "https://api.github.com/repos/Huo-zai-feng-lang-li/augment-device-manager/contents/server-config.json"
+          ],
+          // 缓存配置
+          cacheTimeout: 300000, // 5分钟
+          retryInterval: 10000,  // 10秒重试
+          maxRetries: 3
+        },
+        // GitHub配置
+        githubConfig: {
+          enabled: true,
+          owner: "Huo-zai-feng-lang-li",
+          repo: "augment-device-manager",
+          branch: "main",
+          configFile: "server-config.json",
+          // 配置获取URL列表
+          configUrls: [
+            "https://raw.githubusercontent.com/Huo-zai-feng-lang-li/augment-device-manager/main/server-config.json",
+            "https://cdn.jsdelivr.net/gh/Huo-zai-feng-lang-li/augment-device-manager@main/server-config.json",
+            "https://api.github.com/repos/Huo-zai-feng-lang-li/augment-device-manager/contents/server-config.json"
+          ],
+          // 缓存配置
+          cacheTimeout: 300000, // 5分钟
+          retryInterval: 10000,  // 10秒重试
+          maxRetries: 3
+        },
         // GitHub配置
         githubConfig: {
           enabled: true,
