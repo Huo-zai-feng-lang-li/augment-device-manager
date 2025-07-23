@@ -931,6 +931,9 @@ function renderCodesTable(codes) {
     return;
   }
 
+  // 调试：打印数据
+  console.log("激活码数据:", codes);
+
   const tableHTML = `
         <table class="data-table codes-table">
             <thead>

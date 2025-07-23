@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "node src/server-simple.js",
     "start": "node src/server-simple.js",
-    "build": "echo 'Build completed'"
+    "build": "echo 'Build completed'",
+    "clear-data": "node scripts/clear-data.js",
+    "clear-data-force": "node scripts/clear-data.js --force"
   },
   "dependencies": {
     "express": "^4.18.2",

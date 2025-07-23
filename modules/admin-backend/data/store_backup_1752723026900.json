@@ -1,0 +1,14 @@
+{
+  "admins": [
+    {
+      "id": 1,
+      "username": "admin",
+      "password_hash": "$2a$10$eGKYT0fcomoBB0deVFXq3.jdQGDn6vG5S/FAPIe2uBgpn/pue9mSe"
+    }
+  ],
+  "activationCodes": [],
+  "usageLogs": [
+
+  ],
+  "broadcastHistory": []
+}

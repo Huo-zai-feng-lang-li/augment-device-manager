@@ -1,9 +1,8 @@
 {
-  "_comment": "开发环境配置 - 打包时会被自动替换为ngrok地址",
   "server": {
-    "host": "localhost",
-    "port": 3002,
-    "protocol": "http"
+    "host": "dbeffe1d737b.ngrok-free.app",
+    "port": 443,
+    "protocol": "https"
   },
   "client": {
     "autoConnect": true,

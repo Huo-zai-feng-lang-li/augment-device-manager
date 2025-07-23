@@ -9,714 +9,276 @@
   "activationCodes": [
     {
       "id": 1,
-      "code": "F341D2095A6B071D31A69641D24475F7",
+      "code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
       "device_id": null,
-      "created_at": "2025-07-03T09:22:46.731Z",
-      "expires_at": "2025-07-03T09:23:46.731Z",
-      "used_at": "2025-07-06T09:22:51.478Z",
+      "created_at": "2025-07-17T04:01:03.206Z",
+      "expires_at": "2025-08-16T04:01:03.206Z",
+      "used_at": "2025-07-17T04:07:42.318Z",
       "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "status": "expired",
-      "notes": "1分钟测试激活码",
-      "last_verified_at": "2025-07-06T09:22:52.956Z"
+      "status": "used",
+      "notes": "zk",
+      "last_verified_at": "2025-07-23T10:05:26.042Z"
     },
     {
       "id": 2,
-      "code": "FB0C27890E259DC52E52FEAB49BE1E92",
+      "code": "A52F225A81884CE4BCD97E6947951968",
       "device_id": null,
-      "created_at": "2025-07-03T09:44:15.030Z",
-      "expires_at": "2025-07-03T09:45:15.030Z",
-      "used_at": "2025-07-06T09:44:20.166Z",
-      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "status": "used",
-      "notes": "1分钟测试激活码",
-      "last_verified_at": "2025-07-06T09:44:21.666Z"
-    },
-    {
-      "id": 3,
-      "code": "69A2260C1C4C13571D23530152493265",
-      "device_id": null,
-      "created_at": "2025-07-03T10:07:50.130Z",
-      "expires_at": "2025-07-03T10:08:50.130Z",
+      "created_at": "2025-07-17T04:02:13.712Z",
+      "expires_at": "2025-08-16T04:02:13.712Z",
       "used_at": null,
       "used_by_device": null,
       "status": "active",
-      "notes": "1分钟测试激活码",
-      "last_verified_at": "2025-07-06T10:07:47.794Z"
-    },
-    {
-      "id": 4,
-      "code": "A1273678674FFDA453C61774BC8149F2",
-      "device_id": null,
-      "created_at": "2025-07-03T10:08:57.657Z",
-      "expires_at": "2025-07-03T10:09:57.657Z",
-      "used_at": "2025-07-06T10:09:08.451Z",
-      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "status": "expired",
-      "notes": "1分钟测试激活码",
-      "last_verified_at": "2025-07-06T10:09:09.884Z"
-    },
-    {
-      "id": 5,
-      "code": "26CB8CF566D66BC8ECB9D196BD624AC9",
-      "device_id": null,
-      "created_at": "2025-07-03T10:27:31.904Z",
-      "expires_at": "2025-07-03T10:28:31.904Z",
-      "used_at": null,
-      "used_by_device": null,
-      "status": "expired",
-      "notes": "1分钟测试激活码",
-      "last_verified_at": "2025-07-03T10:27:31.544Z"
-    },
-    {
-      "id": 6,
-      "code": "0F86E9020FD1C1ADB10EACBA4121B6A3",
-      "device_id": null,
-      "created_at": "2025-07-03T10:29:14.014Z",
-      "expires_at": "2025-07-03T10:34:14.014Z",
-      "used_at": "2025-07-03T10:29:24.883Z",
-      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "status": "expired",
-      "notes": "5分钟测试激活码",
-      "last_verified_at": "2025-07-03T10:30:10.837Z"
-    },
-    {
-      "id": 7,
-      "code": "E0B8E0826CD211A7DF3E538CE968D064",
-      "device_id": null,
-      "created_at": "2025-07-03T10:45:19.119Z",
-      "expires_at": "2025-07-03T10:46:19.119Z",
-      "used_at": "2025-07-03T10:45:35.555Z",
-      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "status": "used",
-      "notes": "1分钟测试激活码",
-      "last_verified_at": "2025-07-03T10:45:37.130Z"
-    },
-    {
-      "id": 8,
-      "code": "B833DABE81F46A720324C8E4787B1CD8",
-      "device_id": null,
-      "created_at": "2025-07-03T12:19:44.713Z",
-      "expires_at": "2025-07-03T12:20:44.713Z",
-      "used_at": "2025-07-03T12:19:53.623Z",
-      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "status": "expired",
-      "notes": "1分钟测试激活码",
-      "last_verified_at": "2025-07-03T12:20:32.224Z"
-    },
-    {
-      "id": 9,
-      "code": "16357B26FC85F4F6E0729352E95A5B8D",
-      "device_id": null,
-      "created_at": "2025-07-03T12:33:58.567Z",
-      "expires_at": "2025-07-03T12:34:58.567Z",
-      "used_at": "2025-07-03T12:34:31.921Z",
-      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "status": "expired",
-      "notes": "1分钟测试激活码",
-      "last_verified_at": "2025-07-03T12:34:35.520Z"
-    },
-    {
-      "id": 10,
-      "code": "223B7A031A25CA04C464E18DEAE232B7",
-      "device_id": null,
-      "created_at": "2025-07-03T12:42:20.937Z",
-      "expires_at": "2025-07-03T12:43:20.937Z",
-      "used_at": "2025-07-03T12:42:28.542Z",
-      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "status": "expired",
-      "notes": "1分钟测试激活码",
-      "last_verified_at": "2025-07-03T12:42:30.035Z"
-    },
-    {
-      "id": 11,
-      "code": "D44F4AD713FD765CFDF7BDD5F48644FA",
-      "device_id": null,
-      "created_at": "2025-07-03T12:53:09.748Z",
-      "expires_at": "2025-07-03T12:54:09.748Z",
-      "used_at": "2025-07-03T12:53:41.079Z",
-      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "status": "expired",
-      "notes": "1分钟测试激活码",
-      "last_verified_at": "2025-07-03T12:53:51.469Z"
-    },
-    {
-      "id": 12,
-      "code": "BA1751C6CF56B62F843B0097FE00C202",
-      "device_id": null,
-      "created_at": "2025-07-03T13:09:46.265Z",
-      "expires_at": "2025-07-03T13:10:46.265Z",
-      "used_at": null,
-      "used_by_device": null,
-      "status": "active",
-      "notes": "1分钟测试激活码",
-      "last_verified_at": "2025-07-03T13:09:45.356Z"
-    },
-    {
-      "id": 13,
-      "code": "77CA42F1E369A878BE5B6C79B8C6B4E6",
-      "device_id": null,
-      "created_at": "2025-07-03T13:17:31.669Z",
-      "expires_at": "2025-07-03T13:18:31.669Z",
-      "used_at": "2025-07-03T13:17:39.845Z",
-      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "status": "expired",
-      "notes": "1分钟测试激活码",
-      "last_verified_at": "2025-07-03T13:18:04.091Z"
-    },
-    {
-      "id": 14,
-      "code": "9686DED8DFEAB7FE7996CDD255BE62F7",
-      "device_id": null,
-      "created_at": "2025-07-03T14:00:49.592Z",
-      "expires_at": "2025-07-03T14:01:49.592Z",
-      "used_at": "2025-07-03T14:01:00.785Z",
-      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "status": "expired",
-      "notes": "1分钟测试激活码",
-      "last_verified_at": "2025-07-03T14:01:32.070Z"
-    },
-    {
-      "id": 15,
-      "code": "02E8549751C8590EB72D1C246EACCD2E",
-      "device_id": null,
-      "created_at": "2025-07-04T13:09:52.269Z",
-      "expires_at": "2025-08-03T13:09:52.269Z",
-      "used_at": "2025-07-04T13:09:57.507Z",
-      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "status": "used",
-      "notes": "",
-      "last_verified_at": "2025-07-06T14:54:26.674Z"
-    },
-    {
-      "id": 16,
-      "code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": null,
-      "created_at": "2025-07-06T16:29:35.992Z",
-      "expires_at": "2025-08-05T16:29:35.992Z",
-      "used_at": "2025-07-06T16:29:47.497Z",
-      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "status": "used",
-      "notes": "",
-      "last_verified_at": "2025-07-15T03:00:15.012Z"
-    },
-    {
-      "id": 17,
-      "code": "C12DC21AC0A0D377EA2378C4C879A8CE",
-      "device_id": null,
-      "created_at": "2025-07-15T09:55:40.504Z",
-      "expires_at": "2025-08-14T09:55:40.504Z",
-      "used_at": "2025-07-15T09:55:49.292Z",
-      "used_by_device": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "status": "used",
-      "notes": "",
-      "last_verified_at": "2025-07-15T10:33:34.177Z"
+      "notes": ""
     }
   ],
   "usageLogs": [
     {
       "id": 1,
-      "activation_code": "F341D2095A6B071D31A69641D24475F7",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-03T09:22:46.731Z",
-      "details": "管理员创建激活码"
+      "activation_code": "system",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "control_enable",
+      "timestamp": "2025-07-17T03:48:02.152Z",
+      "details": "管理员启用客户端"
     },
     {
       "id": 2,
-      "activation_code": "F341D2095A6B071D31A69641D24475F7",
+      "activation_code": "system",
       "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "activated",
-      "timestamp": "2025-07-06T09:22:51.478Z",
-      "details": "激活码验证成功"
+      "action": "control_enable",
+      "timestamp": "2025-07-17T03:48:06.556Z",
+      "details": "管理员启用客户端"
     },
     {
       "id": 3,
-      "activation_code": "FB0C27890E259DC52E52FEAB49BE1E92",
+      "activation_code": "system",
       "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-03T09:44:15.030Z",
-      "details": "管理员创建激活码"
+      "action": "broadcast",
+      "timestamp": "2025-07-17T03:48:15.309Z",
+      "details": "管理员广播消息给1个客户端: 谢谢谢谢谢谢"
     },
     {
       "id": 4,
-      "activation_code": "FB0C27890E259DC52E52FEAB49BE1E92",
+      "activation_code": "system",
       "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "activated",
-      "timestamp": "2025-07-06T09:44:20.166Z",
-      "details": "激活码验证成功"
+      "action": "control_disable",
+      "timestamp": "2025-07-17T03:54:57.766Z",
+      "details": "管理员禁用客户端"
     },
     {
       "id": 5,
-      "activation_code": "69A2260C1C4C13571D23530152493265",
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
       "device_id": "admin",
       "action": "created",
-      "timestamp": "2025-07-03T10:07:50.130Z",
+      "timestamp": "2025-07-17T04:01:03.206Z",
       "details": "管理员创建激活码"
     },
     {
       "id": 6,
-      "activation_code": "A1273678674FFDA453C61774BC8149F2",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-03T10:08:57.657Z",
-      "details": "管理员创建激活码"
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "activated",
+      "timestamp": "2025-07-17T04:01:13.137Z",
+      "details": "激活码验证成功"
     },
     {
       "id": 7,
-      "activation_code": "A1273678674FFDA453C61774BC8149F2",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "activated",
-      "timestamp": "2025-07-06T10:09:08.451Z",
-      "details": "激活码验证成功"
+      "activation_code": "A52F225A81884CE4BCD97E6947951968",
+      "device_id": "admin",
+      "action": "created",
+      "timestamp": "2025-07-17T04:02:13.712Z",
+      "details": "管理员创建激活码"
     },
     {
       "id": 8,
-      "activation_code": "26CB8CF566D66BC8ECB9D196BD624AC9",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-03T10:27:31.904Z",
-      "details": "管理员创建激活码"
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "activated",
+      "timestamp": "2025-07-17T04:07:42.318Z",
+      "details": "激活码验证成功"
     },
     {
       "id": 9,
-      "activation_code": "26CB8CF566D66BC8ECB9D196BD624AC9",
+      "activation_code": "system",
       "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "failed",
-      "timestamp": "2025-07-03T10:28:47.187Z",
-      "details": "激活码已过期（基于在线时间）"
+      "action": "control_enable",
+      "timestamp": "2025-07-17T04:07:57.679Z",
+      "details": "管理员启用客户端"
     },
     {
       "id": 10,
-      "activation_code": "26CB8CF566D66BC8ECB9D196BD624AC9",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "failed",
-      "timestamp": "2025-07-03T10:28:48.787Z",
-      "details": "激活码已过期（基于在线时间）"
+      "activation_code": "system",
+      "device_id": "admin",
+      "action": "broadcast",
+      "timestamp": "2025-07-17T04:08:03.477Z",
+      "details": "管理员广播消息给1个客户端: 尺寸"
     },
     {
       "id": 11,
-      "activation_code": "26CB8CF566D66BC8ECB9D196BD624AC9",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "failed",
-      "timestamp": "2025-07-03T10:28:49.244Z",
-      "details": "激活码已过期（基于在线时间）"
+      "activation_code": "6C1DFFB606E26D73E79A67E331ED0492",
+      "device_id": "admin",
+      "action": "created",
+      "timestamp": "2025-07-17T04:09:46.686Z",
+      "details": "管理员创建激活码"
     },
     {
       "id": 12,
-      "activation_code": "26CB8CF566D66BC8ECB9D196BD624AC9",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "failed",
-      "timestamp": "2025-07-03T10:28:49.428Z",
-      "details": "激活码已过期（基于在线时间）"
+      "activation_code": "6C1DFFB606E26D73E79A67E331ED0492",
+      "device_id": "admin",
+      "action": "deleted",
+      "timestamp": "2025-07-17T04:09:52.295Z",
+      "details": "管理员删除激活码"
     },
     {
       "id": 13,
-      "activation_code": "26CB8CF566D66BC8ECB9D196BD624AC9",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "activation_code": "TEST-CODE-FOR-CONNECTION-TEST",
+      "device_id": "TEST-DEVICE-ID",
       "action": "failed",
-      "timestamp": "2025-07-03T10:28:49.581Z",
-      "details": "激活码已过期（基于在线时间）"
+      "timestamp": "2025-07-17T06:40:14.010Z",
+      "details": "激活码格式错误"
     },
     {
       "id": 14,
-      "activation_code": "26CB8CF566D66BC8ECB9D196BD624AC9",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "activation_code": "4D65044CDE56291A6D7957740896AE8C",
+      "device_id": "TEST-DEVICE-1752734414079",
       "action": "failed",
-      "timestamp": "2025-07-03T10:28:59.069Z",
-      "details": "激活码已过期（基于在线时间）"
+      "timestamp": "2025-07-17T06:40:14.145Z",
+      "details": "激活码不存在"
     },
     {
       "id": 15,
-      "activation_code": "0F86E9020FD1C1ADB10EACBA4121B6A3",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-03T10:29:14.014Z",
-      "details": "管理员创建激活码"
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-23T06:21:00.555Z",
+      "details": "客户端执行操作: cleanup"
     },
     {
       "id": 16,
-      "activation_code": "0F86E9020FD1C1ADB10EACBA4121B6A3",
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
       "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "activated",
-      "timestamp": "2025-07-03T10:29:24.883Z",
-      "details": "激活码验证成功"
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-23T06:21:43.992Z",
+      "details": "客户端执行操作: cleanup"
     },
     {
       "id": 17,
-      "activation_code": "E0B8E0826CD211A7DF3E538CE968D064",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-03T10:45:19.119Z",
-      "details": "管理员创建激活码"
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-23T06:21:51.675Z",
+      "details": "客户端执行操作: cleanup"
     },
     {
       "id": 18,
-      "activation_code": "E0B8E0826CD211A7DF3E538CE968D064",
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
       "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "activated",
-      "timestamp": "2025-07-03T10:45:35.555Z",
-      "details": "激活码验证成功"
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-23T06:41:21.693Z",
+      "details": "客户端执行操作: cleanup"
     },
     {
       "id": 19,
-      "activation_code": "B833DABE81F46A720324C8E4787B1CD8",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-03T12:19:44.713Z",
-      "details": "管理员创建激活码"
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-23T06:41:23.746Z",
+      "details": "客户端执行操作: cleanup"
     },
     {
       "id": 20,
-      "activation_code": "B833DABE81F46A720324C8E4787B1CD8",
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
       "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "activated",
-      "timestamp": "2025-07-03T12:19:53.623Z",
-      "details": "激活码验证成功"
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-23T06:44:46.346Z",
+      "details": "客户端执行操作: cleanup"
     },
     {
       "id": 21,
-      "activation_code": "16357B26FC85F4F6E0729352E95A5B8D",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-03T12:33:58.567Z",
-      "details": "管理员创建激活码"
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-23T06:45:31.876Z",
+      "details": "客户端执行操作: cleanup"
     },
     {
       "id": 22,
-      "activation_code": "16357B26FC85F4F6E0729352E95A5B8D",
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
       "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "activated",
-      "timestamp": "2025-07-03T12:34:31.921Z",
-      "details": "激活码验证成功"
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-23T06:46:11.512Z",
+      "details": "客户端执行操作: cleanup"
     },
     {
       "id": 23,
-      "activation_code": "223B7A031A25CA04C464E18DEAE232B7",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-03T12:42:20.937Z",
-      "details": "管理员创建激活码"
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-23T06:46:14.208Z",
+      "details": "客户端执行操作: cleanup"
     },
     {
       "id": 24,
-      "activation_code": "223B7A031A25CA04C464E18DEAE232B7",
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
       "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "activated",
-      "timestamp": "2025-07-03T12:42:28.542Z",
-      "details": "激活码验证成功"
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-23T06:46:18.198Z",
+      "details": "客户端执行操作: cleanup"
     },
     {
       "id": 25,
-      "activation_code": "D44F4AD713FD765CFDF7BDD5F48644FA",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-03T12:53:09.748Z",
-      "details": "管理员创建激活码"
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-23T06:47:18.264Z",
+      "details": "客户端执行操作: cleanup"
     },
     {
       "id": 26,
-      "activation_code": "D44F4AD713FD765CFDF7BDD5F48644FA",
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
       "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "activated",
-      "timestamp": "2025-07-03T12:53:41.079Z",
-      "details": "激活码验证成功"
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-23T06:48:27.321Z",
+      "details": "客户端执行操作: cleanup"
     },
     {
       "id": 27,
-      "activation_code": "BA1751C6CF56B62F843B0097FE00C202",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-03T13:09:46.265Z",
-      "details": "管理员创建激活码"
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-23T08:22:49.019Z",
+      "details": "客户端执行操作: cleanup"
     },
     {
       "id": 28,
-      "activation_code": "77CA42F1E369A878BE5B6C79B8C6B4E6",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-03T13:17:31.669Z",
-      "details": "管理员创建激活码"
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
+      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
+      "action": "operation_cleanup",
+      "timestamp": "2025-07-23T09:36:12.793Z",
+      "details": "客户端执行操作: cleanup"
     },
     {
       "id": 29,
-      "activation_code": "77CA42F1E369A878BE5B6C79B8C6B4E6",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "activated",
-      "timestamp": "2025-07-03T13:17:39.845Z",
-      "details": "激活码验证成功"
-    },
-    {
-      "id": 30,
-      "activation_code": "9686DED8DFEAB7FE7996CDD255BE62F7",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-03T14:00:49.592Z",
-      "details": "管理员创建激活码"
-    },
-    {
-      "id": 31,
-      "activation_code": "9686DED8DFEAB7FE7996CDD255BE62F7",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "activated",
-      "timestamp": "2025-07-03T14:01:00.785Z",
-      "details": "激活码验证成功"
-    },
-    {
-      "id": 32,
-      "activation_code": "02E8549751C8590EB72D1C246EACCD2E",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-04T13:09:52.269Z",
-      "details": "管理员创建激活码"
-    },
-    {
-      "id": 33,
-      "activation_code": "02E8549751C8590EB72D1C246EACCD2E",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "activated",
-      "timestamp": "2025-07-04T13:09:57.507Z",
-      "details": "激活码验证成功"
-    },
-    {
-      "id": 34,
-      "activation_code": "02E8549751C8590EB72D1C246EACCD2E",
+      "activation_code": "D3DBBBD6FDB5DD8448341DECE7701B1E",
       "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
       "action": "operation_cleanup",
-      "timestamp": "2025-07-04T16:09:04.896Z",
+      "timestamp": "2025-07-23T09:56:29.106Z",
       "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 35,
-      "activation_code": "02E8549751C8590EB72D1C246EACCD2E",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-05T17:33:54.839Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 36,
-      "activation_code": "02E8549751C8590EB72D1C246EACCD2E",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-05T17:34:26.845Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 37,
-      "activation_code": "02E8549751C8590EB72D1C246EACCD2E",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-06T07:03:22.674Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 38,
-      "activation_code": "02E8549751C8590EB72D1C246EACCD2E",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-06T07:03:28.775Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 39,
-      "activation_code": "02E8549751C8590EB72D1C246EACCD2E",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-06T07:28:33.143Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 40,
-      "activation_code": "02E8549751C8590EB72D1C246EACCD2E",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-06T09:24:04.314Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 41,
-      "activation_code": "02E8549751C8590EB72D1C246EACCD2E",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-06T14:01:41.515Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 42,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-06T16:29:35.992Z",
-      "details": "管理员创建激活码"
-    },
-    {
-      "id": 43,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "activated",
-      "timestamp": "2025-07-06T16:29:47.497Z",
-      "details": "激活码验证成功"
-    },
-    {
-      "id": 44,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-06T16:29:57.505Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 45,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-06T16:42:04.042Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 46,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-06T16:42:22.699Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 47,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-06T16:42:39.866Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 48,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-06T16:43:08.339Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 49,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-14T14:53:23.046Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 50,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-14T15:04:11.710Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 51,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-14T15:04:24.863Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 52,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-14T15:36:58.258Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 53,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-14T15:54:17.610Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 54,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-14T16:38:14.915Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 55,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-15T01:33:01.995Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 56,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-15T01:35:20.914Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 57,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-15T01:35:25.970Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 58,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-15T02:11:01.065Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 59,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-15T02:19:56.162Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 60,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-15T02:30:05.935Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 61,
-      "activation_code": "D9D571ED1906974D386AA1A8C4B0AC86",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "operation_cleanup",
-      "timestamp": "2025-07-15T02:59:24.581Z",
-      "details": "客户端执行操作: cleanup"
-    },
-    {
-      "id": 62,
-      "activation_code": "C12DC21AC0A0D377EA2378C4C879A8CE",
-      "device_id": "admin",
-      "action": "created",
-      "timestamp": "2025-07-15T09:55:40.504Z",
-      "details": "管理员创建激活码"
-    },
-    {
-      "id": 63,
-      "activation_code": "C12DC21AC0A0D377EA2378C4C879A8CE",
-      "device_id": "c85f8e929c3c14ab40996163663ca2c53926dc8bce9082a38dc130201e6675de",
-      "action": "activated",
-      "timestamp": "2025-07-15T09:55:49.292Z",
-      "details": "激活码验证成功"
     }
   ],
-  "broadcastHistory": []
+  "broadcastHistory": [
+    {
+      "id": 1752724095309,
+      "type": "broadcast",
+      "message": "谢谢谢谢谢谢",
+      "timestamp": "2025-07-17T03:48:15.309Z",
+      "from": "admin"
+    },
+    {
+      "id": 1752725283476,
+      "type": "broadcast",
+      "message": "尺寸",
+      "timestamp": "2025-07-17T04:08:03.476Z",
+      "from": "admin"
+    }
+  ]
 }

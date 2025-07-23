@@ -78,31 +78,50 @@ async function ensureAllGuardianProcessesStopped() {
   try {
     console.log("🔍 检查防护进程状态...");
 
+    // 添加超时机制，避免卡住
+    const stopWithTimeout = async (operation, timeoutMs = 5000) => {
+      return Promise.race([
+        operation(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("操作超时")), timeoutMs)
+        ),
+      ]);
+    };
+
     // 如果设备管理器已初始化，使用它来停止防护
     if (deviceManager) {
       try {
-        const results = { actions: [], errors: [] };
+        await stopWithTimeout(async () => {
+          const results = { actions: [], errors: [] };
 
-        // 停止内置守护进程
-        await deviceManager.stopEnhancedGuardian(results);
+          // 停止内置守护进程
+          await deviceManager.stopEnhancedGuardian(results);
 
-        // 停止独立守护服务
-        await deviceManager.stopStandaloneService(results);
+          // 停止独立守护服务
+          await deviceManager.stopStandaloneService(results);
 
-        console.log("✅ 通过设备管理器停止防护完成");
-        if (results.actions.length > 0) {
-          console.log("停止操作:", results.actions.join(", "));
-        }
-        if (results.errors.length > 0) {
-          console.warn("停止错误:", results.errors.join(", "));
-        }
+          console.log("✅ 通过设备管理器停止防护完成");
+          if (results.actions.length > 0) {
+            console.log("停止操作:", results.actions.join(", "));
+          }
+          if (results.errors.length > 0) {
+            console.warn("停止错误:", results.errors.join(", "));
+          }
+        }, 3000);
       } catch (error) {
         console.warn("通过设备管理器停止防护失败:", error.message);
       }
     }
 
     // 强制停止所有Node.js守护进程
-    await forceStopAllGuardianProcesses();
+    await stopWithTimeout(async () => {
+      await forceStopAllGuardianProcesses();
+    }, 5000);
+
+    // 清理防护进程配置文件，避免旧配置干扰
+    await stopWithTimeout(async () => {
+      await cleanupGuardianConfigFiles();
+    }, 2000);
   } catch (error) {
     console.error("确保防护进程停止失败:", error);
   }
@@ -181,6 +200,48 @@ async function forceStopAllGuardianProcesses() {
     }
   } catch (error) {
     console.error("强制停止守护进程失败:", error);
+  }
+}
+
+/**
+ * 清理防护进程配置文件
+ * 避免旧配置文件干扰新的防护进程启动
+ */
+async function cleanupGuardianConfigFiles() {
+  try {
+    console.log("🧹 清理防护进程配置文件...");
+
+    const configPaths = [
+      path.join(os.tmpdir(), "augment-guardian-config.json"),
+      path.join(os.tmpdir(), "augment-guardian.pid"),
+      path.join(os.tmpdir(), "augment-guardian.log"),
+      path.join(os.tmpdir(), "augment-guardian-stats.json"),
+      path.join(os.homedir(), ".augment", "guardian-service", "config.json"),
+      path.join(os.homedir(), ".augment", "guardian-service", "guardian.pid"),
+    ];
+
+    let cleanedCount = 0;
+    for (const configPath of configPaths) {
+      try {
+        if (await fs.pathExists(configPath)) {
+          await fs.remove(configPath);
+          console.log(`✅ 已清理: ${path.basename(configPath)}`);
+          cleanedCount++;
+        }
+      } catch (error) {
+        console.log(
+          `⚠️ 清理失败 ${path.basename(configPath)}: ${error.message}`
+        );
+      }
+    }
+
+    if (cleanedCount > 0) {
+      console.log(`✅ 已清理 ${cleanedCount} 个配置文件`);
+    } else {
+      console.log("✅ 无需清理配置文件");
+    }
+  } catch (error) {
+    console.error("清理防护进程配置文件失败:", error);
   }
 }
 
@@ -294,40 +355,79 @@ app.whenReady().then(() => {
 });
 
 // 所有窗口关闭时退出应用
-app.on("window-all-closed", async () => {
-  try {
-    // 🛑 关闭客户端时确保所有防护进程都被关闭
-    console.log("🛑 关闭客户端时停止所有防护进程...");
-    await ensureAllGuardianProcessesStopped();
-  } catch (error) {
-    console.error("停止防护进程失败:", error);
-  }
-
+app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
-    app.quit();
+    // 异步停止防护进程然后退出
+    (async () => {
+      try {
+        // 🛑 关闭客户端时确保所有防护进程都被关闭
+        console.log("🛑 关闭客户端时停止所有防护进程...");
+        await ensureAllGuardianProcessesStopped();
+        console.log("✅ 防护进程停止完成");
+      } catch (error) {
+        console.error("停止防护进程失败:", error);
+      } finally {
+        app.quit();
+      }
+    })();
+  } else {
+    // macOS上只是隐藏窗口，也要停止防护进程
+    (async () => {
+      try {
+        console.log("🛑 macOS窗口关闭时停止防护进程...");
+        await ensureAllGuardianProcessesStopped();
+      } catch (error) {
+        console.error("停止防护进程失败:", error);
+      }
+    })();
   }
 });
 
 // 应用退出前的清理
-app.on("before-quit", async (event) => {
-  try {
+let isQuitting = false;
+app.on("before-quit", (event) => {
+  if (!isQuitting) {
     console.log("🛑 应用退出前清理...");
 
     // 阻止默认退出，先进行清理
     event.preventDefault();
+    isQuitting = true;
 
-    // 确保所有防护进程都停止
-    await ensureAllGuardianProcessesStopped();
-
-    console.log("✅ 清理完成，退出应用");
-
-    // 现在可以安全退出
-    app.exit(0);
-  } catch (error) {
-    console.error("退出前清理失败:", error);
-    // 即使清理失败也要退出
-    app.exit(1);
+    // 异步执行清理操作
+    (async () => {
+      try {
+        // 确保所有防护进程都停止
+        await ensureAllGuardianProcessesStopped();
+        console.log("✅ 清理完成，退出应用");
+      } catch (error) {
+        console.error("退出前清理失败:", error);
+      } finally {
+        // 无论成功失败都要退出
+        app.exit(0);
+      }
+    })();
   }
+});
+
+// 添加进程退出信号处理，确保在任何情况下都能停止防护进程
+process.on("SIGINT", async () => {
+  console.log("🛑 收到SIGINT信号，停止防护进程...");
+  try {
+    await ensureAllGuardianProcessesStopped();
+  } catch (error) {
+    console.error("停止防护进程失败:", error);
+  }
+  process.exit(0);
+});
+
+process.on("SIGTERM", async () => {
+  console.log("🛑 收到SIGTERM信号，停止防护进程...");
+  try {
+    await ensureAllGuardianProcessesStopped();
+  } catch (error) {
+    console.error("停止防护进程失败:", error);
+  }
+  process.exit(0);
 });
 
 // 初始化应用
@@ -511,6 +611,7 @@ let wsConnectionStatus = {
   lastDisconnectedTime: null,
   connectionAttempts: 0,
   isReconnecting: false,
+  isInitializing: true, // 添加初始化状态标记
 };
 
 // 初始化WebSocket连接
@@ -528,6 +629,7 @@ function initializeWebSocket() {
       wsConnectionStatus.connected = true;
       wsConnectionStatus.lastConnectedTime = new Date();
       wsConnectionStatus.isReconnecting = false;
+      wsConnectionStatus.isInitializing = false; // 初始化完成
 
       // 通知渲染进程连接状态变化
       if (mainWindow) {
@@ -577,6 +679,7 @@ function initializeWebSocket() {
       // 更新连接状态
       wsConnectionStatus.connected = false;
       wsConnectionStatus.lastDisconnectedTime = new Date();
+      wsConnectionStatus.isInitializing = false; // 不再是初始化状态
 
       // 通知渲染进程连接状态变化
       if (mainWindow) {
@@ -598,6 +701,7 @@ function initializeWebSocket() {
       // 更新连接状态
       wsConnectionStatus.connected = false;
       wsConnectionStatus.lastDisconnectedTime = new Date();
+      wsConnectionStatus.isInitializing = false; // 不再是初始化状态
 
       // 通知渲染进程连接错误
       if (mainWindow) {
@@ -1143,21 +1247,15 @@ ipcMain.handle("get-device-id-details", async () => {
     const detector = new DeviceDetection();
     const deviceFingerprint = await detector.generateFingerprint(selectedIDE);
 
-    // 3. 获取Cursor遥测ID
+    // 3. 获取Cursor遥测ID（使用动态路径检测）
     let cursorTelemetry = null;
     try {
-      const storageJsonPath = path.join(
-        os.homedir(),
-        "AppData",
-        "Roaming",
-        "Cursor",
-        "User",
-        "globalStorage",
-        "storage.json"
-      );
+      const DeviceManager = require("./device-manager");
+      const deviceManager = new DeviceManager();
+      const cursorPaths = deviceManager.getCursorPaths();
 
-      if (await fs.pathExists(storageJsonPath)) {
-        const data = await fs.readJson(storageJsonPath);
+      if (await fs.pathExists(cursorPaths.storageJson)) {
+        const data = await fs.readJson(cursorPaths.storageJson);
         cursorTelemetry = {
           devDeviceId: data["telemetry.devDeviceId"],
           machineId: data["telemetry.machineId"],
@@ -1165,33 +1263,55 @@ ipcMain.handle("get-device-id-details", async () => {
           sessionId: data["telemetry.sessionId"],
           sqmId: data["telemetry.sqmId"],
         };
+        console.log(`📋 Cursor配置文件路径: ${cursorPaths.storageJson}`);
       }
     } catch (error) {
       console.warn("获取Cursor遥测ID失败:", error.message);
     }
 
-    // 4. 获取VSCode遥测ID
+    // 4. 获取VSCode遥测ID（使用动态路径检测，支持多个变体）
     let vscodeTelemetry = null;
     try {
-      const vscodeStorageJsonPath = path.join(
-        os.homedir(),
-        "AppData",
-        "Roaming",
-        "Code",
-        "User",
-        "globalStorage",
-        "storage.json"
-      );
+      const DeviceManager = require("./device-manager");
+      const deviceManager = new DeviceManager();
+      const vscodePaths = deviceManager.getVSCodePaths();
 
-      if (await fs.pathExists(vscodeStorageJsonPath)) {
-        const data = await fs.readJson(vscodeStorageJsonPath);
-        vscodeTelemetry = {
-          devDeviceId: data["telemetry.devDeviceId"],
-          machineId: data["telemetry.machineId"],
-          macMachineId: data["telemetry.macMachineId"],
-          sessionId: data["telemetry.sessionId"],
-          sqmId: data["telemetry.sqmId"],
-        };
+      // 尝试从所有VS Code变体中读取遥测ID
+      if (vscodePaths.variants) {
+        for (const [variantName, config] of Object.entries(
+          vscodePaths.variants
+        )) {
+          const storageJsonPath = path.join(
+            config.globalStorage,
+            "storage.json"
+          );
+
+          if (await fs.pathExists(storageJsonPath)) {
+            try {
+              const data = await fs.readJson(storageJsonPath);
+              if (data["telemetry.devDeviceId"]) {
+                vscodeTelemetry = {
+                  devDeviceId: data["telemetry.devDeviceId"],
+                  machineId: data["telemetry.machineId"],
+                  macMachineId: data["telemetry.macMachineId"],
+                  sessionId: data["telemetry.sessionId"],
+                  sqmId: data["telemetry.sqmId"],
+                  variant: variantName, // 记录是哪个变体
+                };
+                console.log(
+                  `📋 VS Code (${variantName}) 配置文件路径: ${storageJsonPath}`
+                );
+                break; // 找到第一个有效的变体就停止
+              }
+            } catch (error) {
+              console.warn(
+                `读取VS Code ${variantName}遥测ID失败:`,
+                error.message
+              );
+              continue;
+            }
+          }
+        }
       }
     } catch (error) {
       console.warn("获取VSCode遥测ID失败:", error.message);
@@ -1719,8 +1839,24 @@ ipcMain.handle("verify-operation-permission", async (event, operation) => {
 // 获取Augment扩展信息
 ipcMain.handle("get-augment-info", async (event, options = {}) => {
   try {
+    // 如果设备管理器还未初始化，等待一段时间后重试
     if (!deviceManager) {
-      throw new Error("设备管理器未初始化");
+      console.log("⏳ 设备管理器未初始化，等待初始化完成...");
+
+      // 等待最多5秒，每100ms检查一次
+      let retryCount = 0;
+      const maxRetries = 50; // 5秒 / 100ms = 50次
+
+      while (!deviceManager && retryCount < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        retryCount++;
+      }
+
+      if (!deviceManager) {
+        throw new Error("设备管理器初始化超时，请稍后重试");
+      }
+
+      console.log("✅ 设备管理器初始化完成，继续获取扩展信息");
     }
 
     // 根据选择的IDE获取对应的扩展信息
@@ -1908,6 +2044,35 @@ ipcMain.handle("reset-usage-count", async () => {
   }
 });
 
+// 退出激活
+ipcMain.handle("deactivate-device", async () => {
+  try {
+    console.log("🚪 用户请求退出激活");
+
+    // 清除本地激活信息
+    await clearLocalActivation("用户主动退出激活");
+
+    // 通知渲染进程激活状态已清除
+    if (mainWindow) {
+      mainWindow.webContents.send("activation-cleared", {
+        reason: "用户主动退出激活",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    return {
+      success: true,
+      message: "已成功退出激活状态",
+    };
+  } catch (error) {
+    console.error("退出激活失败:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
 // 打开外部链接
 ipcMain.handle("open-external-link", async (event, url) => {
   try {
@@ -1962,6 +2127,7 @@ ipcMain.handle("get-websocket-status", async () => {
     lastDisconnectedTime: wsConnectionStatus.lastDisconnectedTime,
     connectionAttempts: wsConnectionStatus.connectionAttempts,
     isReconnecting: wsConnectionStatus.isReconnecting,
+    isInitializing: wsConnectionStatus.isInitializing,
     reconnectAttempts: wsReconnectAttempts,
     maxReconnectAttempts: MAX_RECONNECT_ATTEMPTS,
   };
@@ -2035,6 +2201,536 @@ ipcMain.handle("check-guardian-startup-requirements", async () => {
       requirements: {},
       currentStatus: { isGuarding: false },
       deviceId: null,
+    };
+  }
+});
+
+// 关闭IDE进程 - 统一逻辑确保Cursor和VS Code完全一致
+ipcMain.handle("close-ide-processes", async (event, ideType) => {
+  try {
+    console.log(`🚫 关闭 ${ideType} IDE 进程...`);
+
+    const { exec } = require("child_process");
+    const { promisify } = require("util");
+    const execAsync = promisify(exec);
+
+    // 统一的进程名称映射，确保两个IDE逻辑一致
+    const ideProcessMap = {
+      cursor: {
+        processNames: ["Cursor.exe", "cursor.exe"],
+        displayName: "Cursor",
+      },
+      vscode: {
+        processNames: ["Code.exe", "code.exe"],
+        displayName: "VS Code",
+      },
+    };
+
+    const ideConfig = ideProcessMap[ideType];
+    if (!ideConfig) {
+      throw new Error(`不支持的IDE类型: ${ideType}`);
+    }
+
+    console.log(
+      `🔍 查找 ${ideConfig.displayName} 进程: ${ideConfig.processNames.join(
+        ", "
+      )}`
+    );
+
+    let closedCount = 0;
+    let foundProcesses = [];
+
+    // 统一的进程关闭逻辑
+    for (const processName of ideConfig.processNames) {
+      try {
+        // 先检查进程是否存在
+        const checkResult = await execAsync(
+          `tasklist /FI "IMAGENAME eq ${processName}" /FO CSV`
+        );
+        const processLines = checkResult.stdout
+          .split("\n")
+          .filter(
+            (line) => line.includes(processName) && !line.includes("INFO:")
+          );
+
+        if (processLines.length > 0) {
+          foundProcesses.push(processName);
+          console.log(
+            `🎯 发现 ${processName} 进程 (${processLines.length} 个)`
+          );
+
+          // 强制关闭进程
+          await execAsync(`taskkill /F /IM ${processName}`);
+          closedCount++;
+          console.log(`✅ 已关闭 ${processName}`);
+        } else {
+          console.log(`ℹ️ ${processName} 未运行`);
+        }
+      } catch (error) {
+        // 进程可能不存在或已关闭，这是正常的
+        console.log(`ℹ️ ${processName} 未运行或已关闭: ${error.message}`);
+      }
+    }
+
+    // 等待进程完全关闭
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // 验证进程是否真正关闭
+    let remainingProcesses = [];
+    for (const processName of ideConfig.processNames) {
+      try {
+        const verifyResult = await execAsync(
+          `tasklist /FI "IMAGENAME eq ${processName}" /FO CSV`
+        );
+        const remainingLines = verifyResult.stdout
+          .split("\n")
+          .filter(
+            (line) => line.includes(processName) && !line.includes("INFO:")
+          );
+        if (remainingLines.length > 0) {
+          remainingProcesses.push(processName);
+        }
+      } catch (error) {
+        // 查询失败通常意味着进程已关闭
+      }
+    }
+
+    const result = {
+      success: true,
+      message: `${ideConfig.displayName} IDE 进程已关闭`,
+      closedCount: closedCount,
+      foundProcesses: foundProcesses,
+      remainingProcesses: remainingProcesses,
+    };
+
+    if (remainingProcesses.length > 0) {
+      console.log(`⚠️ 仍有进程未关闭: ${remainingProcesses.join(", ")}`);
+      result.warning = `部分进程可能仍在运行: ${remainingProcesses.join(", ")}`;
+    } else {
+      console.log(`✅ 所有 ${ideConfig.displayName} 进程已完全关闭`);
+    }
+
+    return result;
+  } catch (error) {
+    console.error(`关闭 ${ideType} IDE 失败:`, error);
+    return {
+      success: false,
+      message: `关闭 ${ideType} IDE 失败: ${error.message}`,
+    };
+  }
+});
+
+// IDE路径缓存
+const idePathCache = new Map();
+
+// 动态检测IDE安装路径的通用函数
+async function detectIDEInstallPath(ideType) {
+  const { exec } = require("child_process");
+  const { promisify } = require("util");
+  const execAsync = promisify(exec);
+  const fs = require("fs");
+  const path = require("path");
+  const os = require("os");
+
+  console.log(`🔍 动态检测 ${ideType} 安装路径...`);
+
+  // 检查缓存
+  const cacheKey = `${ideType}_path`;
+  if (idePathCache.has(cacheKey)) {
+    const cachedPath = idePathCache.get(cacheKey);
+    if (fs.existsSync(cachedPath)) {
+      console.log(`✅ 使用缓存路径 ${ideType}: ${cachedPath}`);
+      return cachedPath;
+    } else {
+      console.log(`⚠️ 缓存路径已失效，重新检测: ${cachedPath}`);
+      idePathCache.delete(cacheKey);
+    }
+  }
+
+  // 获取当前用户名和常见路径
+  const username = os.userInfo().username;
+  const userProfile = os.homedir();
+
+  let searchPaths = [];
+  let processName = "";
+  let executableName = "";
+
+  if (ideType === "cursor") {
+    processName = "Cursor.exe";
+    executableName = "Cursor.exe";
+    searchPaths = [
+      // 用户特定路径
+      path.join(
+        userProfile,
+        "AppData",
+        "Local",
+        "Programs",
+        "cursor",
+        "Cursor.exe"
+      ),
+      path.join(userProfile, "AppData", "Local", "cursor", "Cursor.exe"),
+      path.join(userProfile, "AppData", "Roaming", "cursor", "Cursor.exe"),
+      // 系统路径
+      "C:\\Program Files\\Cursor\\Cursor.exe",
+      "C:\\Program Files (x86)\\Cursor\\Cursor.exe",
+      // 其他可能的路径
+      "D:\\Program Files\\Cursor\\Cursor.exe",
+      "E:\\cursor\\Cursor.exe",
+      "F:\\cursor\\Cursor.exe",
+    ];
+  } else if (ideType === "vscode") {
+    processName = "Code.exe";
+    executableName = "Code.exe";
+    searchPaths = [
+      // 用户特定路径
+      path.join(
+        userProfile,
+        "AppData",
+        "Local",
+        "Programs",
+        "Microsoft VS Code",
+        "Code.exe"
+      ),
+      path.join(userProfile, "AppData", "Roaming", "Code", "Code.exe"),
+      // 系统路径
+      "C:\\Program Files\\Microsoft VS Code\\Code.exe",
+      "C:\\Program Files (x86)\\Microsoft VS Code\\Code.exe",
+      // 其他可能的路径 (扩展更多盘符和路径)
+      "D:\\Program Files\\Microsoft VS Code\\Code.exe",
+      "D:\\Microsoft VS Code\\Code.exe",
+      "E:\\Program Files\\Microsoft VS Code\\Code.exe",
+      "E:\\Microsoft VS Code\\Code.exe", // 用户实际安装路径
+      "F:\\Program Files\\Microsoft VS Code\\Code.exe",
+      "F:\\Microsoft VS Code\\Code.exe",
+      "G:\\Microsoft VS Code\\Code.exe",
+      "H:\\Microsoft VS Code\\Code.exe",
+    ];
+  }
+
+  // 方法1: 检查当前运行的进程路径 (最准确的方法)
+  try {
+    console.log(`🔍 通过运行进程检测 ${ideType} 路径...`);
+    const result = await execAsync(
+      `wmic process where "name='${processName}'" get ExecutablePath /format:csv`
+    );
+    const lines = result.stdout
+      .split("\n")
+      .filter((line) => line.trim() && !line.includes("ExecutablePath"));
+    for (const line of lines) {
+      const parts = line.split(",");
+      if (parts.length >= 2) {
+        const execPath = parts[1].trim();
+        if (execPath && fs.existsSync(execPath)) {
+          console.log(`✅ 通过运行进程找到 ${ideType}: ${execPath}`);
+          // 缓存找到的路径
+          idePathCache.set(`${ideType}_path`, execPath);
+          return execPath;
+        }
+      }
+    }
+    console.log(`ℹ️ ${ideType} 当前未运行，继续其他检测方法...`);
+  } catch (error) {
+    console.log(`⚠️ 通过进程查找失败:`, error.message);
+  }
+
+  // 方法1.5: 通过PowerShell获取进程路径 (更可靠)
+  try {
+    console.log(`🔍 通过PowerShell检测 ${ideType} 进程路径...`);
+    const psResult = await execAsync(
+      `powershell -Command "Get-Process -Name '${processName.replace(
+        ".exe",
+        ""
+      )}' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path"`
+    );
+    const paths = psResult.stdout.split("\n").filter((line) => line.trim());
+    for (const execPath of paths) {
+      const trimmedPath = execPath.trim();
+      if (trimmedPath && fs.existsSync(trimmedPath)) {
+        console.log(`✅ 通过PowerShell找到 ${ideType}: ${trimmedPath}`);
+        return trimmedPath;
+      }
+    }
+  } catch (error) {
+    console.log(`⚠️ PowerShell进程查找失败:`, error.message);
+  }
+
+  // 方法2: 遍历搜索路径
+  for (const searchPath of searchPaths) {
+    try {
+      if (fs.existsSync(searchPath)) {
+        console.log(`✅ 通过路径搜索找到 ${ideType}: ${searchPath}`);
+        return searchPath;
+      }
+    } catch (error) {
+      console.log(`⚠️ 检查路径 ${searchPath} 失败:`, error.message);
+    }
+  }
+
+  // 方法3: 通过注册表查找 (改进版)
+  try {
+    let regQueries = [];
+    if (ideType === "vscode") {
+      // VS Code特定的注册表查询
+      regQueries = [
+        'reg query "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall" /s /f "Visual Studio Code" 2>nul',
+        'reg query "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall" /s /f "Visual Studio Code" 2>nul',
+        'reg query "HKEY_LOCAL_MACHINE\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall" /s /f "Visual Studio Code" 2>nul',
+      ];
+    } else if (ideType === "cursor") {
+      // Cursor特定的注册表查询
+      regQueries = [
+        'reg query "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall" /s /f "Cursor" 2>nul',
+        'reg query "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall" /s /f "Cursor" 2>nul',
+      ];
+    }
+
+    for (const regQuery of regQueries) {
+      try {
+        const regResult = await execAsync(regQuery);
+        const lines = regResult.stdout.split("\n");
+        for (const line of lines) {
+          if (
+            line.includes("InstallLocation") ||
+            line.includes("DisplayIcon")
+          ) {
+            const match = line.match(/REG_SZ\s+(.+)/);
+            if (match) {
+              let installPath = match[1].trim();
+              // 处理DisplayIcon路径（可能包含可执行文件名）
+              if (
+                line.includes("DisplayIcon") &&
+                installPath.includes(executableName)
+              ) {
+                installPath = path.dirname(installPath);
+              }
+              const execPath = path.join(installPath, executableName);
+              if (fs.existsSync(execPath)) {
+                console.log(`✅ 通过注册表找到 ${ideType}: ${execPath}`);
+                return execPath;
+              }
+            }
+          }
+        }
+      } catch (queryError) {
+        console.log(`⚠️ 注册表查询失败: ${queryError.message}`);
+      }
+    }
+  } catch (error) {
+    console.log(`⚠️ 注册表查找失败:`, error.message);
+  }
+
+  // 方法4: 通过Windows应用程序路径查找
+  try {
+    if (ideType === "vscode") {
+      const appPathResult = await execAsync(
+        'reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Code.exe" /ve 2>nul'
+      );
+      const match = appPathResult.stdout.match(/REG_SZ\s+(.+)/);
+      if (match) {
+        const execPath = match[1].trim();
+        if (fs.existsSync(execPath)) {
+          console.log(`✅ 通过应用程序路径找到 VS Code: ${execPath}`);
+          return execPath;
+        }
+      }
+    }
+  } catch (error) {
+    console.log(`⚠️ 应用程序路径查找失败:`, error.message);
+  }
+
+  // 方法5: 全盘智能搜索 (最后的手段)
+  try {
+    console.log(`🔍 开始全盘智能搜索 ${ideType}...`);
+    const drives = await getAvailableDrives();
+    console.log(`📀 检测到可用驱动器: ${drives.join(", ")}`);
+
+    for (const drive of drives) {
+      try {
+        console.log(`🔍 搜索驱动器 ${drive} ...`);
+        const searchResult = await searchIDEInDrive(
+          drive,
+          ideType,
+          executableName
+        );
+        if (searchResult) {
+          console.log(`✅ 全盘搜索找到 ${ideType}: ${searchResult}`);
+          // 缓存找到的路径
+          idePathCache.set(`${ideType}_path`, searchResult);
+          return searchResult;
+        }
+      } catch (driveError) {
+        console.log(`⚠️ 搜索驱动器 ${drive} 失败:`, driveError.message);
+      }
+    }
+  } catch (error) {
+    console.log(`⚠️ 全盘搜索失败:`, error.message);
+  }
+
+  console.log(`❌ 未找到 ${ideType} 安装路径`);
+  return null;
+}
+
+// 获取可用驱动器列表
+async function getAvailableDrives() {
+  try {
+    const result = await execAsync(
+      "wmic logicaldisk get size,freespace,caption"
+    );
+    const lines = result.stdout
+      .split("\n")
+      .filter((line) => line.trim() && line.includes(":"));
+    const drives = lines
+      .map((line) => {
+        const match = line.match(/([A-Z]:)/);
+        return match ? match[1] : null;
+      })
+      .filter(Boolean);
+    return drives.length > 0 ? drives : ["C:", "D:", "E:", "F:"];
+  } catch (error) {
+    console.log("⚠️ 获取驱动器列表失败，使用默认列表");
+    return ["C:", "D:", "E:", "F:", "G:", "H:"];
+  }
+}
+
+// 在指定驱动器中搜索IDE
+async function searchIDEInDrive(drive, ideType, executableName) {
+  const commonPaths = [
+    `${drive}\\Program Files\\`,
+    `${drive}\\Program Files (x86)\\`,
+    `${drive}\\`,
+  ];
+
+  const searchPatterns =
+    ideType === "vscode"
+      ? ["Microsoft VS Code", "Visual Studio Code", "VSCode", "Code"]
+      : ["Cursor", "cursor"];
+
+  for (const basePath of commonPaths) {
+    for (const pattern of searchPatterns) {
+      try {
+        const searchPath = path.join(basePath, pattern, executableName);
+        if (fs.existsSync(searchPath)) {
+          return searchPath;
+        }
+
+        // 也尝试直接在基础路径下查找
+        const directPath = path.join(basePath, executableName);
+        if (fs.existsSync(directPath)) {
+          return directPath;
+        }
+      } catch (error) {
+        // 继续搜索
+      }
+    }
+  }
+
+  return null;
+}
+
+// 重启IDE
+ipcMain.handle("restart-ide", async (event, ideType) => {
+  try {
+    console.log(`🔄 重启 ${ideType} IDE...`);
+
+    const { exec, spawn } = require("child_process");
+    const { promisify } = require("util");
+    const execAsync = promisify(exec);
+
+    // 智能启动逻辑，根据IDE类型选择最佳方法
+    let startupMethods = [];
+
+    if (ideType === "cursor") {
+      // Cursor可以使用命令行启动
+      startupMethods = [
+        {
+          name: "命令行启动",
+          execute: async () => {
+            await execAsync("cursor", { timeout: 5000 });
+            return `Cursor 已启动 (命令行)`;
+          },
+        },
+        {
+          name: "start命令启动",
+          execute: async () => {
+            await execAsync('start "" cursor', { timeout: 5000 });
+            return `Cursor 已启动 (start命令)`;
+          },
+        },
+        {
+          name: "动态路径启动",
+          execute: async () => {
+            const detectedPath = await detectIDEInstallPath("cursor");
+            if (detectedPath) {
+              spawn(detectedPath, [], { detached: true, stdio: "ignore" });
+              return `Cursor 已启动: ${detectedPath}`;
+            } else {
+              throw new Error(`未找到 Cursor 安装路径`);
+            }
+          },
+        },
+      ];
+    } else if (ideType === "vscode") {
+      // VS Code优先使用动态路径检测，因为命令行被Cursor覆盖
+      startupMethods = [
+        {
+          name: "动态路径启动",
+          execute: async () => {
+            const detectedPath = await detectIDEInstallPath("vscode");
+            if (detectedPath) {
+              console.log(`🎯 使用检测到的VS Code路径: ${detectedPath}`);
+              spawn(detectedPath, [], { detached: true, stdio: "ignore" });
+              return `VS Code 已启动: ${detectedPath}`;
+            } else {
+              throw new Error(`未找到 VS Code 安装路径`);
+            }
+          },
+        },
+        {
+          name: "备用命令行启动",
+          execute: async () => {
+            // 作为备用方案，但可能启动Cursor
+            console.log(`⚠️ 警告: code命令可能被Cursor覆盖`);
+            await execAsync("code", { timeout: 5000 });
+            return `VS Code 已启动 (命令行 - 可能不准确)`;
+          },
+        },
+        {
+          name: "备用start命令启动",
+          execute: async () => {
+            // 作为备用方案，但可能启动Cursor
+            console.log(`⚠️ 警告: code命令可能被Cursor覆盖`);
+            await execAsync('start "" code', { timeout: 5000 });
+            return `VS Code 已启动 (start命令 - 可能不准确)`;
+          },
+        },
+      ];
+    }
+
+    // 依次尝试每种启动方法
+    for (const method of startupMethods) {
+      try {
+        console.log(`🔄 尝试${method.name}...`);
+        const result = await method.execute();
+        console.log(`✅ ${result}`);
+        return {
+          success: true,
+          message: `${ideType} IDE 已重启`,
+          method: method.name,
+        };
+      } catch (error) {
+        console.log(`⚠️ ${method.name}失败:`, error.message);
+      }
+    }
+
+    return {
+      success: false,
+      message: `无法启动 ${ideType} IDE，请手动启动`,
+    };
+  } catch (error) {
+    console.error(`重启 ${ideType} IDE 失败:`, error);
+    return {
+      success: false,
+      message: `重启 ${ideType} IDE 失败: ${error.message}`,
     };
   }
 });

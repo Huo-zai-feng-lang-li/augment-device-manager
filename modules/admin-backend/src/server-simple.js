@@ -929,13 +929,22 @@ app.get("/api/usage-logs", authenticateToken, async (req, res) => {
 // 获取连接的客户端
 app.get("/api/connected-clients", authenticateToken, async (req, res) => {
   try {
-    const clients = Array.from(connectedClients.values()).map((client) => ({
-      id: client.id,
-      connectedAt: client.connectedAt,
-      activated: client.activated || false,
-      deviceInfo: client.deviceInfo || null,
-      lastActivity: client.lastActivity || client.connectedAt,
-    }));
+    const clients = Array.from(connectedClients.values()).map((client) => {
+      // 查找对应的激活码信息
+      const activationCode = memoryStore.activationCodes.find(
+        (code) => code.used_by_device === client.deviceId
+      );
+
+      return {
+        id: client.deviceId,
+        connectedAt: client.connectedAt,
+        activated: activationCode ? activationCode.status === "used" : false,
+        deviceInfo: client.deviceInfo || null,
+        lastActivity: client.lastActivity || client.connectedAt,
+        activationCode: activationCode ? activationCode.code : null,
+        status: client.ws.readyState === 1 ? "connected" : "disconnected",
+      };
+    });
 
     res.json({
       success: true,
@@ -1183,25 +1192,6 @@ app.get("/api/health", async (req, res) => {
   };
 
   res.json(health);
-});
-
-// 获取连接的客户端列表
-app.get("/api/connected-clients", authenticateToken, async (req, res) => {
-  try {
-    const clients = Array.from(connectedClients.values()).map((client) => ({
-      deviceId: client.deviceId,
-      connectedAt: client.connectedAt,
-      status: client.ws.readyState === 1 ? "connected" : "disconnected",
-    }));
-
-    res.json({
-      success: true,
-      data: clients,
-    });
-  } catch (error) {
-    console.error("获取客户端列表错误:", error);
-    res.status(500).json({ error: "获取客户端列表失败" });
-  }
 });
 
 // 向客户端发送命令

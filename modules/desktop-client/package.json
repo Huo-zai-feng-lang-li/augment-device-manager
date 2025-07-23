@@ -11,6 +11,8 @@
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
     "build:linux": "electron-builder --linux",
+    "build:fix": "electron-builder && node scripts/fix-ffmpeg.js",
+    "fix-ffmpeg": "node scripts/fix-ffmpeg.js",
     "release": "electron-builder --publish=always",
     "version:patch": "node scripts/release.js version patch",
     "version:minor": "node scripts/release.js version minor",
@@ -35,6 +37,9 @@
         "to": "shared"
       }
     ],
+    "asarUnpack": [
+      "**/node_modules/sql.js/**/*"
+    ],
     "publish": {
       "provider": "github",
       "owner": "your-github-username",
@@ -44,7 +49,16 @@
       "target": "nsis",
       "publisherName": "Augment Team",
       "icon": "public/logo.png",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "extraFiles": [
+        {
+          "from": "node_modules/electron/dist",
+          "to": ".",
+          "filter": [
+            "ffmpeg.dll"
+          ]
+        }
+      ]
     },
     "mac": {
       "target": "dmg",

@@ -527,10 +527,13 @@ class EnhancedDeviceGuardian {
           const DeviceManager = require("./device-manager");
           const deviceManager = new DeviceManager();
           deviceId = await deviceManager.getCurrentDeviceId();
+          this.log(`📋 从storage.json获取设备ID: ${deviceId}`, "info");
         } catch (error) {
           requirements.reason = "无法获取设备ID";
           return requirements;
         }
+      } else {
+        this.log(`📋 使用传入的设备ID: ${deviceId}`, "info");
       }
 
       if (!deviceId) {

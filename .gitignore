@@ -158,6 +158,19 @@ temp/
 # Local configuration
 config/local.json
 config/production.json
+config/local.js
+config/tokens.js
+
+# Token files (安全：绝不提交token)
+*token*
+*secret*
+*key*
+.env*
+auth.json
+credentials.json
+
+# GitHub配置临时目录
+temp-config-repo/
 
 # Admin backend specific
 admin-backend/data/

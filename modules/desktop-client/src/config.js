@@ -21,9 +21,100 @@ function getDefaultConfig() {
     // 开发环境：优先使用本地服务器
     return {
       server: {
-        host: "localhost",
-        port: 3002,
-        protocol: "http",
+        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式
+        host: "github-config",
+        port: 443,
+        protocol: "https",
+        // GitHub配置
+        githubConfig: {
+          enabled: true,
+          owner: "Huo-zai-feng-lang-li",
+          repo: "augment-device-manager",
+          branch: "main",
+          configFile: "server-config.json",
+          // 配置获取URL列表
+          configUrls: [
+            "https://raw.githubusercontent.com/Huo-zai-feng-lang-li/augment-device-manager/main/server-config.json",
+            "https://cdn.jsdelivr.net/gh/Huo-zai-feng-lang-li/augment-device-manager@main/server-config.json",
+            "https://api.github.com/repos/Huo-zai-feng-lang-li/augment-device-manager/contents/server-config.json"
+          ],
+          // 缓存配置
+          cacheTimeout: 300000, // 5分钟
+          retryInterval: 10000,  // 10秒重试
+          maxRetries: 3
+        },
+        // GitHub配置
+        githubConfig: {
+          enabled: true,
+          owner: "Huo-zai-feng-lang-li",
+          repo: "augment-device-manager",
+          branch: "main",
+          configFile: "server-config.json",
+          // 配置获取URL列表
+          configUrls: [
+            "https://raw.githubusercontent.com/Huo-zai-feng-lang-li/augment-device-manager/main/server-config.json",
+            "https://cdn.jsdelivr.net/gh/Huo-zai-feng-lang-li/augment-device-manager@main/server-config.json",
+            "https://api.github.com/repos/Huo-zai-feng-lang-li/augment-device-manager/contents/server-config.json"
+          ],
+          // 缓存配置
+          cacheTimeout: 300000, // 5分钟
+          retryInterval: 10000,  // 10秒重试
+          maxRetries: 3
+        },
+        // GitHub配置
+        githubConfig: {
+          enabled: true,
+          owner: "Huo-zai-feng-lang-li",
+          repo: "augment-device-manager",
+          branch: "main",
+          configFile: "server-config.json",
+          // 配置获取URL列表
+          configUrls: [
+            "https://raw.githubusercontent.com/Huo-zai-feng-lang-li/augment-device-manager/main/server-config.json",
+            "https://cdn.jsdelivr.net/gh/Huo-zai-feng-lang-li/augment-device-manager@main/server-config.json",
+            "https://api.github.com/repos/Huo-zai-feng-lang-li/augment-device-manager/contents/server-config.json"
+          ],
+          // 缓存配置
+          cacheTimeout: 300000, // 5分钟
+          retryInterval: 10000,  // 10秒重试
+          maxRetries: 3
+        },
+        // GitHub配置
+        githubConfig: {
+          enabled: true,
+          owner: "Huo-zai-feng-lang-li",
+          repo: "augment-device-manager",
+          branch: "main",
+          configFile: "server-config.json",
+          // 配置获取URL列表
+          configUrls: [
+            "https://raw.githubusercontent.com/Huo-zai-feng-lang-li/augment-device-manager/main/server-config.json",
+            "https://cdn.jsdelivr.net/gh/Huo-zai-feng-lang-li/augment-device-manager@main/server-config.json",
+            "https://api.github.com/repos/Huo-zai-feng-lang-li/augment-device-manager/contents/server-config.json"
+          ],
+          // 缓存配置
+          cacheTimeout: 300000, // 5分钟
+          retryInterval: 10000,  // 10秒重试
+          maxRetries: 3
+        },
+        // GitHub配置
+        githubConfig: {
+          enabled: true,
+          owner: "Huo-zai-feng-lang-li",
+          repo: "augment-device-manager",
+          branch: "main",
+          configFile: "server-config.json",
+          // 配置获取URL列表
+          configUrls: [
+            "https://raw.githubusercontent.com/Huo-zai-feng-lang-li/augment-device-manager/main/server-config.json",
+            "https://cdn.jsdelivr.net/gh/Huo-zai-feng-lang-li/augment-device-manager@main/server-config.json",
+            "https://api.github.com/repos/Huo-zai-feng-lang-li/augment-device-manager/contents/server-config.json",
+          ],
+          // 缓存配置
+          cacheTimeout: 300000, // 5分钟
+          retryInterval: 10000, // 10秒重试
+          maxRetries: 3,
+        },
       },
       client: {
         autoConnect: true,
@@ -323,12 +414,87 @@ class ServerConfig {
       const response = await fetch(this.getHttpUrl("/api/health"), {
         method: "GET",
         timeout: 5000,
+        headers: { "ngrok-skip-browser-warning": "true" },
       });
       return response.ok;
     } catch (error) {
+      // 如果连接失败，尝试从GitHub获取最新配置
+      if (
+        this.config.server.host === "github-config" ||
+        this.config.server.githubConfig?.enabled
+      ) {
+        console.log("🔄 连接失败，尝试从GitHub获取最新配置...");
+        const updated = await this.updateFromGitHub();
+        if (updated) {
+          // 重新尝试连接
+          try {
+            const retryResponse = await fetch(this.getHttpUrl("/api/health"), {
+              method: "GET",
+              timeout: 5000,
+              headers: { "ngrok-skip-browser-warning": "true" },
+            });
+            return retryResponse.ok;
+          } catch (retryError) {
+            // 重试也失败了
+          }
+        }
+      }
+
       // 提供更友好的中文错误提示
       const friendlyError = this.getFriendlyErrorMessage(error);
       console.error("🔌 服务器连接失败:", friendlyError);
+      return false;
+    }
+  }
+
+  // 从GitHub更新配置（带网络降级）
+  async updateFromGitHub() {
+    if (!this.config.server.githubConfig?.enabled) {
+      return false;
+    }
+
+    try {
+      // 使用网络降级模块
+      const NetworkFallback = require("./network-fallback");
+      const networkFallback = new NetworkFallback(
+        this.config.server.githubConfig
+      );
+
+      // 显示网络状态
+      const networkStatus = await networkFallback.showNetworkStatus();
+
+      // 获取服务器配置（自动降级）
+      const serverConfig = await networkFallback.getServerConfig();
+
+      if (serverConfig) {
+        console.log(
+          `✅ 获取到配置: ${serverConfig.host} (来源: ${serverConfig.source})`
+        );
+
+        // 更新配置
+        this.config.server.host = serverConfig.host;
+        this.config.server.port = serverConfig.port;
+        this.config.server.protocol = serverConfig.protocol;
+
+        // 保存到本地
+        await this.saveConfig();
+
+        console.log("🔄 配置已更新并保存");
+
+        // 根据网络状态显示不同提示
+        if (networkStatus === "github-blocked") {
+          console.log("⚠️ GitHub访问受限，已使用备用方案");
+        } else if (networkStatus === "no-internet") {
+          console.log("⚠️ 网络连接异常，使用本地缓存");
+        }
+
+        return true;
+      } else {
+        console.log("❌ 所有配置获取方案都失败");
+        return false;
+      }
+    } catch (error) {
+      console.log(`❌ 配置更新失败: ${error.message}`);
       return false;
     }
   }

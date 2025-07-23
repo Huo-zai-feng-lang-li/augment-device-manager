@@ -102,6 +102,7 @@ class DeviceManager {
         "augment.vscode-augment"
       );
       paths.stateDb = path.join(paths.globalStorage, "state.vscdb");
+      paths.storageJson = path.join(paths.globalStorage, "storage.json");
       paths.settingsJson = path.join(
         userHome,
         "AppData",
@@ -129,6 +130,7 @@ class DeviceManager {
         "augment.vscode-augment"
       );
       paths.stateDb = path.join(paths.globalStorage, "state.vscdb");
+      paths.storageJson = path.join(paths.globalStorage, "storage.json");
       paths.settingsJson = path.join(
         userHome,
         "Library",
@@ -156,6 +158,7 @@ class DeviceManager {
         "augment.vscode-augment"
       );
       paths.stateDb = path.join(paths.globalStorage, "state.vscdb");
+      paths.storageJson = path.join(paths.globalStorage, "storage.json");
       paths.settingsJson = path.join(
         userHome,
         ".config",
@@ -1372,9 +1375,7 @@ class DeviceManager {
           const deviceIdGenerator = new StableDeviceId();
           const newDeviceId =
             await deviceIdGenerator.forceGenerateNewDeviceId();
-          results.actions.push(
-            `🔥 激进模式：强制生成新设备ID: ${newDeviceId.substring(0, 16)}...`
-          );
+          results.actions.push(`🔥 激进模式：强制生成新设备ID: ${newDeviceId}`);
         } catch (error) {
           results.errors.push(`强制生成新设备ID失败: ${error.message}`);
         }
@@ -1387,9 +1388,7 @@ class DeviceManager {
           const deviceIdGenerator = new StableDeviceId();
           const newDeviceId =
             await deviceIdGenerator.forceGenerateNewDeviceId();
-          results.actions.push(
-            `🔄 强制生成新设备ID: ${newDeviceId.substring(0, 16)}...`
-          );
+          results.actions.push(`🔄 强制生成新设备ID: ${newDeviceId}`);
         } catch (error) {
           results.errors.push(`生成新设备ID失败: ${error.message}`);
         }
@@ -2750,6 +2749,15 @@ class DeviceManager {
       // 系统安装路径
       "C:\\Program Files\\Microsoft VS Code\\Code.exe",
       "C:\\Program Files (x86)\\Microsoft VS Code\\Code.exe",
+      // 其他盘符的安装路径 (扩展支持)
+      "D:\\Program Files\\Microsoft VS Code\\Code.exe",
+      "D:\\Microsoft VS Code\\Code.exe",
+      "E:\\Program Files\\Microsoft VS Code\\Code.exe",
+      "E:\\Microsoft VS Code\\Code.exe", // 用户实际安装路径
+      "F:\\Program Files\\Microsoft VS Code\\Code.exe",
+      "F:\\Microsoft VS Code\\Code.exe",
+      "G:\\Microsoft VS Code\\Code.exe",
+      "H:\\Microsoft VS Code\\Code.exe",
       // Portable版本
       path.join(process.cwd(), "VSCode-win32-x64", "Code.exe"),
     ];
@@ -3212,9 +3220,7 @@ class DeviceManager {
       results.actions.push(
         `⏰ 持续监控已启动，将运行${monitoringDuration / 1000}秒`
       );
-      results.actions.push(
-        `🆔 强制使用新设备ID: ${newCursorDeviceId.substring(0, 16)}...`
-      );
+      results.actions.push(`🆔 强制使用新设备ID: ${newCursorDeviceId}`);
     } catch (error) {
       results.errors.push(`启动持续监控失败: ${error.message}`);
     }
@@ -3663,41 +3669,26 @@ class DeviceManager {
       // 3. 保护工作区配置
       const workspaceSettings = await this.protectWorkspaceSettings(results);
 
-      // 4. 清理设备身份相关数据（最小化清理）
+      // 4. 清理workspaceStorage目录（智能清理新增功能）
+      await this.cleanWorkspaceStorageDirectories(results, options);
+
+      // 5. 清理设备身份相关数据（最小化清理）
       await this.cleanDeviceIdentityOnly(results, options);
 
-      // 5. 清理Augment扩展的设备身份数据
+      // 6. 清理Augment扩展的设备身份数据
       await this.cleanAugmentDeviceIdentity(results, options);
 
-      // 6. 更新设备指纹（生成新的设备ID）
+      // 7. 更新设备指纹（生成新的设备ID）
       await this.regenerateDeviceFingerprint(results, options);
 
-      // 7. 恢复所有MCP配置
+      // 8. 恢复所有MCP配置
       await this.restoreMCPConfigUniversal(results, mcpConfigs);
 
-      // 8. 恢复IDE核心设置
+      // 9. 恢复IDE核心设置
       await this.restoreIDESettings(results, ideSettings);
 
-      // 9. 恢复工作区配置
+      // 10. 恢复工作区配置
       await this.restoreWorkspaceSettings(results, workspaceSettings);
-
-      // 10. 处理VS Code（如果启用）
-      if (options.cleanVSCode) {
-        results.actions.push("🔵 智能清理模式 - 处理VS Code设备身份");
-
-        // 在清理前先关闭VS Code
-        await this.forceCloseVSCodeIDE(results);
-
-        // 等待VS Code完全关闭
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-
-        // VS Code智能清理：仅更新设备身份，不清理配置
-        const vscodeVariants = await this.detectInstalledVSCodeVariants();
-        for (const variant of vscodeVariants) {
-          // 智能模式：仅清理设备身份，保护所有配置
-          await this.performVSCodeIntelligentCleanup(results, variant, options);
-        }
-      }
 
       // 11. 启动增强防护（在IDE清理完成后启动，避免ID冲突）
       if (options.enableEnhancedGuardian !== false) {
@@ -3707,13 +3698,14 @@ class DeviceManager {
       // 12. 重新启动IDE（如果需要）
       await this.startIDEsAfterCleanup(results, options);
 
-      results.actions.push("✅ 智能清理完成 - 设备身份已重置，所有配置已保留");
       results.actions.push(
-        "🛡️ 保护范围: MCP配置 + IDE设置 + 工作区配置 + 登录状态"
+        "✅ 智能清理完成 - 设备身份已重置，workspaceStorage已清理"
       );
-      results.actions.push("🎯 效果: 扩展识别为新用户，但保留所有个人配置");
+      results.actions.push("🛡️ 保护范围: MCP配置 + IDE设置 + 登录状态");
+      results.actions.push("🗑️ 清理范围: workspaceStorage目录 + 设备身份数据");
+      results.actions.push("🎯 效果: 扩展识别为新用户，IDE配置完全保留");
       results.actions.push(
-        "⚠️ 重要提醒: 智能模式仅更新设备身份，不清理任何IDE配置文件"
+        "⚠️ 重要提醒: 智能模式会删除workspaceStorage但保护所有IDE配置文件"
       );
       return results;
     } catch (error) {
@@ -4278,6 +4270,172 @@ class DeviceManager {
     }
   }
 
+  // 清理workspaceStorage目录（智能清理专用）
+  async cleanWorkspaceStorageDirectories(results, options = {}) {
+    try {
+      results.actions.push("🗂️ 开始清理workspaceStorage目录...");
+
+      // 定义需要清理的IDE和对应的workspaceStorage路径
+      const ideConfigs = [
+        {
+          name: "VS Code",
+          getPath: () => this.getVSCodeWorkspaceStoragePaths(),
+        },
+        {
+          name: "Cursor",
+          getPath: () => this.getCursorWorkspaceStoragePaths(),
+        },
+      ];
+
+      let totalCleaned = 0;
+
+      for (const ideConfig of ideConfigs) {
+        try {
+          const paths = ideConfig.getPath();
+
+          for (const workspacePath of paths) {
+            try {
+              if (await fs.pathExists(workspacePath)) {
+                // 创建备份（可选）
+                if (!options.skipBackup) {
+                  const backupPath = `${workspacePath}.backup.${Date.now()}`;
+                  try {
+                    await fs.copy(workspacePath, backupPath);
+                    results.actions.push(
+                      `📦 已备份${
+                        ideConfig.name
+                      } workspaceStorage: ${path.basename(backupPath)}`
+                    );
+                  } catch (backupError) {
+                    results.actions.push(
+                      `⚠️ ${ideConfig.name} workspaceStorage备份失败，继续删除: ${backupError.message}`
+                    );
+                  }
+                }
+
+                // 删除workspaceStorage目录
+                await fs.remove(workspacePath);
+                results.actions.push(
+                  `🗑️ 已删除${ideConfig.name} workspaceStorage: ${workspacePath}`
+                );
+                totalCleaned++;
+              } else {
+                results.actions.push(
+                  `ℹ️ ${ideConfig.name} workspaceStorage不存在: ${workspacePath}`
+                );
+              }
+            } catch (error) {
+              results.errors.push(
+                `删除${ideConfig.name} workspaceStorage失败 ${workspacePath}: ${error.message}`
+              );
+            }
+          }
+        } catch (error) {
+          results.errors.push(
+            `获取${ideConfig.name} workspaceStorage路径失败: ${error.message}`
+          );
+        }
+      }
+
+      if (totalCleaned > 0) {
+        results.actions.push(
+          `✅ workspaceStorage清理完成，共删除 ${totalCleaned} 个目录`
+        );
+      } else {
+        results.actions.push("ℹ️ 未发现需要清理的workspaceStorage目录");
+      }
+    } catch (error) {
+      results.errors.push(`workspaceStorage清理失败: ${error.message}`);
+    }
+  }
+
+  // 获取VS Code workspaceStorage路径（跨平台）
+  getVSCodeWorkspaceStoragePaths() {
+    const userHome = os.homedir();
+    const paths = [];
+
+    if (this.platform === "win32") {
+      // Windows路径
+      const variants = ["Code", "Code - Insiders", "Code - OSS"];
+      for (const variant of variants) {
+        paths.push(
+          path.join(
+            userHome,
+            "AppData",
+            "Roaming",
+            variant,
+            "User",
+            "workspaceStorage"
+          )
+        );
+      }
+    } else if (this.platform === "darwin") {
+      // macOS路径
+      const variants = ["Code", "Code - Insiders", "Code - OSS"];
+      for (const variant of variants) {
+        paths.push(
+          path.join(
+            userHome,
+            "Library",
+            "Application Support",
+            variant,
+            "User",
+            "workspaceStorage"
+          )
+        );
+      }
+    } else {
+      // Linux路径
+      const variants = ["Code", "Code - Insiders", "Code - OSS"];
+      for (const variant of variants) {
+        paths.push(
+          path.join(userHome, ".config", variant, "User", "workspaceStorage")
+        );
+      }
+    }
+
+    return paths;
+  }
+
+  // 获取Cursor workspaceStorage路径（跨平台）
+  getCursorWorkspaceStoragePaths() {
+    const userHome = os.homedir();
+    const paths = [];
+
+    if (this.platform === "win32") {
+      // Windows路径
+      paths.push(
+        path.join(
+          userHome,
+          "AppData",
+          "Roaming",
+          "Cursor",
+          "User",
+          "workspaceStorage"
+        )
+      );
+    } else if (this.platform === "darwin") {
+      // macOS路径
+      paths.push(
+        path.join(
+          userHome,
+          "Library",
+          "Application Support",
+          "Cursor",
+          "User",
+          "workspaceStorage"
+        )
+      );
+    } else {
+      // Linux路径
+      paths.push(
+        path.join(userHome, ".config", "Cursor", "User", "workspaceStorage")
+      );
+    }
+
+    return paths;
+  }
+
   // ==================== VS Code 支持功能 ====================
 
   // 检测已安装的VS Code变体
@@ -4522,9 +4680,7 @@ class DeviceManager {
             results.actions.push(
               `✅ VS Code ${variant.name} - 设备身份已更新，扩展将识别为新用户`
             );
-            results.actions.push(
-              `🆔 新设备ID: ${newVSCodeDeviceId.substring(0, 16)}...`
-            );
+            results.actions.push(`🆔 新设备ID: ${newVSCodeDeviceId}`);
           } else {
             results.actions.push(
               `ℹ️ VS Code ${variant.name} - 未发现需要更新的设备身份字段`
@@ -4785,10 +4941,7 @@ class DeviceManager {
       await fs.writeJson(variant.storageJson, newStorageData, { spaces: 2 });
 
       results.actions.push(
-        `🆔 VS Code ${variant.name} 新设备ID: ${newVSCodeDeviceId.substring(
-          0,
-          16
-        )}...`
+        `🆔 VS Code ${variant.name} 新设备ID: ${newVSCodeDeviceId}`
       );
     } catch (error) {
       results.errors.push(
@@ -5106,9 +5259,7 @@ class DeviceManager {
       }
 
       results.actions.push("✅ PowerShell辅助清理完成");
-      results.actions.push(
-        `🎯 新设备ID: ${newIdentifiers.devDeviceId.substring(0, 16)}...`
-      );
+      results.actions.push(`🎯 新设备ID: ${newIdentifiers.devDeviceId}`);
       results.actions.push("🔒 IDE登录状态已保留");
 
       return results;

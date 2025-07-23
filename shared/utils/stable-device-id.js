@@ -68,6 +68,10 @@ class StableDeviceId {
       if (fs.existsSync(filePath)) {
         const content = fs.readFileSync(filePath, "utf8").trim();
         if (content && content.length === 64) {
+          // 将64位哈希转换为UUID格式
+          return this.hashToUUID(content);
+        } else if (content && content.length === 36 && content.includes("-")) {
+          // 已经是UUID格式，直接返回
           return content;
         }
       }
@@ -86,7 +90,13 @@ class StableDeviceId {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      fs.writeFileSync(filePath, deviceId, "utf8");
+      // 如果传入的是UUID格式，转换回哈希格式存储以保持向后兼容
+      let hashToStore = deviceId;
+      if (deviceId && deviceId.length === 36 && deviceId.includes("-")) {
+        // 这是UUID格式，转换为哈希格式存储
+        hashToStore = deviceId.replace(/-/g, "") + "0".repeat(32); // 补齐到64位
+      }
+      fs.writeFileSync(filePath, hashToStore, "utf8");
     } catch (error) {
       // 写入失败不影响功能
       console.warn("写入设备ID缓存失败:", error.message);
@@ -122,7 +132,26 @@ class StableDeviceId {
       .update(JSON.stringify(deviceInfo))
       .digest("hex");
 
-    return hash;
+    // 将64位哈希转换为UUID格式
+    return this.hashToUUID(hash);
+  }
+
+  /**
+   * 将64位哈希转换为UUID格式
+   * @param {string} hash - 64位十六进制哈希
+   * @returns {string} UUID格式的字符串
+   */
+  hashToUUID(hash) {
+    // 取前32位字符，按UUID格式分组：8-4-4-4-12
+    const uuid = [
+      hash.substring(0, 8),
+      hash.substring(8, 12),
+      hash.substring(12, 16),
+      hash.substring(16, 20),
+      hash.substring(20, 32),
+    ].join("-");
+
+    return uuid;
   }
 
   /**
@@ -168,10 +197,13 @@ class StableDeviceId {
       ideSpecific: ideType ? `${ideType}-basic-id` : "generic-basic-id",
     };
 
-    return crypto
+    const hash = crypto
       .createHash("sha256")
       .update(JSON.stringify(basicInfo))
       .digest("hex");
+
+    // 将64位哈希转换为UUID格式
+    return this.hashToUUID(hash);
   }
 
   /**
@@ -203,7 +235,7 @@ class StableDeviceId {
         // 清理特定IDE的缓存
         const cacheFile = this.getIDESpecificCacheFile(ideType);
         const backupFile = this.getIDESpecificBackupFile(ideType);
-        
+
         if (fs.existsSync(cacheFile)) {
           fs.unlinkSync(cacheFile);
         }

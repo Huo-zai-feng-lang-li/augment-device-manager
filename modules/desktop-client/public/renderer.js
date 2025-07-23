@@ -234,6 +234,27 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 获取WebSocket连接状态
   await getWebSocketStatus();
 
+  // 自动模拟点击测试连接按钮（启动时自动测试连接）
+  console.log("🔄 启动时自动测试服务器连接...");
+  setTimeout(async () => {
+    try {
+      // 模拟点击测试连接按钮的完整逻辑
+      const result = await ipcRenderer.invoke("test-server-connection");
+
+      if (result.success) {
+        console.log("✅ 启动时连接测试成功:", result.message);
+        // 重新获取WebSocket状态
+        await getWebSocketStatus();
+        // 测量网络延迟
+        await measureNetworkLatency();
+      } else {
+        console.log("❌ 启动时连接测试失败:", result.error);
+      }
+    } catch (error) {
+      console.error("启动时测试连接失败:", error);
+    }
+  }, 1000); // 延迟1秒执行，确保界面已加载
+
   // 测量网络延迟
   await measureNetworkLatency();
 
@@ -312,6 +333,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 确保函数暴露到全局作用域
   window.validateActivation = validateActivation;
+  window.deactivateDevice = deactivateDevice;
   window.performCleanup = performCleanup;
   window.resetUsageCount = resetUsageCount;
   window.checkForUpdates = checkForUpdates;
@@ -490,6 +512,17 @@ function setupEventListeners() {
   ipcRenderer.on("activation-enabled", (event, data) => {
     showAlert(`账户已被启用: ${data.reason}`, "success");
     checkActivationStatus(); // 重新检查激活状态
+  });
+
+  // 监听激活清除
+  ipcRenderer.on("activation-cleared", (event, data) => {
+    console.log("🚪 收到激活清除通知:", data);
+    showAlert(`已退出激活状态: ${data.reason}`, "info");
+    isActivated = false;
+    updateActivationUI({
+      reason: data.reason,
+      cleared: true,
+    });
   });
 
   // 监听服务器通知
@@ -687,8 +720,18 @@ async function getEnhancedGuardianStatus() {
   });
 }
 
-// 系统监控功能
+// 防抖变量
+let loadSystemInfoTimeout = null;
+let isLoadingSystemInfo = false;
+
+// 系统监控功能（优化版本，添加防抖和防重复调用）
 async function loadSystemInfo() {
+  // 防止重复调用
+  if (isLoadingSystemInfo) {
+    return;
+  }
+
+  isLoadingSystemInfo = true;
   try {
     const systemInfo = await ipcRenderer.invoke("get-system-info");
 
@@ -739,6 +782,9 @@ async function loadSystemInfo() {
     }
   } catch (error) {
     console.error("获取系统信息失败:", error);
+  } finally {
+    // 重置防抖标志
+    isLoadingSystemInfo = false;
   }
 }
 
@@ -1557,13 +1603,27 @@ function startActivationStatusMonitoring() {
 async function getWebSocketStatus() {
   try {
     const status = await ipcRenderer.invoke("get-websocket-status");
+
+    // 如果WebSocket正在初始化但还未连接，显示连接中状态
+    const isInitializing =
+      !status.connected &&
+      !status.lastDisconnectedTime &&
+      status.connectionAttempts === 0;
+
     updateConnectionStatus({
       connected: status.connected,
       timestamp: status.lastConnectedTime || status.lastDisconnectedTime,
-      isReconnecting: status.isReconnecting,
+      isReconnecting: status.isReconnecting || isInitializing,
+      isInitializing: isInitializing,
     });
   } catch (error) {
     console.error("获取WebSocket状态失败:", error);
+    // 错误时显示未连接状态
+    updateConnectionStatus({
+      connected: false,
+      isReconnecting: false,
+      isInitializing: false,
+    });
   }
 }
 
@@ -1643,20 +1703,29 @@ function updateConnectionStatus(statusData) {
       lastSync.textContent = time;
     }
   } else {
-    // 连接断开
-    if (statusData.isReconnecting) {
+    // 连接断开或初始化中
+    if (statusData.isInitializing) {
+      // 初始化连接中
+      connectionStatus.innerHTML = `
+        <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+        <span class="text-sm font-medium text-blue-600">连接中...</span>
+      `;
+      lastSync.textContent = "正在建立连接";
+    } else if (statusData.isReconnecting) {
+      // 重连中
       connectionStatus.innerHTML = `
         <div class="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
         <span class="text-sm font-medium text-yellow-600">重连中...</span>
       `;
     } else {
+      // 未连接
       connectionStatus.innerHTML = `
         <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
         <span class="text-sm font-medium text-red-600">未连接</span>
       `;
     }
 
-    if (statusData.timestamp) {
+    if (statusData.timestamp && !statusData.isInitializing) {
       const time = new Date(statusData.timestamp).toLocaleString();
       lastSync.textContent = `断开于 ${time}`;
     }
@@ -1807,6 +1876,47 @@ async function validateActivation() {
   }
 }
 
+// 退出激活
+async function deactivateDevice() {
+  console.log("deactivateDevice 函数被调用");
+
+  // 显示确认对话框
+  const confirmed = await ipcRenderer.invoke("show-message-box", {
+    type: "warning",
+    title: "确认退出激活",
+    message: "确定要退出激活状态吗？",
+    detail: "退出后需要重新输入激活码才能使用设备功能。",
+    buttons: ["确定退出", "取消"],
+    defaultId: 1,
+    cancelId: 1,
+  });
+
+  if (confirmed.response !== 0) {
+    console.log("用户取消退出激活");
+    return; // 用户取消
+  }
+
+  try {
+    showLoading(true);
+    const result = await ipcRenderer.invoke("deactivate-device");
+
+    if (result.success) {
+      showAlert("已成功退出激活状态", "info");
+      isActivated = false;
+      updateActivationUI();
+      // 重新检查激活状态
+      setTimeout(() => checkActivationStatus(), 500);
+    } else {
+      showAlert(result.error || "退出激活失败", "error");
+    }
+  } catch (error) {
+    console.error("退出激活失败:", error);
+    showAlert("退出激活失败: " + error.message, "error");
+  } finally {
+    showLoading(false);
+  }
+}
+
 // 更新清理按钮状态
 function updateCleanupButtonState() {
   const cleanupBtn = document.querySelector(
@@ -1883,41 +1993,48 @@ function toggleCleanupLog() {
   }
 }
 
-// 添加清理日志
+// 添加清理日志（优化版本，使用 requestAnimationFrame 避免阻塞UI）
 function addCleanupLog(message, type = "info") {
   const logElement = document.getElementById("cleanup-log");
   const container = document.getElementById("cleanup-log-container");
 
   if (logElement && container) {
-    // 显示日志容器
-    container.classList.remove("hidden");
+    // 使用 requestAnimationFrame 确保UI更新不阻塞
+    requestAnimationFrame(() => {
+      // 显示日志容器
+      container.classList.remove("hidden");
 
-    const timestamp = new Date().toLocaleTimeString();
-    const logEntry = document.createElement("div");
-    logEntry.className = `mb-1 ${
-      type === "error"
-        ? "text-red-600 font-medium"
-        : type === "success"
-        ? "text-green-600 font-medium"
-        : type === "warning"
-        ? "text-orange-600 font-medium"
-        : "text-slate-600"
-    }`;
+      const timestamp = new Date().toLocaleTimeString();
+      const logEntry = document.createElement("div");
+      logEntry.className = `mb-1 ${
+        type === "error"
+          ? "text-red-600 font-medium"
+          : type === "success"
+          ? "text-green-600 font-medium"
+          : type === "warning"
+          ? "text-orange-600 font-medium"
+          : "text-slate-600"
+      }`;
 
-    // 为重要消息添加图标
-    let icon = "";
-    if (type === "error") icon = "❌ ";
-    else if (type === "success") icon = "✅ ";
-    else if (type === "warning") icon = "⚠️ ";
+      // 为重要消息添加图标
+      let icon = "";
+      if (type === "error") icon = "❌ ";
+      else if (type === "success") icon = "✅ ";
+      else if (type === "warning") icon = "⚠️ ";
 
-    logEntry.textContent = `[${timestamp}] ${icon}${message}`;
+      logEntry.textContent = `[${timestamp}] ${icon}${message}`;
 
-    logElement.appendChild(logEntry);
+      logElement.appendChild(logEntry);
 
-    // 自动滚动到底部
-    logElement.scrollTop = logElement.scrollHeight;
+      // 限制日志条目数量，避免内存泄漏
+      const maxLogEntries = 100;
+      while (logElement.children.length > maxLogEntries) {
+        logElement.removeChild(logElement.firstChild);
+      }
 
-    // 确保日志容器保持可见，不自动隐藏
+      // 自动滚动到底部
+      logElement.scrollTop = logElement.scrollHeight;
+    });
   }
 }
 
@@ -1981,7 +2098,7 @@ async function performCleanup() {
         deepClean: false,
         cleanCursorExtension: false, // 修复：智能模式不清理Cursor扩展
         autoRestartCursor: false, // 修复：智能模式不重启Cursor
-        autoRestartIDE: true, // 新增：清理后自动重启IDE
+        autoRestartIDE: false, // 禁用：由前端控制重启时机
         skipBackup: true,
         enableEnhancedGuardian: true,
         skipCursorLogin: true,
@@ -2003,7 +2120,7 @@ async function performCleanup() {
         deepClean: true,
         cleanCursorExtension: true,
         autoRestartCursor: true,
-        autoRestartIDE: true, // 新增：清理后自动重启IDE
+        autoRestartIDE: false, // 禁用：由前端控制重启时机
         skipBackup: true,
         enableEnhancedGuardian: true,
         skipCursorLogin: true,
@@ -2025,7 +2142,7 @@ async function performCleanup() {
         deepClean: true,
         cleanCursorExtension: true,
         autoRestartCursor: true,
-        autoRestartIDE: true, // 新增：清理后自动重启IDE
+        autoRestartIDE: false, // 禁用：由前端控制重启时机
         skipBackup: true,
         enableEnhancedGuardian: true,
         skipCursorLogin: false,
@@ -2047,7 +2164,7 @@ async function performCleanup() {
         deepClean: false,
         cleanCursorExtension: false, // 修复：默认不清理扩展
         autoRestartCursor: false, // 修复：默认不重启
-        autoRestartIDE: true, // 新增：清理后自动重启IDE
+        autoRestartIDE: false, // 禁用：由前端控制重启时机
         skipBackup: true,
         enableEnhancedGuardian: true,
         skipCursorLogin: true,
@@ -2310,7 +2427,7 @@ async function performCleanup() {
   console.log("找到清理按钮，开始执行清理操作");
 
   // 启动清理监控模式
-  const monitoringDuration = 60000; // 60秒监控
+  const monitoringDuration = 20000; // 20秒监控（优化性能）
   startCleanupMonitoring(monitoringDuration);
   addCleanupLog("🔄 启动清理监控模式，防止数据恢复...", "info");
 
@@ -2340,7 +2457,8 @@ async function performCleanup() {
         addCleanupLog("🔥 执行清理操作...", "info");
     }
 
-    const result = await ipcRenderer.invoke("perform-device-cleanup", {
+    // 添加清理超时机制（30秒超时）
+    const cleanupPromise = ipcRenderer.invoke("perform-device-cleanup", {
       // 使用清理模式配置的所有参数（避免硬编码覆盖）
       ...cleanupOptions,
 
@@ -2358,6 +2476,16 @@ async function performCleanup() {
       resetCursorCompletely,
       resetVSCodeCompletely,
     });
+
+    // 创建超时Promise
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error("清理操作超时（30秒），请重试"));
+      }, 30000);
+    });
+
+    // 使用Promise.race实现超时控制
+    const result = await Promise.race([cleanupPromise, timeoutPromise]);
     console.log("设备清理结果:", result);
 
     if (result.success) {
@@ -2523,9 +2651,23 @@ async function performCleanup() {
           }
 
           if (originalDeviceId && newDeviceId !== originalDeviceId) {
-            addCleanupLog(`✅ 设备ID已更新！`, "success");
-            addCleanupLog(`原ID: ${originalDeviceId}`, "info");
+            // 添加分隔线和清理完成提示
+            addCleanupLog(
+              "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+              "info"
+            );
+            addCleanupLog(`🎉 清理操作完成！设备ID已成功更新`, "success");
+            addCleanupLog(
+              "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+              "info"
+            );
+            addCleanupLog(`📋 设备ID变更详情：`, "info");
+            addCleanupLog(`旧ID: ${originalDeviceId}`, "warning");
             addCleanupLog(`新ID: ${newDeviceId}`, "success");
+            addCleanupLog(
+              "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+              "info"
+            );
 
             // 显示设备ID变化对比
             showDeviceIdComparison(originalDeviceId, newDeviceId);
@@ -2533,10 +2675,28 @@ async function performCleanup() {
             // 刷新系统信息显示
             await loadSystemInfo();
           } else {
-            addCleanupLog("⚠️ 设备ID未发生变化", "error");
+            // 添加分隔线和警告提示
+            addCleanupLog(
+              "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+              "info"
+            );
+            addCleanupLog("⚠️ 设备ID未发生变化", "warning");
+            addCleanupLog(
+              "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+              "info"
+            );
+            addCleanupLog(`📋 设备ID检查结果：`, "info");
+            addCleanupLog(`旧ID: ${originalDeviceId}`, "warning");
+            addCleanupLog(`新ID: ${newDeviceId}`, "warning");
+            addCleanupLog("状态: 与清理前相同", "warning");
+            addCleanupLog(
+              "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+              "info"
+            );
+
             showAlert(
               `⚠️ 设备ID未发生变化<br>
-              • 当前设备ID: ${newDeviceId.substring(0, 16)}...<br>
+              • 当前设备ID: ${newDeviceId}<br>
               • 状态: 与清理前相同<br>
               • 可能原因: 清理操作未完全生效或系统缓存<br>
               • 建议操作: 重启应用后重试清理`,
@@ -2556,8 +2716,8 @@ async function performCleanup() {
                 addCleanupLog("❌ 检测到激活状态丢失", "error");
                 showAlert(
                   `⚠️ 清理操作影响了激活状态<br>
-                  • 原设备ID: ${originalDeviceId.substring(0, 16)}...<br>
-                  • 新设备ID: ${newDeviceId.substring(0, 16)}...<br>
+                  • 原设备ID: ${originalDeviceId}<br>
+                  • 新设备ID: ${newDeviceId}<br>
                   • 激活状态: 已失效，需要重新激活<br>
                   • 建议操作: 使用相同激活码重新激活设备`,
                   "warning"
@@ -2571,8 +2731,8 @@ async function performCleanup() {
                 // addCleanupLog("✅ 激活状态保持正常", "success");
                 showAlert(
                   `🎉 设备清理操作完成，激活状态已保留<br>
-                  • 原设备ID: ${originalDeviceId.substring(0, 16)}...<br>
-                  • 新设备ID: ${newDeviceId.substring(0, 16)}...<br>
+                  • 原设备ID: ${originalDeviceId}<br>
+                  • 新设备ID: ${newDeviceId}<br>
                   • 激活状态: 正常，无需重新激活<br>
                   • 清理项目: ${result.actions ? result.actions.length : 0} 个`,
                   "success"
@@ -2581,8 +2741,8 @@ async function performCleanup() {
                 addCleanupLog("ℹ️ 设备未激活状态", "info");
                 showAlert(
                   `🧹 设备清理操作完成<br>
-                  • 原设备ID: ${originalDeviceId.substring(0, 16)}...<br>
-                  • 新设备ID: ${newDeviceId.substring(0, 16)}...<br>
+                  • 原设备ID: ${originalDeviceId}<br>
+                  • 新设备ID: ${newDeviceId}<br>
                   • 激活状态: 未激活（清理前也未激活）<br>
                   • 清理项目: ${result.actions ? result.actions.length : 0} 个`,
                   "info"
@@ -2592,7 +2752,7 @@ async function performCleanup() {
               addCleanupLog("激活状态检查失败: " + error.message, "error");
               showAlert(
                 `⚠️ 激活状态检查遇到问题<br>
-                • 设备ID: ${newDeviceId.substring(0, 16)}...<br>
+                • 设备ID: ${newDeviceId}<br>
                 • 错误信息: ${error.message}<br>
                 • 建议操作: 手动检查激活状态或重新激活`,
                 "warning"
@@ -2606,8 +2766,8 @@ async function performCleanup() {
 
             showAlert(
               `🎉 设备完全清理操作完成<br>
-              • 原设备ID: ${originalDeviceId.substring(0, 16)}...<br>
-              • 新设备ID: ${newDeviceId.substring(0, 16)}...<br>
+              • 原设备ID: ${originalDeviceId}<br>
+              • 新设备ID: ${newDeviceId}<br>
               • 激活状态: 已清除，需要重新激活<br>
               • 清理项目: ${result.actions ? result.actions.length : 0} 个<br>
               • 下一步: 使用激活码重新激活设备`,
@@ -2627,9 +2787,7 @@ async function performCleanup() {
       addCleanupLog(`清理失败: ${result.error || "未知错误"}`, "error");
       showAlert(
         `❌ 设备清理操作失败<br>
-        • 当前设备ID: ${
-          originalDeviceId ? originalDeviceId.substring(0, 16) + "..." : "未知"
-        }<br>
+        • 当前设备ID: ${originalDeviceId || "未知"}<br>
         • 失败原因: ${result.error || "未知错误"}<br>
         • 建议操作: 检查权限或重试清理操作`,
         "error"
@@ -2653,11 +2811,7 @@ async function performCleanup() {
           updateActivationUI();
           showAlert(
             `🔒 激活状态验证失败<br>
-            • 设备ID: ${
-              originalDeviceId
-                ? originalDeviceId.substring(0, 16) + "..."
-                : "未知"
-            }<br>
+            • 设备ID: ${originalDeviceId || "未知"}<br>
             • 状态: 激活已失效<br>
             • 建议操作: 使用有效激活码重新激活设备`,
             "warning"
@@ -2675,9 +2829,7 @@ async function performCleanup() {
     addCleanupLog("清理操作异常: " + error.message, "error");
     showAlert(
       `❌ 设备清理操作异常<br>
-      • 当前设备ID: ${
-        originalDeviceId ? originalDeviceId.substring(0, 16) + "..." : "未知"
-      }<br>
+      • 当前设备ID: ${originalDeviceId || "未知"}<br>
       • 异常信息: ${error.message}<br>
       • 建议操作: 重启应用后重试，或联系技术支持`,
       "error"
@@ -3529,10 +3681,16 @@ function startCleanupMonitoring(duration = 30000) {
     clearInterval(systemInfoTimer);
   }
 
-  // 清理监控期间每2秒刷新一次（更频繁）
+  // 清理监控期间每5秒刷新一次（优化性能，使用防抖）
   systemInfoTimer = setInterval(() => {
-    loadSystemInfo();
-  }, 2000);
+    // 使用防抖机制避免重复调用
+    if (loadSystemInfoTimeout) {
+      clearTimeout(loadSystemInfoTimeout);
+    }
+    loadSystemInfoTimeout = setTimeout(() => {
+      loadSystemInfo();
+    }, 200); // 200ms防抖延迟
+  }, 5000);
 
   // 监控结束后恢复正常频率
   setTimeout(() => {
@@ -3551,7 +3709,13 @@ function stopCleanupMonitoring() {
   }
 
   systemInfoTimer = setInterval(() => {
-    loadSystemInfo();
+    // 使用防抖机制避免重复调用
+    if (loadSystemInfoTimeout) {
+      clearTimeout(loadSystemInfoTimeout);
+    }
+    loadSystemInfoTimeout = setTimeout(() => {
+      loadSystemInfo();
+    }, 200); // 200ms防抖延迟
   }, 5000);
 }
 
@@ -4380,6 +4544,839 @@ async function viewGuardianLogs() {
   }
 }
 
+// 获取清理选项的辅助函数
+function getCleanupOptions() {
+  // 获取清理模式选择
+  const cleanupMode =
+    document.querySelector('input[name="cleanup-mode"]:checked')?.value ??
+    "intelligent";
+
+  // 根据清理模式设置清理选项
+  let cleanupOptions = {};
+
+  switch (cleanupMode) {
+    case "intelligent":
+      // 智能清理：只清理设备身份，保留所有配置
+      cleanupOptions = {
+        preserveActivation: true,
+        deepClean: false,
+        cleanCursorExtension: false,
+        autoRestartCursor: false,
+        autoRestartIDE: false, // 禁用：由前端控制重启时机
+        skipBackup: true,
+        enableEnhancedGuardian: true,
+        skipCursorLogin: true,
+        resetCursorCompletely: false,
+        resetVSCodeCompletely: false,
+        aggressiveMode: false,
+        multiRoundClean: false,
+        extendedMonitoring: false,
+        usePowerShellAssist: false,
+        intelligentMode: true,
+      };
+      break;
+
+    case "standard":
+      // 标准清理：清理大部分数据，保留核心配置
+      cleanupOptions = {
+        preserveActivation: true,
+        deepClean: true,
+        cleanCursorExtension: true,
+        autoRestartCursor: true,
+        autoRestartIDE: false, // 禁用：由前端控制重启时机
+        skipBackup: true,
+        enableEnhancedGuardian: true,
+        skipCursorLogin: true,
+        resetCursorCompletely: false,
+        resetVSCodeCompletely: false,
+        aggressiveMode: true,
+        multiRoundClean: true,
+        extendedMonitoring: true,
+        usePowerShellAssist: true,
+        standardMode: true,
+      };
+      break;
+
+    case "complete":
+      // 完全清理：彻底重置，仅保护MCP配置
+      cleanupOptions = {
+        preserveActivation: true,
+        deepClean: true,
+        cleanCursorExtension: true,
+        autoRestartCursor: true,
+        autoRestartIDE: false, // 禁用：由前端控制重启时机
+        skipBackup: true,
+        enableEnhancedGuardian: true,
+        skipCursorLogin: false,
+        resetCursorCompletely: true,
+        resetVSCodeCompletely: true,
+        aggressiveMode: true,
+        multiRoundClean: true,
+        extendedMonitoring: true,
+        usePowerShellAssist: true,
+        completeMode: true,
+      };
+      break;
+
+    default:
+      // 默认使用智能清理
+      cleanupOptions = {
+        preserveActivation: true,
+        deepClean: false,
+        cleanCursorExtension: false,
+        autoRestartCursor: false,
+        autoRestartIDE: false, // 禁用：由前端控制重启时机
+        skipBackup: true,
+        enableEnhancedGuardian: true,
+        skipCursorLogin: true,
+        resetCursorCompletely: false,
+        resetVSCodeCompletely: false,
+        aggressiveMode: false,
+        multiRoundClean: false,
+        extendedMonitoring: false,
+        usePowerShellAssist: false,
+        intelligentMode: true,
+      };
+  }
+
+  return cleanupOptions;
+}
+
+// 清理后启动防护功能（整合了原来的performCleanup功能）
+async function performCleanupAndStartGuardian() {
+  console.log("performCleanupAndStartGuardian 函数被调用");
+
+  // 权限检查
+  const permissions = await checkFeaturePermission("设备清理工具", "cleanup");
+  if (!permissions) {
+    console.log("权限检查失败，退出函数");
+    return;
+  }
+
+  // 检查增强防护状态
+  try {
+    console.log("🔍 检查增强防护状态...");
+    const guardianStatus = await getEnhancedGuardianStatus();
+
+    const isProtectionRunning =
+      guardianStatus.isGuarding ||
+      (guardianStatus.standalone && guardianStatus.standalone.isRunning) ||
+      (guardianStatus.inProcess && guardianStatus.inProcess.isGuarding);
+
+    if (isProtectionRunning) {
+      const selectedIDE = getCurrentSelectedIDE();
+      const ideDisplayName = selectedIDE === "vscode" ? "VS Code" : "Cursor";
+
+      showAlert(
+        `当前正在保护 ${ideDisplayName} 的设备ID，无法执行清理操作。<br><br>` +
+          `请先在"增强防护"模块中停止防护服务，然后再进行清理。`,
+        "warning"
+      );
+      return;
+    }
+  } catch (error) {
+    console.warn("检查增强防护状态失败:", error);
+    // 如果检查失败，继续执行清理（避免阻塞正常操作）
+  }
+
+  // 获取清理选项和IDE选择
+  const cleanupOptions = getCleanupOptions();
+  const selectedIDE = getCurrentSelectedIDE();
+  const cleanCursor = selectedIDE === "cursor";
+  const cleanVSCode = selectedIDE === "vscode";
+
+  console.log(`🎯 清理设备 - 选择的IDE: ${selectedIDE}`);
+  console.log("清理选项:", cleanupOptions);
+
+  // 获取清理模式
+  const cleanupMode =
+    document.querySelector('input[name="cleanup-mode"]:checked')?.value ??
+    "intelligent";
+
+  // 显示确认对话框并执行清理
+  await showCleanupConfirmationAndExecute(
+    cleanupOptions,
+    selectedIDE,
+    cleanCursor,
+    cleanVSCode,
+    cleanupMode
+  );
+}
+
+// 显示清理确认对话框并执行清理
+async function showCleanupConfirmationAndExecute(
+  cleanupOptions,
+  selectedIDE,
+  cleanCursor,
+  cleanVSCode,
+  cleanupMode
+) {
+  let dialogConfig = {};
+
+  switch (cleanupMode) {
+    case "intelligent":
+      dialogConfig = {
+        type: "info",
+        title: "🧠 智能清理模式",
+        message: "🧠 智能清理模式\n\n您即将执行安全的智能清理操作",
+        detail: `
+🧠 智能清理特性：
+
+🎯 精准清理
+  • 仅清理设备身份相关数据
+  • 保留所有用户配置和设置
+  • 保留IDE登录状态和偏好
+  • 保护MCP配置和工作环境
+
+✨ 清理效果
+  • Augment扩展识别为新设备
+  • 重置设备指纹和标识
+  • 需要重新激活设备
+  • IDE功能完全不受影响
+
+🛡️ 自动防护
+  • 清理完成后自动启动${selectedIDE === "vscode" ? "VS Code" : "Cursor"}防护
+  • 保护新的设备ID不被修改
+
+🎯 推荐指数：⭐⭐⭐⭐⭐
+确定要继续吗？`,
+        buttons: ["🧠 确定清理", "❌ 取消操作"],
+      };
+      break;
+
+    case "standard":
+      dialogConfig = {
+        type: "warning",
+        title: "🔧 标准清理模式",
+        message: "🔧 标准清理模式\n\n您即将执行深度清理操作",
+        detail: `
+🔧 标准清理特性：
+
+🔥 深度清理
+  • 清理大部分IDE数据和缓存
+  • 保留核心配置文件
+  • 清理扩展数据和用户偏好
+  • 保护MCP配置文件
+
+✨ 清理效果
+  • IDE回到较干净的状态
+  • 部分IDE设置需要重新配置
+  • 需要重新激活设备
+  • 更高的清理成功率
+
+🛡️ 自动防护
+  • 清理完成后自动启动${selectedIDE === "vscode" ? "VS Code" : "Cursor"}防护
+  • 保护新的设备ID不被修改
+
+⚠️ 注意事项
+  • 需要重新配置部分IDE设置
+  • 扩展可能需要重新配置
+  • 工作区设置可能丢失
+
+🎯 成功率：95%以上
+确定要继续吗？`,
+        buttons: ["🔧 确定清理", "❌ 取消操作"],
+      };
+      break;
+
+    case "complete":
+      dialogConfig = {
+        type: "error",
+        title: "💥 完全清理模式",
+        message: "💥 完全清理模式\n\n您即将执行彻底的完全重置操作",
+        detail: `
+💥 完全清理特性：
+
+🗑️ 彻底重置
+  • 删除几乎所有IDE数据
+  • 回到全新安装状态
+  • 仅保护MCP配置文件
+  • 最高级别的清理深度
+
+🔥 系统级重置
+  • 完全重置Cursor和VS Code
+  • 清理所有用户数据和设置
+  • 重置所有身份标识
+  • 清理所有缓存和临时文件
+
+✨ 清理效果
+  • IDE完全回到初始状态
+  • 需要重新登录所有服务
+  • 需要重新配置所有设置
+  • 最高的清理成功率
+
+🛡️ 自动防护
+  • 清理完成后自动启动${selectedIDE === "vscode" ? "VS Code" : "Cursor"}防护
+  • 保护新的设备ID不被修改
+
+⚠️ 重要警告
+此操作不可撤销！清理后您需要：
+1. 重新登录Cursor IDE
+2. 重新配置所有IDE设置
+3. 重新安装和配置扩展
+4. 重新激活设备
+
+🎯 成功率：99%以上
+确定要继续吗？`,
+        buttons: ["💥 确定清理", "❌ 取消操作"],
+      };
+      break;
+
+    default:
+      // 默认使用智能清理的对话框
+      dialogConfig = {
+        type: "info",
+        title: "🧠 智能清理模式",
+        message: "🧠 智能清理模式\n\n您即将执行安全的智能清理操作",
+        detail: `
+🧠 智能清理特性：
+
+🎯 精准清理
+  • 仅清理设备身份相关数据
+  • 保留所有用户配置和设置
+  • 保留IDE登录状态和偏好
+  • 保护MCP配置和工作环境
+
+✨ 清理效果
+  • Augment扩展识别为新设备
+  • 重置设备指纹和标识
+  • 需要重新激活设备
+  • IDE功能完全不受影响
+
+🛡️ 自动防护
+  • 清理完成后自动启动${selectedIDE === "vscode" ? "VS Code" : "Cursor"}防护
+  • 保护新的设备ID不被修改
+
+🎯 推荐指数：⭐⭐⭐⭐⭐
+确定要继续吗？`,
+        buttons: ["🧠 确定清理", "❌ 取消操作"],
+      };
+  }
+
+  // 显示确认对话框
+  const confirmResult = await ipcRenderer.invoke("show-message-box", {
+    ...dialogConfig,
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  });
+
+  if (confirmResult.response !== 0) {
+    console.log("用户取消清理操作");
+    return;
+  }
+
+  // 执行清理和启动防护
+  await executeCleanupAndStartGuardian(
+    cleanupOptions,
+    selectedIDE,
+    cleanCursor,
+    cleanVSCode,
+    cleanupMode
+  );
+}
+
+// 执行清理和启动防护的主要逻辑
+async function executeCleanupAndStartGuardian(
+  cleanupOptions,
+  selectedIDE,
+  cleanCursor,
+  cleanVSCode,
+  cleanupMode
+) {
+  // 找到清理按钮（用于显示状态）
+  const cleanupBtn = document.querySelector(
+    'button[onclick="performCleanupAndStartGuardian()"]'
+  );
+
+  if (!cleanupBtn) {
+    console.error("找不到清理按钮");
+    showAlert("页面元素错误，请刷新页面", "error");
+    return;
+  }
+
+  const originalText = cleanupBtn.innerHTML;
+  console.log("找到清理按钮，开始执行清理操作");
+
+  // 🚫 第1步：关闭目标IDE，防止其自动恢复配置
+  addCleanupLog("🚫 第1步：关闭目标IDE，防止配置自动恢复...", "info");
+
+  try {
+    if (selectedIDE === "cursor") {
+      addCleanupLog("🔄 正在关闭Cursor IDE...", "info");
+      await ipcRenderer.invoke("close-ide-processes", "cursor");
+      addCleanupLog("✅ Cursor IDE已关闭", "success");
+    } else if (selectedIDE === "vscode") {
+      addCleanupLog("🔄 正在关闭VS Code IDE...", "info");
+      await ipcRenderer.invoke("close-ide-processes", "vscode");
+      addCleanupLog("✅ VS Code IDE已关闭", "success");
+    }
+
+    // 等待进程完全关闭
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    addCleanupLog("⏱️ 等待IDE进程完全关闭...", "info");
+  } catch (error) {
+    console.warn("关闭IDE失败:", error);
+    addCleanupLog(`⚠️ 关闭IDE失败: ${error.message}`, "warning");
+    addCleanupLog("⚠️ 继续执行清理操作...", "warning");
+  }
+
+  // 启动清理监控模式
+  const monitoringDuration = 20000; // 20秒监控（优化性能）
+  startCleanupMonitoring(monitoringDuration);
+  addCleanupLog("🔄 启动清理监控模式，防止数据恢复...", "info");
+
+  try {
+    cleanupBtn.disabled = true;
+    cleanupBtn.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <div style="width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <span>清理中...</span>
+      </div>
+    `;
+
+    console.log("正在调用设备清理功能...");
+
+    // 备份当前设备ID
+    let originalDeviceId = null;
+    try {
+      const deviceIdDetails = await ipcRenderer.invoke("get-device-id-details");
+      if (
+        selectedIDE === "vscode" &&
+        deviceIdDetails.vscodeTelemetry?.devDeviceId
+      ) {
+        originalDeviceId = deviceIdDetails.vscodeTelemetry.devDeviceId;
+      } else if (
+        selectedIDE === "cursor" &&
+        deviceIdDetails.cursorTelemetry?.devDeviceId
+      ) {
+        originalDeviceId = deviceIdDetails.cursorTelemetry.devDeviceId;
+      } else {
+        const deviceInfo = await ipcRenderer.invoke("get-device-info");
+        originalDeviceId = deviceInfo.deviceId;
+      }
+      addCleanupLog(`📋 备份当前设备ID: ${originalDeviceId}`, "info");
+    } catch (error) {
+      addCleanupLog("⚠️ 备份设备ID失败: " + error.message, "warning");
+    }
+
+    // 根据清理模式显示不同的日志信息
+    switch (cleanupMode) {
+      case "intelligent":
+        addCleanupLog("🧠 执行智能清理操作（精准清理设备身份）...", "info");
+        break;
+      case "standard":
+        addCleanupLog("🔧 执行标准清理操作（深度清理保留核心配置）...", "info");
+        break;
+      case "complete":
+        addCleanupLog("💥 执行完全清理操作（彻底重置仅保护MCP）...", "info");
+        break;
+      default:
+        addCleanupLog("🔥 执行清理操作...", "info");
+    }
+
+    // 添加进度提示，避免用户感觉卡顿
+    addCleanupLog("⏳ 正在执行清理操作，请稍候...", "info");
+
+    // 使用 setTimeout 让界面有时间更新
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // 添加清理超时机制（30秒超时）
+    const cleanupPromise = ipcRenderer.invoke("perform-device-cleanup", {
+      // 使用清理模式配置的所有参数
+      ...cleanupOptions,
+
+      // IDE选择选项（用户选择优先）
+      cleanCursor: cleanCursor,
+      cleanVSCode: cleanVSCode,
+      selectedIDE: selectedIDE,
+
+      // PowerShell辅助选项
+      usePowerShellAssist: cleanupOptions.usePowerShellAssist ?? false,
+
+      // 重置选项
+      skipCursorLogin: !cleanupOptions.resetCursorCompletely,
+      resetCursorCompletely: cleanupOptions.resetCursorCompletely,
+      resetVSCodeCompletely: cleanupOptions.resetVSCodeCompletely,
+    });
+
+    // 创建超时Promise
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error("清理操作超时（30秒），请重试"));
+      }, 30000);
+    });
+
+    // 使用Promise.race实现超时控制
+    const result = await Promise.race([cleanupPromise, timeoutPromise]);
+
+    console.log("设备清理结果:", result);
+
+    if (result.success) {
+      addCleanupLog(
+        `清理完成！清理了 ${result.actions?.length || 0} 个项目`,
+        "success"
+      );
+
+      // 显示详细的清理结果
+      if (result.actions && result.actions.length > 0) {
+        result.actions.forEach((action) => {
+          addCleanupLog(`✓ ${action}`, "success");
+        });
+      }
+
+      // 获取新的设备ID并显示对比
+      if (originalDeviceId) {
+        try {
+          addCleanupLog("🔍 检查设备ID变更情况...", "info");
+
+          let newDeviceId = null;
+          const newDeviceIdDetails = await ipcRenderer.invoke(
+            "get-device-id-details"
+          );
+
+          if (
+            selectedIDE === "vscode" &&
+            newDeviceIdDetails.vscodeTelemetry?.devDeviceId
+          ) {
+            newDeviceId = newDeviceIdDetails.vscodeTelemetry.devDeviceId;
+          } else if (
+            selectedIDE === "cursor" &&
+            newDeviceIdDetails.cursorTelemetry?.devDeviceId
+          ) {
+            newDeviceId = newDeviceIdDetails.cursorTelemetry.devDeviceId;
+          } else {
+            const newDeviceInfo = await ipcRenderer.invoke("get-device-info");
+            newDeviceId = newDeviceInfo.deviceId;
+          }
+
+          if (newDeviceId && newDeviceId !== originalDeviceId) {
+            // 添加分隔线和清理完成提示
+            addCleanupLog(
+              "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+              "info"
+            );
+            addCleanupLog(`🎉 设备ID更新成功！`, "success");
+            addCleanupLog(
+              "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+              "info"
+            );
+            addCleanupLog(`📋 设备ID变更详情：`, "info");
+            addCleanupLog(`旧ID: ${originalDeviceId}`, "warning");
+            addCleanupLog(`新ID: ${newDeviceId}`, "success");
+            addCleanupLog(
+              "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+              "info"
+            );
+          } else {
+            // 添加分隔线和警告提示
+            addCleanupLog(
+              "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+              "info"
+            );
+            addCleanupLog("⚠️ 设备ID未发生变化", "warning");
+            addCleanupLog(
+              "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+              "info"
+            );
+            addCleanupLog(`📋 设备ID检查结果：`, "info");
+            addCleanupLog(`旧ID: ${originalDeviceId}`, "warning");
+            addCleanupLog(`新ID: ${newDeviceId}`, "warning");
+            addCleanupLog("状态: 与清理前相同，可能需要重启应用", "warning");
+            addCleanupLog(
+              "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+              "info"
+            );
+          }
+        } catch (error) {
+          addCleanupLog("⚠️ 检查设备ID变更失败: " + error.message, "warning");
+        }
+      }
+
+      // 🛡️ 立即启动防护保护新的设备ID（在IDE重启前）
+      addCleanupLog("🛡️ 立即启动防护保护新的设备ID...", "info");
+      await startGuardianAfterCleanup_ENABLED(selectedIDE);
+
+      // ⏱️ 等待防护完全启动
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      addCleanupLog("⏱️ 防护已启动，等待稳定...", "info");
+
+      // 🔄 最后重启IDE（此时防护已经在保护新ID）
+      addCleanupLog("🔄 重启IDE（防护已保护新ID）...", "info");
+      try {
+        await ipcRenderer.invoke("restart-ide", selectedIDE);
+        addCleanupLog("✅ IDE重启完成", "success");
+      } catch (error) {
+        addCleanupLog(`⚠️ IDE重启失败: ${error.message}`, "warning");
+        addCleanupLog("💡 请手动启动IDE", "info");
+      }
+
+      // 显示成功消息
+      showAlert(`✅ 设备清理完成，防护已启动！`, "success");
+    } else {
+      addCleanupLog(`❌ 清理失败: ${result.error}`, "error");
+
+      if (result.requireActivation) {
+        showAlert(`清理失败: ${result.error}`, "error");
+        if (result.securityIssue) {
+          showAlert("检测到安全问题，请重新激活", "warning");
+        }
+      } else {
+        showAlert(`清理失败: ${result.error}`, "error");
+      }
+    }
+  } catch (error) {
+    console.error("清理操作失败:", error);
+    addCleanupLog(`❌ 清理操作异常: ${error.message}`, "error");
+    showAlert(`清理操作失败: ${error.message}`, "error");
+  } finally {
+    // 恢复按钮状态
+    cleanupBtn.disabled = false;
+    cleanupBtn.innerHTML = originalText;
+
+    // 停止清理监控
+    setTimeout(() => {
+      stopCleanupMonitoring();
+    }, 5000);
+  }
+}
+
+// 清理后立即启动防护的函数（防止IDE恢复旧ID）
+async function startGuardianAfterCleanup_ENABLED(selectedIDE) {
+  try {
+    console.log(`🛡️ 立即为 ${selectedIDE} 启动防护，保护新设备ID...`);
+    addCleanupLog(`🛡️ 立即为 ${selectedIDE} 启动防护，保护新设备ID...`, "info");
+
+    // 立即获取清理后的新设备ID
+    console.log("📡 获取清理后的新设备ID...");
+    const deviceIdDetails = await ipcRenderer.invoke("get-device-id-details");
+    let targetDeviceId = null;
+
+    console.log("设备ID详情:", deviceIdDetails);
+
+    if (deviceIdDetails.success) {
+      if (
+        selectedIDE === "vscode" &&
+        deviceIdDetails.vscodeTelemetry?.devDeviceId
+      ) {
+        targetDeviceId = deviceIdDetails.vscodeTelemetry.devDeviceId;
+        console.log(`📋 使用VS Code设备ID: ${targetDeviceId}`);
+        addCleanupLog(`📋 使用VS Code设备ID: ${targetDeviceId}`, "info");
+      } else if (
+        selectedIDE === "cursor" &&
+        deviceIdDetails.cursorTelemetry?.devDeviceId
+      ) {
+        targetDeviceId = deviceIdDetails.cursorTelemetry.devDeviceId;
+        console.log(`📋 使用Cursor设备ID: ${targetDeviceId}`);
+        addCleanupLog(`📋 使用Cursor设备ID: ${targetDeviceId}`, "info");
+      } else {
+        // 如果没有对应IDE的遥测ID，则使用设备指纹作为备用
+        const deviceInfo = await ipcRenderer.invoke("get-device-info");
+        targetDeviceId = deviceInfo.deviceId;
+        console.log(`📋 使用设备指纹ID: ${targetDeviceId}`);
+        addCleanupLog(`📋 使用设备指纹ID: ${targetDeviceId}`, "info");
+      }
+    }
+
+    console.log(`🎯 目标设备ID: ${targetDeviceId}`);
+    addCleanupLog(`🎯 目标设备ID: ${targetDeviceId}`, "info");
+
+    if (!targetDeviceId) {
+      throw new Error("无法获取目标设备ID");
+    }
+
+    // 立即启动防护
+    console.log("🚀 立即启动防护进程...");
+    addCleanupLog("🚀 立即启动防护进程...", "info");
+
+    const guardianResult = await ipcRenderer.invoke(
+      "start-enhanced-guardian-independent",
+      {
+        selectedIDE: selectedIDE,
+        targetDeviceId: targetDeviceId,
+        enableBackupMonitoring: true,
+        enableDatabaseMonitoring: true,
+        enableEnhancedProtection: true,
+      }
+    );
+
+    console.log("防护启动结果:", guardianResult);
+
+    if (guardianResult.success) {
+      addCleanupLog(`✅ 防护已启动，保护设备ID: ${targetDeviceId}`, "success");
+      updateGuardianButtonState("running");
+
+      // 立即验证防护是否正确保护新的设备ID
+      setTimeout(async () => {
+        try {
+          console.log("🔍 验证防护进程是否保护正确的设备ID...");
+
+          // 重新获取设备ID，检查是否被防护进程修改
+          const verifyDetails = await ipcRenderer.invoke(
+            "get-device-id-details"
+          );
+          if (verifyDetails.success) {
+            let currentDeviceId = null;
+            if (
+              selectedIDE === "cursor" &&
+              verifyDetails.cursorTelemetry?.devDeviceId
+            ) {
+              currentDeviceId = verifyDetails.cursorTelemetry.devDeviceId;
+            } else if (
+              selectedIDE === "vscode" &&
+              verifyDetails.vscodeTelemetry?.devDeviceId
+            ) {
+              currentDeviceId = verifyDetails.vscodeTelemetry.devDeviceId;
+            }
+
+            if (currentDeviceId === targetDeviceId) {
+              console.log("✅ 防护进程正确保护新的设备ID");
+              addCleanupLog("✅ 防护验证通过，设备ID保持正确", "success");
+            } else {
+              console.warn("⚠️ 防护进程可能使用了错误的设备ID");
+              console.warn(`期望: ${targetDeviceId}, 实际: ${currentDeviceId}`);
+              addCleanupLog(`⚠️ 防护验证失败，设备ID不匹配`, "warning");
+              addCleanupLog(`期望: ${targetDeviceId}`, "warning");
+              addCleanupLog(`实际: ${currentDeviceId}`, "warning");
+            }
+          }
+        } catch (verifyError) {
+          console.error("验证防护失败:", verifyError);
+        }
+
+        refreshGuardianStatus("cleanup-and-start");
+      }, 1000);
+    } else {
+      addCleanupLog(`❌ 防护启动失败: ${guardianResult.message}`, "error");
+      showAlert(`防护启动失败: ${guardianResult.message}`, "error");
+    }
+  } catch (error) {
+    console.error("启动防护失败:", error);
+    addCleanupLog(`❌ 启动防护异常: ${error.message}`, "error");
+    showAlert(`启动防护失败: ${error.message}`, "error");
+  }
+}
+
+// 清理后启动防护的辅助函数（增强版本）- 临时禁用
+// async function startGuardianAfterCleanup(selectedIDE) {
+async function startGuardianAfterCleanup_DISABLED(selectedIDE) {
+  try {
+    console.log(`🛡️ 为 ${selectedIDE} 启动防护...`);
+    addCleanupLog(`🛡️ 为 ${selectedIDE} 启动防护...`, "info");
+
+    // 等待一下确保清理操作完全完成
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // 获取设备ID详情以确定目标设备ID
+    console.log("📡 获取清理后的设备ID详情...");
+    const deviceIdDetails = await ipcRenderer.invoke("get-device-id-details");
+    let targetDeviceId = null;
+
+    console.log("设备ID详情:", deviceIdDetails);
+
+    if (deviceIdDetails.success) {
+      if (
+        selectedIDE === "vscode" &&
+        deviceIdDetails.vscodeTelemetry?.devDeviceId
+      ) {
+        targetDeviceId = deviceIdDetails.vscodeTelemetry.devDeviceId;
+        console.log(`📋 使用VS Code设备ID: ${targetDeviceId}`);
+        addCleanupLog(`📋 使用VS Code设备ID: ${targetDeviceId}`, "info");
+      } else if (
+        selectedIDE === "cursor" &&
+        deviceIdDetails.cursorTelemetry?.devDeviceId
+      ) {
+        targetDeviceId = deviceIdDetails.cursorTelemetry.devDeviceId;
+        console.log(`📋 使用Cursor设备ID: ${targetDeviceId}`);
+        addCleanupLog(`📋 使用Cursor设备ID: ${targetDeviceId}`, "info");
+      } else {
+        // 如果没有对应IDE的遥测ID，则使用设备指纹作为备用
+        const deviceInfo = await ipcRenderer.invoke("get-device-info");
+        targetDeviceId = deviceInfo.deviceId;
+        console.log(`📋 使用设备指纹ID: ${targetDeviceId}`);
+        addCleanupLog(`📋 使用设备指纹ID: ${targetDeviceId}`, "info");
+      }
+    }
+
+    console.log(`🎯 目标设备ID: ${targetDeviceId}`);
+    addCleanupLog(`🎯 目标设备ID: ${targetDeviceId}`, "info");
+
+    if (!targetDeviceId) {
+      throw new Error("无法获取目标设备ID");
+    }
+
+    // 启动防护
+    console.log("🚀 启动防护进程...");
+    addCleanupLog("🚀 启动防护进程...", "info");
+
+    const guardianResult = await ipcRenderer.invoke(
+      "start-enhanced-guardian-independent",
+      {
+        selectedIDE: selectedIDE,
+        targetDeviceId: targetDeviceId,
+        enableBackupMonitoring: true,
+        enableDatabaseMonitoring: true,
+        enableEnhancedProtection: true,
+      }
+    );
+
+    console.log("防护启动结果:", guardianResult);
+
+    if (guardianResult.success) {
+      addCleanupLog(`✅ 防护已启动，保护设备ID: ${targetDeviceId}`, "success");
+      updateGuardianButtonState("running");
+
+      // 等待一下，然后验证防护是否正确保护新的设备ID
+      setTimeout(async () => {
+        try {
+          console.log("🔍 验证防护进程是否保护正确的设备ID...");
+
+          // 重新获取设备ID，检查是否被防护进程修改
+          const verifyDetails = await ipcRenderer.invoke(
+            "get-device-id-details"
+          );
+          if (verifyDetails.success) {
+            let currentDeviceId = null;
+            if (
+              selectedIDE === "cursor" &&
+              verifyDetails.cursorTelemetry?.devDeviceId
+            ) {
+              currentDeviceId = verifyDetails.cursorTelemetry.devDeviceId;
+            } else if (
+              selectedIDE === "vscode" &&
+              verifyDetails.vscodeTelemetry?.devDeviceId
+            ) {
+              currentDeviceId = verifyDetails.vscodeTelemetry.devDeviceId;
+            }
+
+            if (currentDeviceId === targetDeviceId) {
+              console.log("✅ 防护进程正确保护新的设备ID");
+              addCleanupLog("✅ 防护验证通过，设备ID保持正确", "success");
+            } else {
+              console.warn("⚠️ 防护进程可能使用了错误的设备ID");
+              console.warn(`期望: ${targetDeviceId}, 实际: ${currentDeviceId}`);
+              addCleanupLog(`⚠️ 防护验证失败，设备ID不匹配`, "warning");
+              addCleanupLog(`期望: ${targetDeviceId}`, "warning");
+              addCleanupLog(`实际: ${currentDeviceId}`, "warning");
+            }
+          }
+        } catch (verifyError) {
+          console.error("验证防护失败:", verifyError);
+        }
+
+        refreshGuardianStatus("cleanup-and-start");
+      }, 2000);
+    } else {
+      addCleanupLog(`❌ 防护启动失败: ${guardianResult.message}`, "error");
+      showAlert(`防护启动失败: ${guardianResult.message}`, "error");
+    }
+  } catch (error) {
+    console.error("启动防护失败:", error);
+    addCleanupLog(`❌ 启动防护异常: ${error.message}`, "error");
+    showAlert(`启动防护失败: ${error.message}`, "error");
+  }
+}
+
 // 将函数暴露到全局作用域 - 立即暴露，确保HTML中的onclick可以访问
 window.viewGuardianLogs = viewGuardianLogs;
 window.refreshGuardianStatus = refreshGuardianStatus;
@@ -4388,6 +5385,7 @@ window.showAlert = showAlert;
 window.updateGuardianStatusDisplay = updateGuardianStatusDisplay;
 window.startGuardianService = startGuardianService;
 window.triggerStatusRefresh = triggerStatusRefresh;
+window.performCleanupAndStartGuardian = performCleanupAndStartGuardian;
 
 // 添加强制刷新函数
 window.forceRefreshGuardianStatus = function () {

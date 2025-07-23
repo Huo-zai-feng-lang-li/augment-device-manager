@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Augment设备管理器</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="tailwind.css"></script>
     <!-- 优先加载renderer.js，确保函数定义不被覆盖 -->
     <script src="renderer.js"></script>
     <style>
@@ -693,8 +693,14 @@
               <p class="text-slate-500 mb-4">设备功能已启用</p>
               <div
                 id="activation-details"
-                class="text-sm text-slate-600 bg-slate-50 rounded-lg p-4"
+                class="text-sm text-slate-600 bg-slate-50 rounded-lg p-4 mb-4"
               ></div>
+              <button
+                onclick="deactivateDevice()"
+                class="w-full px-6 py-3 bg-red-500 text-white font-medium rounded-xl hover:bg-red-600 transition-colors"
+              >
+                退出激活
+              </button>
             </div>
           </div>
         </div>
@@ -994,12 +1000,19 @@
               <input type="checkbox" id="reset-vscode-completely" />
             </div>
 
-            <button
-              onclick="performCleanup()"
-              class="w-full px-4 py-2 bg-orange-500 text-white font-medium rounded-lg hover:bg-orange-600 transition-colors mb-4"
-            >
-              开始清理
-            </button>
+            <div class="mb-4">
+              <button
+                onclick="performCleanupAndStartGuardian()"
+                class="w-full px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-medium rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 flex items-center justify-center gap-2"
+              >
+                <span>🧹</span>
+                <span>清理设备</span>
+                <span>🛡️</span>
+              </button>
+              <p class="text-xs text-gray-500 mt-2 text-center">
+                清理完成后将自动启动对应IDE的防护服务
+              </p>
+            </div>
 
             <!-- 增强防护控制已移至右上角 -->
 
@@ -1011,7 +1024,7 @@
                 </div>
                 <div
                   id="cleanup-log"
-                  class="text-xs text-slate-600 bg-white rounded border p-2 max-h-32 overflow-y-auto font-mono"
+                  class="text-xs text-slate-600 bg-white rounded border p-2 max-h-48 overflow-y-auto font-mono"
                 >
                   等待清理操作...
                 </div>
@@ -1818,7 +1831,10 @@
                         d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"
                       />
                     </svg>
-                    <h4 class="text-sm font-semibold text-purple-700" id="ide-telemetry-title">
+                    <h4
+                      class="text-sm font-semibold text-purple-700"
+                      id="ide-telemetry-title"
+                    >
                       Cursor IDE 遥测标识符
                     </h4>
                     <svg
