@@ -168,6 +168,7 @@ config/tokens.js
 .env*
 auth.json
 credentials.json
+ngrok.yml
 
 # GitHub配置临时目录
 temp-config-repo/

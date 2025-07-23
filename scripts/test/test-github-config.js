@@ -18,9 +18,7 @@ const GITHUB_CONFIG = {
   repo: "augment-device-manager",
   branch: "main",
   configFile: "server-config.json",
-  token:
-    process.env.GITHUB_TOKEN ||
-    "YOUR_GITHUB_TOKEN_HERE",
+  token: process.env.GITHUB_TOKEN, // GitHub Token - 必须通过环境变量设置
 };
 
 async function testGitHubConfig() {

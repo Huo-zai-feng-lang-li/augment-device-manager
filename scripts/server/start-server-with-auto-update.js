@@ -25,9 +25,7 @@ const GITHUB_CONFIG = {
   repo: "augment-device-manager", // 配置仓库名
   branch: "main", // 分支名
   configFile: "server-config.json", // 配置文件名
-  token:
-    process.env.GITHUB_TOKEN ||
-    "YOUR_GITHUB_TOKEN_HERE", // GitHub Token
+  token: process.env.GITHUB_TOKEN, // GitHub Token - 必须通过环境变量设置
 };
 
 async function main() {
