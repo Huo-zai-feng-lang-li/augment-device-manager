@@ -54,7 +54,7 @@
     "chokidar": "^4.0.3",
     "dotenv": "^17.2.0",
     "fs-extra": "^11.3.0",
-    "node-fetch": "^2.7.0",
+    "node-fetch": "^3.3.2",
     "sql.js": "^1.13.0"
   }
 }
