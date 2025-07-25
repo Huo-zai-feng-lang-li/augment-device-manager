@@ -157,7 +157,7 @@ class CleanupAndStartGuardian {
    */
   async performIDECleanup(selectedIDE, results, options) {
     try {
-      const DeviceManager = require("./modules/desktop-client/src/device-manager");
+      const DeviceManager = require("../../modules/desktop-client/src/device-manager");
       const deviceManager = new DeviceManager();
 
       const ideConfig = this.ideConfigs[selectedIDE];
@@ -209,7 +209,7 @@ class CleanupAndStartGuardian {
    */
   async startGuardianForIDE(selectedIDE, results, options) {
     try {
-      const DeviceManager = require("./modules/desktop-client/src/device-manager");
+      const DeviceManager = require("../../modules/desktop-client/src/device-manager");
       const deviceManager = new DeviceManager();
 
       const ideConfig = this.ideConfigs[selectedIDE];
@@ -265,7 +265,7 @@ class CleanupAndStartGuardian {
   async getCurrentDeviceIdFromIDE(selectedIDE) {
     try {
       const fs = require("fs-extra");
-      const DeviceManager = require("./modules/desktop-client/src/device-manager");
+      const DeviceManager = require("../../modules/desktop-client/src/device-manager");
       const deviceManager = new DeviceManager();
 
       let storageJsonPaths = [];
@@ -334,7 +334,7 @@ class CleanupAndStartGuardian {
    */
   async verifyGuardianStatus(selectedIDE, results) {
     try {
-      const DeviceManager = require("./modules/desktop-client/src/device-manager");
+      const DeviceManager = require("../../modules/desktop-client/src/device-manager");
       const deviceManager = new DeviceManager();
 
       const ideConfig = this.ideConfigs[selectedIDE];

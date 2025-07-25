@@ -71,9 +71,16 @@ foreach ($processName in $processNames) {
 # 2. Generate new device identifiers
 Write-Host "[STEP 2] Generating new device identifiers..." -ForegroundColor Blue
 
+# Function to generate 64-bit hex string for machine IDs
+function Generate-MachineId {
+    $bytes = New-Object byte[] 32
+    [System.Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes($bytes)
+    return [System.BitConverter]::ToString($bytes).Replace('-', '').ToLower()
+}
+
 $newIdentifiers = @{
-    'machineId' = [System.Guid]::NewGuid().ToString()
-    'macMachineId' = [System.Guid]::NewGuid().ToString()
+    'machineId' = Generate-MachineId
+    'macMachineId' = Generate-MachineId
     'devDeviceId' = [System.Guid]::NewGuid().ToString()
     'sqmId' = "{$([System.Guid]::NewGuid().ToString().ToUpper())}"
     'sessionId' = [System.Guid]::NewGuid().ToString()

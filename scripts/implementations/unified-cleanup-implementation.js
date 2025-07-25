@@ -187,31 +187,23 @@ class DeviceManager {
       try {
         const storageData = await fs.readJson(storageJsonPath);
 
-        // 直接生成新的随机UUID作为设备ID，避免稳定设备ID系统的缓存问题
-        const crypto = require("crypto");
-        const newDeviceId = crypto.randomUUID();
-        const newMachineId = this.generateDeviceFingerprint();
-        const newSessionId = this.generateUUID();
+        // 使用统一的ID生成工具，确保格式正确
+        const IDGenerator = require("../../shared/utils/id-generator");
+        const newIdentity = IDGenerator.generateCompleteDeviceIdentity(ideType);
 
         // 更新设备标识
-        storageData["telemetry.devDeviceId"] = newDeviceId;
-        storageData["telemetry.machineId"] = newMachineId;
-        storageData["telemetry.sessionId"] = newSessionId;
-        storageData["telemetry.macMachineId"] = newMachineId;
-
-        if (ideType === "cursor") {
-          storageData["telemetry.sqmId"] = `{${newDeviceId.toUpperCase()}}`;
-        }
+        Object.assign(storageData, newIdentity);
 
         await fs.writeJson(storageJsonPath, storageData, { spaces: 2 });
         results.actions.push(
-          `🔄 ${variant.name} - 设备ID已更新为稳定ID: ${newDeviceId.substring(
-            0,
-            16
-          )}...`
+          `🔄 ${variant.name} - 设备ID已更新: ${newIdentity[
+            "telemetry.devDeviceId"
+          ].substring(0, 16)}...`
         );
 
-        console.log(`✅ ${variant.name} 新设备ID: ${newDeviceId}`);
+        console.log(
+          `✅ ${variant.name} 新设备ID: ${newIdentity["telemetry.devDeviceId"]}`
+        );
       } catch (error) {
         results.errors.push(`${variant.name} 设备ID更新失败: ${error.message}`);
         console.error(`❌ ${variant.name} 设备ID更新失败:`, error);

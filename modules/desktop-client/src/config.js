@@ -21,121 +21,12 @@ function getDefaultConfig() {
     // 开发环境：优先使用本地服务器
     return {
       server: {
-        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式        // GitHub配置托管模式
-        host: "github-config",
-        port: 443,
-        protocol: "https",
+        host: "127.0.0.1", // 强制使用IPv4避免连接问题
+        port: 3002,
+        protocol: "http",
         // GitHub配置
         githubConfig: {
-          enabled: true,
-          owner: "Huo-zai-feng-lang-li",
-          repo: "augment-device-manager",
-          branch: "main",
-          configFile: "server-config.json",
-          // 配置获取URL列表
-          configUrls: [
-            "https://raw.githubusercontent.com/Huo-zai-feng-lang-li/augment-device-manager/main/server-config.json",
-            "https://cdn.jsdelivr.net/gh/Huo-zai-feng-lang-li/augment-device-manager@main/server-config.json",
-            "https://api.github.com/repos/Huo-zai-feng-lang-li/augment-device-manager/contents/server-config.json"
-          ],
-          // 缓存配置
-          cacheTimeout: 300000, // 5分钟
-          retryInterval: 10000,  // 10秒重试
-          maxRetries: 3
-        },
-        // GitHub配置
-        githubConfig: {
-          enabled: true,
-          owner: "Huo-zai-feng-lang-li",
-          repo: "augment-device-manager",
-          branch: "main",
-          configFile: "server-config.json",
-          // 配置获取URL列表
-          configUrls: [
-            "https://raw.githubusercontent.com/Huo-zai-feng-lang-li/augment-device-manager/main/server-config.json",
-            "https://cdn.jsdelivr.net/gh/Huo-zai-feng-lang-li/augment-device-manager@main/server-config.json",
-            "https://api.github.com/repos/Huo-zai-feng-lang-li/augment-device-manager/contents/server-config.json"
-          ],
-          // 缓存配置
-          cacheTimeout: 300000, // 5分钟
-          retryInterval: 10000,  // 10秒重试
-          maxRetries: 3
-        },
-        // GitHub配置
-        githubConfig: {
-          enabled: true,
-          owner: "Huo-zai-feng-lang-li",
-          repo: "augment-device-manager",
-          branch: "main",
-          configFile: "server-config.json",
-          // 配置获取URL列表
-          configUrls: [
-            "https://raw.githubusercontent.com/Huo-zai-feng-lang-li/augment-device-manager/main/server-config.json",
-            "https://cdn.jsdelivr.net/gh/Huo-zai-feng-lang-li/augment-device-manager@main/server-config.json",
-            "https://api.github.com/repos/Huo-zai-feng-lang-li/augment-device-manager/contents/server-config.json"
-          ],
-          // 缓存配置
-          cacheTimeout: 300000, // 5分钟
-          retryInterval: 10000,  // 10秒重试
-          maxRetries: 3
-        },
-        // GitHub配置
-        githubConfig: {
-          enabled: true,
-          owner: "Huo-zai-feng-lang-li",
-          repo: "augment-device-manager",
-          branch: "main",
-          configFile: "server-config.json",
-          // 配置获取URL列表
-          configUrls: [
-            "https://raw.githubusercontent.com/Huo-zai-feng-lang-li/augment-device-manager/main/server-config.json",
-            "https://cdn.jsdelivr.net/gh/Huo-zai-feng-lang-li/augment-device-manager@main/server-config.json",
-            "https://api.github.com/repos/Huo-zai-feng-lang-li/augment-device-manager/contents/server-config.json"
-          ],
-          // 缓存配置
-          cacheTimeout: 300000, // 5分钟
-          retryInterval: 10000,  // 10秒重试
-          maxRetries: 3
-        },
-        // GitHub配置
-        githubConfig: {
-          enabled: true,
-          owner: "Huo-zai-feng-lang-li",
-          repo: "augment-device-manager",
-          branch: "main",
-          configFile: "server-config.json",
-          // 配置获取URL列表
-          configUrls: [
-            "https://raw.githubusercontent.com/Huo-zai-feng-lang-li/augment-device-manager/main/server-config.json",
-            "https://cdn.jsdelivr.net/gh/Huo-zai-feng-lang-li/augment-device-manager@main/server-config.json",
-            "https://api.github.com/repos/Huo-zai-feng-lang-li/augment-device-manager/contents/server-config.json"
-          ],
-          // 缓存配置
-          cacheTimeout: 300000, // 5分钟
-          retryInterval: 10000,  // 10秒重试
-          maxRetries: 3
-        },
-        // GitHub配置
-        githubConfig: {
-          enabled: true,
-          owner: "Huo-zai-feng-lang-li",
-          repo: "augment-device-manager",
-          branch: "main",
-          configFile: "server-config.json",
-          // 配置获取URL列表
-          configUrls: [
-            "https://raw.githubusercontent.com/Huo-zai-feng-lang-li/augment-device-manager/main/server-config.json",
-            "https://cdn.jsdelivr.net/gh/Huo-zai-feng-lang-li/augment-device-manager@main/server-config.json",
-            "https://api.github.com/repos/Huo-zai-feng-lang-li/augment-device-manager/contents/server-config.json"
-          ],
-          // 缓存配置
-          cacheTimeout: 300000, // 5分钟
-          retryInterval: 10000,  // 10秒重试
-          maxRetries: 3
-        },
-        // GitHub配置
-        githubConfig: {
-          enabled: true,
+          enabled: false, // 开发环境禁用GitHub配置获取
           owner: "Huo-zai-feng-lang-li",
           repo: "augment-device-manager",
           branch: "main",
@@ -159,10 +50,10 @@ function getDefaultConfig() {
       },
     };
   } else {
-    // 生产环境：使用预设的ngrok地址（打包时会被替换）
+    // 生产环境：使用当前活跃的ngrok地址
     return {
       server: {
-        host: "9abf-2409-8a00-6033-ad40-90ab-e159-bca9-417.ngrok-free.app",
+        host: "ca6bab9d21ac.ngrok-free.app", // 更新为当前活跃地址
         port: 443,
         protocol: "https",
       },
@@ -205,8 +96,6 @@ class ServerConfig {
           savedConfig.server.host.includes("abc123")
         ) {
           console.log("检测到无效的ngrok配置，重置为默认配置");
-          this.config = { ...DEFAULT_CONFIG };
-          this.saveConfigSync();
         } else {
           this.config = { ...DEFAULT_CONFIG, ...savedConfig };
         }

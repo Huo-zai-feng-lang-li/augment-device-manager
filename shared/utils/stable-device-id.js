@@ -137,13 +137,13 @@ class StableDeviceId {
   }
 
   /**
-   * 将64位哈希转换为UUID格式
+   * 将64位哈希转换为标准UUID v4格式
    * @param {string} hash - 64位十六进制哈希
-   * @returns {string} UUID格式的字符串
+   * @returns {string} 标准UUID v4格式的字符串
    */
   hashToUUID(hash) {
     // 取前32位字符，按UUID格式分组：8-4-4-4-12
-    const uuid = [
+    let uuid = [
       hash.substring(0, 8),
       hash.substring(8, 12),
       hash.substring(12, 16),
@@ -151,7 +151,18 @@ class StableDeviceId {
       hash.substring(20, 32),
     ].join("-");
 
-    return uuid;
+    // 确保符合UUID v4格式：
+    // 1. 第13位（版本位）必须是 '4'
+    // 2. 第17位（变体位）必须是 '8', '9', 'a', 或 'b'
+    const uuidArray = uuid.split("");
+    uuidArray[14] = "4"; // 第13位（索引14，因为包含连字符）
+
+    // 第17位（索引19）设置为8-b之间的值
+    const variantChar = hash.charAt(16); // 使用哈希的第17个字符
+    const variantValue = parseInt(variantChar, 16);
+    uuidArray[19] = (8 + (variantValue % 4)).toString(16); // 确保是8,9,a,b之一
+
+    return uuidArray.join("");
   }
 
   /**

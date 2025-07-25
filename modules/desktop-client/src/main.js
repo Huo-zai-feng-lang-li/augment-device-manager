@@ -2136,6 +2136,16 @@ ipcMain.handle("get-websocket-status", async () => {
 // 获取增强防护状态
 ipcMain.handle("get-enhanced-guardian-status", async (event, options = {}) => {
   try {
+    // 检查deviceManager是否已初始化
+    if (!deviceManager) {
+      console.warn("⏳ 设备管理器未初始化，等待初始化完成...");
+      return {
+        isGuarding: false,
+        mode: "none",
+        error: "设备管理器未初始化",
+      };
+    }
+
     // 如果传递了IDE选择，更新增强防护的IDE配置
     if (options.selectedIDE && deviceManager.enhancedGuardian) {
       deviceManager.enhancedGuardian.setSelectedIDE(options.selectedIDE);

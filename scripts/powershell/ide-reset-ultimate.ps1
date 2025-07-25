@@ -237,11 +237,19 @@ if ($isDryRun) {
     Write-Host "[步骤2] 生成新的设备标识符..." -ForegroundColor Blue
 }
 
+# 生成符合标准格式的设备标识符
+function Generate-MachineId {
+    # 生成64位十六进制字符串
+    $bytes = New-Object byte[] 32
+    [System.Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes($bytes)
+    return [System.BitConverter]::ToString($bytes).Replace('-', '').ToLower()
+}
+
 $newIdentifiers = @{
-    'machineId' = "auth0|user_" + (-join ((1..32) | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) }))
-    'macMachineId' = [System.Guid]::NewGuid().ToString()
+    'machineId' = Generate-MachineId
+    'macMachineId' = Generate-MachineId
     'devDeviceId' = [System.Guid]::NewGuid().ToString()
-    'sqmId' = [System.Guid]::NewGuid().ToString().ToUpper()
+    'sqmId' = "{$([System.Guid]::NewGuid().ToString().ToUpper())}"
     'sessionId' = [System.Guid]::NewGuid().ToString()
     'permanentId' = [System.Guid]::NewGuid().ToString()
 }

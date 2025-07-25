@@ -19,12 +19,12 @@ function getSharedPath(relativePath) {
       // 打包后的路径
       return path.join(process.resourcesPath, "shared", relativePath);
     } else {
-      // 开发环境路径
-      return path.join(__dirname, "../../shared", relativePath);
+      // 开发环境路径 - 修正为正确的相对路径
+      return path.join(__dirname, "../../../shared", relativePath);
     }
   } catch (error) {
     // 如果app未定义（如测试环境），使用开发环境路径
-    return path.join(__dirname, "../../shared", relativePath);
+    return path.join(__dirname, "../../../shared", relativePath);
   }
 }
 
@@ -3261,9 +3261,10 @@ class DeviceManager {
           }
         });
 
-        // 生成新的遥测ID
-        const crypto = require("crypto");
-        const newDeviceId = crypto.randomUUID();
+        // 使用统一的ID生成工具，确保格式正确
+        const IDGenerator = require(getSharedPath("utils/id-generator"));
+        const newIdentity =
+          IDGenerator.generateCompleteDeviceIdentity("cursor");
 
         // 尝试使用在线时间，失败时回退到本地时间
         let currentTime;
@@ -3279,16 +3280,10 @@ class DeviceManager {
 
         // 创建新的storage.json（只包含遥测ID和登录信息）
         const newStorageData = {
-          // 新的遥测ID
-          "telemetry.devDeviceId": newDeviceId,
-          "telemetry.machineId": crypto.randomBytes(32).toString("hex"),
-          "telemetry.macMachineId": crypto.randomBytes(32).toString("hex"),
-          "telemetry.sqmId": `{${newDeviceId.toUpperCase()}}`,
+          // 使用正确格式的新遥测ID
+          ...newIdentity,
           "telemetry.firstSessionDate": currentTime,
           "telemetry.currentSessionDate": currentTime,
-
-          // 基础系统ID
-          "storage.serviceMachineId": crypto.randomUUID(),
 
           // 合并保留的登录数据
           ...loginBackup,
@@ -3302,9 +3297,12 @@ class DeviceManager {
             Object.keys(loginBackup).length
           } 项登录数据`
         );
-        results.actions.push(`🆔 已更新设备ID: ${newDeviceId}`);
+        results.actions.push(
+          `🆔 已更新设备ID: ${newIdentity["telemetry.devDeviceId"]}`
+        );
+        results.actions.push(`🔧 使用统一ID生成器，确保格式正确`);
 
-        return newDeviceId;
+        return newIdentity["telemetry.devDeviceId"];
       } else {
         results.actions.push("⚠️ storage.json文件不存在，跳过选择性清理");
         return null;
@@ -3423,34 +3421,15 @@ class DeviceManager {
         // 检查是否有旧的devDeviceId
         const oldDeviceId = "36987e70-60fe-4401-85a4-f463c269f069";
         if (data["telemetry.devDeviceId"] === oldDeviceId) {
-          // 强制更新为新的设备ID
+          // 使用统一的ID生成工具生成新的设备ID
+          const IDGenerator = require(getSharedPath("utils/id-generator"));
+          const newIdentity =
+            IDGenerator.generateCompleteDeviceIdentity("cursor");
+
           const currentTime = new Date().toUTCString();
-          data["telemetry.machineId"] = newCursorDeviceId;
-          data["telemetry.macMachineId"] = newCursorDeviceId.substring(0, 64);
-          data["telemetry.devDeviceId"] = `${newCursorDeviceId.substring(
-            0,
-            8
-          )}-${newCursorDeviceId.substring(
-            8,
-            12
-          )}-${newCursorDeviceId.substring(
-            12,
-            16
-          )}-${newCursorDeviceId.substring(
-            16,
-            20
-          )}-${newCursorDeviceId.substring(20, 32)}`;
-          data["telemetry.sqmId"] = `{${newCursorDeviceId
-            .substring(0, 8)
-            .toUpperCase()}-${newCursorDeviceId
-            .substring(8, 12)
-            .toUpperCase()}-${newCursorDeviceId
-            .substring(12, 16)
-            .toUpperCase()}-${newCursorDeviceId
-            .substring(16, 20)
-            .toUpperCase()}-${newCursorDeviceId
-            .substring(20, 32)
-            .toUpperCase()}}`;
+
+          // 更新设备标识
+          Object.assign(data, newIdentity);
           data["telemetry.firstSessionDate"] = currentTime;
           data["telemetry.currentSessionDate"] = currentTime;
 
@@ -3886,22 +3865,51 @@ class DeviceManager {
       if (await fs.pathExists(storageJsonPath)) {
         const storageData = await fs.readJson(storageJsonPath);
 
+        // 使用统一的ID生成工具，确保格式正确
+        const IDGenerator = require(getSharedPath("utils/id-generator"));
+
+        // 判断IDE类型
+        const ideType = ideName.toLowerCase().includes("cursor")
+          ? "cursor"
+          : "vscode";
+
+        // 生成完整的设备身份数据
+        const newIdentity = IDGenerator.generateCompleteDeviceIdentity(ideType);
+
         // 精准更新设备身份字段，保留其他所有配置
         const deviceIdentityFields = [
           "telemetry.devDeviceId", // 最关键：扩展用户识别
           "telemetry.machineId", // 机器标识
-          "telemetry.sqmId", // 遥测标识
+          "telemetry.macMachineId", // MAC机器标识
+          "telemetry.sessionId", // 会话标识
           "storage.serviceMachineId", // 服务机器ID
         ];
 
+        // 如果是Cursor，还需要更新sqmId
+        if (ideType === "cursor") {
+          deviceIdentityFields.push("telemetry.sqmId");
+        }
+
         let updated = false;
+
+        // 处理标准设备身份字段
         for (const field of deviceIdentityFields) {
-          if (storageData[field]) {
+          if (storageData[field] && newIdentity[field]) {
             const oldValue = storageData[field];
-            storageData[field] = crypto.randomUUID();
+            storageData[field] = newIdentity[field];
             updated = true;
             results.actions.push(`🔄 ${ideName} - 已更新设备ID: ${field}`);
           }
+        }
+
+        // 特殊处理：如果是VSCode但存在sqmId字段，也要更新它
+        if (ideType === "vscode" && storageData["telemetry.sqmId"]) {
+          const newSqmId = IDGenerator.generateSqmId();
+          storageData["telemetry.sqmId"] = newSqmId;
+          updated = true;
+          results.actions.push(
+            `🔄 ${ideName} - 已更新 telemetry.sqmId: ${newSqmId}`
+          );
         }
 
         if (updated) {
@@ -4610,42 +4618,25 @@ class DeviceManager {
               generateVSCodeDeviceId,
             } = require("../../../shared/utils/stable-device-id"));
           }
-          const newVSCodeDeviceId = await generateVSCodeDeviceId();
-
           const storageData = await fs.readJson(storageJsonPath);
 
-          // 精准更新设备身份字段，保留其他所有配置
-          const deviceIdentityUpdates = {
-            "telemetry.devDeviceId": `${newVSCodeDeviceId.substring(
-              0,
-              8
-            )}-${newVSCodeDeviceId.substring(
-              8,
-              12
-            )}-${newVSCodeDeviceId.substring(
-              12,
-              16
-            )}-${newVSCodeDeviceId.substring(
-              16,
-              20
-            )}-${newVSCodeDeviceId.substring(20, 32)}`, // 最关键：扩展用户识别
-            "telemetry.machineId": newVSCodeDeviceId, // 机器标识
-            "telemetry.macMachineId": newVSCodeDeviceId.substring(0, 64), // Mac机器ID
-            "telemetry.sqmId": `{${newVSCodeDeviceId
-              .substring(0, 8)
-              .toUpperCase()}-${newVSCodeDeviceId
-              .substring(8, 12)
-              .toUpperCase()}-${newVSCodeDeviceId
-              .substring(12, 16)
-              .toUpperCase()}-${newVSCodeDeviceId
-              .substring(16, 20)
-              .toUpperCase()}-${newVSCodeDeviceId
-              .substring(20, 32)
-              .toUpperCase()}}`, // 遥测标识
-            "storage.serviceMachineId": newVSCodeDeviceId, // 服务机器ID
-          };
+          // 使用统一的ID生成工具生成新的设备身份
+          const IDGenerator = require(getSharedPath("utils/id-generator"));
+          const deviceIdentityUpdates =
+            IDGenerator.generateCompleteDeviceIdentity("vscode");
 
           let updated = false;
+
+          // 处理VSCode中的sqmId字段（如果存在则更新，而不是删除）
+          if (storageData.hasOwnProperty("telemetry.sqmId")) {
+            const newSqmId = IDGenerator.generateSqmId();
+            storageData["telemetry.sqmId"] = newSqmId;
+            updated = true;
+            results.actions.push(
+              `🔄 VS Code ${variant.name} - 已更新 telemetry.sqmId: ${newSqmId}`
+            );
+          }
+
           for (const [field, newValue] of Object.entries(
             deviceIdentityUpdates
           )) {
@@ -4680,7 +4671,9 @@ class DeviceManager {
             results.actions.push(
               `✅ VS Code ${variant.name} - 设备身份已更新，扩展将识别为新用户`
             );
-            results.actions.push(`🆔 新设备ID: ${newVSCodeDeviceId}`);
+            results.actions.push(
+              `🆔 新设备ID: ${deviceIdentityUpdates["telemetry.devDeviceId"]}`
+            );
           } else {
             results.actions.push(
               `ℹ️ VS Code ${variant.name} - 未发现需要更新的设备身份字段`
@@ -5099,13 +5092,13 @@ class DeviceManager {
       results.actions.push("🚀 启动PowerShell辅助清理（内置实现）");
 
       // 1. 生成新的设备标识符
-      const crypto = require("crypto");
+      const IDGenerator = require(getSharedPath("utils/id-generator"));
       const newIdentifiers = {
-        devDeviceId: crypto.randomUUID(),
-        machineId: crypto.randomUUID(),
-        macMachineId: crypto.randomUUID(),
-        sessionId: crypto.randomUUID(),
-        sqmId: `{${crypto.randomUUID().toUpperCase()}}`,
+        devDeviceId: IDGenerator.generateDeviceId(),
+        machineId: IDGenerator.generateMachineId(),
+        macMachineId: IDGenerator.generateMacMachineId(),
+        sessionId: IDGenerator.generateSessionId(),
+        sqmId: IDGenerator.generateSqmId(),
       };
 
       results.actions.push(

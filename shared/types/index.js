@@ -177,13 +177,29 @@ const validators = {
 
   /**
    * 验证设备ID格式
+   * 支持两种格式：
+   * 1. 传统哈希格式：64位十六进制字符串 (a-f0-9)
+   * 2. UUID格式：36位带连字符的UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
    */
   isValidDeviceId(deviceId) {
-    return (
-      typeof deviceId === "string" &&
-      deviceId.length > 0 &&
-      /^[a-f0-9]+$/.test(deviceId)
-    );
+    if (typeof deviceId !== "string" || deviceId.length === 0) {
+      return false;
+    }
+
+    // UUID格式验证：36位，包含4个连字符
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (deviceId.length === 36 && uuidRegex.test(deviceId)) {
+      return true;
+    }
+
+    // 传统哈希格式验证：纯十六进制字符串
+    const hashRegex = /^[a-f0-9]+$/;
+    if (hashRegex.test(deviceId)) {
+      return true;
+    }
+
+    return false;
   },
 
   /**

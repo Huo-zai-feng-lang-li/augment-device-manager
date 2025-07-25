@@ -37,7 +37,7 @@ async function getTimestamp() {
 }
 
 const app = express();
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.SERVER_PORT || process.env.PORT || 3002;
 const JWT_SECRET = "augment-admin-jwt-secret-2024";
 const DATA_FILE = path.join(__dirname, "../data/store.json");
 

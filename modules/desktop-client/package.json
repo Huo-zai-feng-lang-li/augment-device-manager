@@ -42,7 +42,7 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "your-github-username",
+      "owner": "Huo-zai-feng-lang-li",
       "repo": "augment-device-manager"
     },
     "win": {

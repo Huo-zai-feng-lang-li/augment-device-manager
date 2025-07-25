@@ -254,7 +254,7 @@ function startServer() {
     server.stdout.on("data", (data) => {
       const output = data.toString();
       console.log("后端:", output.trim());
-      if (output.includes("3002") && output.includes("运行在")) {
+      if (output.includes("3003") && output.includes("运行在")) {
         console.log("✅ 后端服务已启动");
         resolve(server);
       }
@@ -275,7 +275,7 @@ function startServer() {
 // 启动ngrok
 function startNgrok(ngrokPath) {
   return new Promise((resolve, reject) => {
-    const ngrok = spawn(ngrokPath, ["http", "3002"], {
+    const ngrok = spawn(ngrokPath, ["http", "3003"], {
       shell: true,
       stdio: "pipe",
     });
@@ -294,18 +294,29 @@ function startNgrok(ngrokPath) {
 
     // 使用API检测ngrok状态
     const checkAPI = async () => {
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 60; i++) {
         try {
-          const response = await fetch("http://localhost:4040/api/tunnels");
-          if (response.ok) {
-            const data = await response.json();
-            if (data.tunnels && data.tunnels.length > 0) {
-              console.log("✅ ngrok隧道已建立");
-              if (!resolved) {
-                resolved = true;
-                resolve(ngrok);
+          // 尝试多个可能的端口
+          const ports = [4040, 4041, 4042];
+          for (const port of ports) {
+            try {
+              const response = await fetch(
+                `http://localhost:${port}/api/tunnels`
+              );
+              if (response.ok) {
+                const data = await response.json();
+                if (data.tunnels && data.tunnels.length > 0) {
+                  console.log(`✅ ngrok隧道已建立 (端口: ${port})`);
+                  console.log(`🌐 公网地址: ${data.tunnels[0].public_url}`);
+                  if (!resolved) {
+                    resolved = true;
+                    resolve(ngrok);
+                  }
+                  return;
+                }
               }
-              return;
+            } catch (portError) {
+              // 继续尝试下一个端口
             }
           }
         } catch (error) {
@@ -326,12 +337,22 @@ function startNgrok(ngrokPath) {
 // 获取ngrok地址
 async function getNgrokUrl() {
   try {
-    const response = await fetch("http://localhost:4040/api/tunnels");
-    const data = await response.json();
-    const httpsTunnel = data.tunnels.find((t) => t.proto === "https");
-    if (httpsTunnel) {
-      const url = new URL(httpsTunnel.public_url);
-      return url.hostname;
+    // 尝试多个可能的端口
+    const ports = [4040, 4041, 4042];
+    for (const port of ports) {
+      try {
+        const response = await fetch(`http://localhost:${port}/api/tunnels`);
+        if (response.ok) {
+          const data = await response.json();
+          const httpsTunnel = data.tunnels.find((t) => t.proto === "https");
+          if (httpsTunnel) {
+            const url = new URL(httpsTunnel.public_url);
+            return url.hostname;
+          }
+        }
+      } catch (portError) {
+        // 继续尝试下一个端口
+      }
     }
   } catch (error) {
     console.error("获取ngrok地址失败:", error.message);

@@ -28,6 +28,26 @@ class EnhancedDeviceGuardian {
     // 动态路径配置
     this.paths = this.initializePaths();
 
+    // 🔄 新增：目标设备身份数据存储
+    this.targetDeviceIdentity = {
+      devDeviceId: null,
+      machineId: null,
+      sessionId: null,
+      sqmId: null,
+      macMachineId: null,
+      serviceMachineId: null,
+    };
+
+    // 🔄 新增：需要保护的设备身份字段列表
+    this.protectedFields = [
+      "telemetry.devDeviceId",
+      "telemetry.machineId",
+      "telemetry.sessionId",
+      "telemetry.sqmId",
+      "telemetry.macMachineId",
+      "storage.serviceMachineId",
+    ];
+
     // 监控配置
     this.config = {
       fileWatchDebounce: 100, // 文件监控防抖时间(ms)
@@ -372,7 +392,56 @@ class EnhancedDeviceGuardian {
   }
 
   /**
-   * 启动增强守护进程
+   * 🔄 设置目标设备身份数据（增强版）
+   * 从IDE配置文件中读取当前的设备身份数据作为保护目标
+   */
+  async setTargetDeviceIdentity(deviceId) {
+    try {
+      this.targetDeviceId = deviceId;
+
+      if (!this.targetDeviceId) {
+        throw new Error("必须提供目标设备ID");
+      }
+
+      // 🔄 从IDE配置文件中读取完整的设备身份数据
+      const ideConfigPath =
+        this.selectedIDE === "vscode"
+          ? this.paths.vscodeStorageJson
+          : this.paths.storageJson;
+
+      if (await fs.pathExists(ideConfigPath)) {
+        const configData = await fs.readJson(ideConfigPath);
+
+        // 提取所有设备身份字段
+        this.targetDeviceIdentity = {
+          devDeviceId:
+            configData["telemetry.devDeviceId"] || this.targetDeviceId,
+          machineId: configData["telemetry.machineId"] || null,
+          sessionId: configData["telemetry.sessionId"] || null,
+          sqmId: configData["telemetry.sqmId"] || null,
+          macMachineId: configData["telemetry.macMachineId"] || null,
+          serviceMachineId: configData["storage.serviceMachineId"] || null,
+        };
+
+        this.log("🎯 已设置目标设备身份数据:", "info");
+        for (const [key, value] of Object.entries(this.targetDeviceIdentity)) {
+          if (value) {
+            this.log(`  ${key}: ${value.substring(0, 8)}...`, "info");
+          }
+        }
+      } else {
+        // 如果配置文件不存在，使用提供的设备ID作为主要标识
+        this.targetDeviceIdentity.devDeviceId = this.targetDeviceId;
+        this.log("⚠️ IDE配置文件不存在，仅设置主要设备ID", "warn");
+      }
+    } catch (error) {
+      this.log(`❌ 设置目标设备身份失败: ${error.message}`, "error");
+      throw error;
+    }
+  }
+
+  /**
+   * 启动增强守护进程（增强版）
    */
   async startGuarding(deviceId, options = {}) {
     if (this.isGuarding) {
@@ -381,7 +450,6 @@ class EnhancedDeviceGuardian {
     }
 
     try {
-      this.targetDeviceId = deviceId;
       this.isGuarding = true;
       this.stats.startTime = new Date();
 
@@ -402,6 +470,9 @@ class EnhancedDeviceGuardian {
         }
       }
 
+      // 🔄 设置完整的目标设备身份数据
+      await this.setTargetDeviceIdentity(deviceId);
+
       this.log("🛡️ 启动增强设备ID守护进程", "info");
       this.log(`🎯 目标设备ID: ${deviceId}`, "info");
       this.log(
@@ -409,6 +480,7 @@ class EnhancedDeviceGuardian {
         "info"
       );
       this.log(`📁 监控路径: ${this.getCurrentIDEStoragePath()}`, "info");
+      this.log(`🔒 保护字段数量: ${this.protectedFields.length}`, "info");
 
       // 0. 初始化统计数据缓存
       await this.initializeStatsCache();
@@ -779,7 +851,8 @@ class EnhancedDeviceGuardian {
   }
 
   /**
-   * 为特定IDE强制设置设备ID
+   * 为特定IDE强制设置完整设备身份数据
+   * 🔄 增强版：保护所有设备身份字段，不仅仅是devDeviceId
    */
   async enforceDeviceIdForIDE(filePath, ideName) {
     try {
@@ -794,8 +867,25 @@ class EnhancedDeviceGuardian {
         }
       }
 
-      // 强制设置目标设备ID
-      currentData["telemetry.devDeviceId"] = this.targetDeviceId;
+      // 🔄 强制设置所有目标设备身份字段
+      let updatedFields = [];
+
+      // 设置主要设备ID（向后兼容）
+      if (this.targetDeviceId) {
+        currentData["telemetry.devDeviceId"] = this.targetDeviceId;
+        updatedFields.push("telemetry.devDeviceId");
+      }
+
+      // 🔄 设置完整的设备身份数据
+      for (const field of this.protectedFields) {
+        const fieldKey = field.split(".").pop(); // 获取字段名（去掉前缀）
+        const targetValue = this.targetDeviceIdentity[fieldKey];
+
+        if (targetValue && currentData[field] !== targetValue) {
+          currentData[field] = targetValue;
+          updatedFields.push(field);
+        }
+      }
 
       // 确保目录存在
       await fs.ensureDir(path.dirname(filePath));
@@ -803,12 +893,16 @@ class EnhancedDeviceGuardian {
       // 写入配置
       await fs.writeJson(filePath, currentData, { spaces: 2 });
 
-      this.log(
-        `✅ 已强制设置${ideName}设备ID: ${this.targetDeviceId}`,
-        "success"
-      );
+      if (updatedFields.length > 0) {
+        this.log(
+          `✅ 已强制设置${ideName}设备身份字段: ${updatedFields.join(", ")}`,
+          "success"
+        );
+      } else {
+        this.log(`ℹ️ ${ideName}设备身份字段已是最新状态`, "info");
+      }
     } catch (error) {
-      this.log(`❌ 强制设置${ideName}设备ID失败: ${error.message}`, "error");
+      this.log(`❌ 强制设置${ideName}设备身份失败: ${error.message}`, "error");
       throw error;
     }
   }
@@ -1037,7 +1131,8 @@ class EnhancedDeviceGuardian {
   }
 
   /**
-   * 拦截临时文件
+   * 拦截临时文件（增强版）
+   * 🔄 保护所有设备身份字段，不仅仅是devDeviceId
    */
   async interceptTempFile(tempFilePath, source) {
     try {
@@ -1052,31 +1147,75 @@ class EnhancedDeviceGuardian {
       // 读取临时文件内容
       const tempData = await fs.readJson(tempFilePath);
 
-      // 检查设备ID是否被修改
+      // 🔄 检查所有保护的设备身份字段是否被修改
+      let modifiedFields = [];
+      let interceptedData = {};
+
+      // 检查主要设备ID（向后兼容）
       if (
         tempData["telemetry.devDeviceId"] &&
         tempData["telemetry.devDeviceId"] !== this.targetDeviceId
       ) {
-        const interceptedId = tempData["telemetry.devDeviceId"]; // 保存原始ID
-        this.log(`⚠️ 检测到${ideName}设备ID被修改:`, "warn");
-        this.log(`  原ID: ${this.targetDeviceId}`, "info");
-        this.log(`  新ID: ${interceptedId}`, "info");
+        modifiedFields.push({
+          field: "telemetry.devDeviceId",
+          original: tempData["telemetry.devDeviceId"],
+          target: this.targetDeviceId,
+        });
+        interceptedData["telemetry.devDeviceId"] =
+          tempData["telemetry.devDeviceId"];
+      }
 
-        // 强制恢复目标设备ID
-        tempData["telemetry.devDeviceId"] = this.targetDeviceId;
+      // 🔄 检查所有保护字段
+      for (const field of this.protectedFields) {
+        const fieldKey = field.split(".").pop();
+        const targetValue = this.targetDeviceIdentity[fieldKey];
+        const currentValue = tempData[field];
+
+        if (targetValue && currentValue && currentValue !== targetValue) {
+          modifiedFields.push({
+            field: field,
+            original: currentValue,
+            target: targetValue,
+          });
+          interceptedData[field] = currentValue;
+        }
+      }
+
+      if (modifiedFields.length > 0) {
+        this.log(
+          `⚠️ 检测到${ideName}设备身份被修改 (${modifiedFields.length}个字段):`,
+          "warn"
+        );
+
+        // 记录所有被修改的字段
+        for (const modified of modifiedFields) {
+          this.log(
+            `  ${modified.field}: ${modified.original} → ${modified.target}`,
+            "info"
+          );
+        }
+
+        // 🔄 强制恢复所有目标设备身份字段
+        for (const modified of modifiedFields) {
+          tempData[modified.field] = modified.target;
+        }
 
         // 写回临时文件
         await fs.writeJson(tempFilePath, tempData, { spaces: 2 });
 
-        this.log(`✅ 已拦截并恢复${ideName}目标设备ID`, "success");
+        this.log(
+          `✅ 已拦截并恢复${ideName}设备身份 (${modifiedFields.length}个字段)`,
+          "success"
+        );
         await this.updateStats("intercept");
 
         // 通知前端更新状态
         this.notifyEvent("intercept-success", {
-          type: "device-id-intercept",
+          type: "device-identity-intercept",
           ide: ideName,
           targetDeviceId: this.targetDeviceId,
-          interceptedId: interceptedId, // 使用保存的原始ID
+          modifiedFields: modifiedFields.map((m) => m.field),
+          interceptedData: interceptedData,
           timestamp: new Date().toISOString(),
         });
       }
@@ -1086,7 +1225,8 @@ class EnhancedDeviceGuardian {
   }
 
   /**
-   * 验证并恢复设备ID
+   * 验证并恢复完整设备身份数据
+   * 🔄 增强版：验证所有设备身份字段，不仅仅是devDeviceId
    */
   async verifyAndRestoreDeviceId(source = "cursor-global") {
     try {
@@ -1122,31 +1262,68 @@ class EnhancedDeviceGuardian {
       }
 
       const currentData = await fs.readJson(targetPath);
+
+      // 🔄 验证所有保护的设备身份字段
+      let tamperedFields = [];
+      let restoredFields = [];
+
+      // 检查主要设备ID（向后兼容）
       const currentDeviceId = currentData["telemetry.devDeviceId"];
+      if (this.targetDeviceId && currentDeviceId !== this.targetDeviceId) {
+        tamperedFields.push({
+          field: "telemetry.devDeviceId",
+          current: currentDeviceId,
+          target: this.targetDeviceId,
+        });
+      }
 
-      if (currentDeviceId !== this.targetDeviceId) {
-        this.log(`🚨 ${ideName}设备ID被篡改，正在恢复...`, "warn");
-        this.log(`  当前ID: ${currentDeviceId}`, "info");
-        this.log(`  目标ID: ${this.targetDeviceId}`, "info");
+      // 🔄 检查所有保护字段
+      for (const field of this.protectedFields) {
+        const fieldKey = field.split(".").pop();
+        const targetValue = this.targetDeviceIdentity[fieldKey];
+        const currentValue = currentData[field];
 
-        // 强制恢复
+        if (targetValue && currentValue !== targetValue) {
+          tamperedFields.push({
+            field: field,
+            current: currentValue,
+            target: targetValue,
+          });
+        }
+      }
+
+      if (tamperedFields.length > 0) {
+        this.log(`🚨 ${ideName}设备身份被篡改，正在恢复...`, "warn");
+
+        // 记录所有被篡改的字段
+        for (const tampered of tamperedFields) {
+          this.log(
+            `  ${tampered.field}: ${tampered.current} → ${tampered.target}`,
+            "info"
+          );
+        }
+
+        // 强制恢复所有字段
         await this.enforceDeviceIdForIDE(targetPath, ideName);
         await this.setBasicFileProtection();
 
-        this.log(`✅ ${ideName}设备ID已恢复`, "success");
+        this.log(
+          `✅ ${ideName}设备身份已恢复 (${tamperedFields.length}个字段)`,
+          "success"
+        );
         await this.updateStats("restore");
 
         // 通知前端更新状态
         this.notifyEvent("protection-restored", {
-          type: "device-id-restored",
+          type: "device-identity-restored",
           ide: ideName,
           targetDeviceId: this.targetDeviceId,
-          previousId: currentDeviceId,
+          tamperedFields: tamperedFields.map((t) => t.field),
           timestamp: new Date().toISOString(),
         });
       }
     } catch (error) {
-      this.log(`❌ 验证设备ID失败: ${error.message}`, "error");
+      this.log(`❌ 验证设备身份失败: ${error.message}`, "error");
     }
   }
 

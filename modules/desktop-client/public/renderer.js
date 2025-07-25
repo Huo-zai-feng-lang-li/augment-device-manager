@@ -1131,7 +1131,48 @@ C:\\Users\\[用户名]\\AppData\\Roaming\\Cursor\\User\\globalStorage\\storage.j
     );
     updateElement("cursor-session-id", cursorIds.sessionId, "Cursor会话ID");
     updateElement("cursor-sqm-id", cursorIds.sqmId, "Cursor SQM ID");
+  } else {
+    // 🔄 没有IDE遥测数据时显示提示信息
+    showIDETelemetryNotFound(selectedIDE);
   }
+}
+
+// 🔄 新增：显示IDE遥测数据未找到的提示
+function showIDETelemetryNotFound(selectedIDE) {
+  const ideName = selectedIDE === "vscode" ? "VS Code" : "Cursor";
+  const errorMessage = `${ideName}未安装或配置文件不存在`;
+
+  // 定义所有字段ID
+  const fieldIds = [
+    "cursor-dev-device-id",
+    "cursor-machine-id",
+    "cursor-mac-machine-id",
+    "cursor-session-id",
+    "cursor-sqm-id",
+  ];
+
+  // 更新所有字段显示提示信息
+  fieldIds.forEach((fieldId) => {
+    const element = document.getElementById(fieldId);
+    if (element) {
+      element.textContent = errorMessage;
+      element.title = `请安装${ideName} IDE或检查配置文件是否存在`;
+      element.style.color = "#dc2626"; // 红色
+      element.parentElement.onclick = null;
+    }
+  });
+
+  // 更新可清理状态
+  const cleanableElement = document.getElementById(
+    "cursor-telemetry-cleanable"
+  );
+  if (cleanableElement) {
+    cleanableElement.textContent = "不可用";
+    cleanableElement.className =
+      "px-2 py-1 text-xs rounded bg-red-100 text-red-800";
+  }
+
+  console.log(`⚠️ ${ideName} IDE遥测数据未找到: ${errorMessage}`);
 }
 
 // 清理能力状态显示功能已移除
