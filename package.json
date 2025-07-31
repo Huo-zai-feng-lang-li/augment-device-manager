@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "echo 🚀 启动完整开发环境... && npm run install-all && concurrently --names \"后端,客户端\" --prefix-colors \"blue,green\" \"cd modules/admin-backend && npm run dev\" \"cd modules/desktop-client && npm run dev\"",
     "server:start": "echo 🚀 启动自动更新ngrok服务... && node scripts/server/start-server-with-auto-update.js",
+    "server:stop": "echo 🛑 停止远程控制服务... && node scripts/server/stop-server.js",
     "build:release": "echo 🚀 本地构建应用... && npm run build:update-config && npm run build:status && node scripts/build-and-release.js",
     "build:release:publish": "echo 🚀 构建并发布到GitHub... && npm run build:update-config && npm run build:status && node scripts/build-and-release.js --publish",
-    "server:stop": "echo 🛑 停止远程控制服务... && node scripts/server/stop-server.js",
     "build:update-config": "echo 🔄 更新github、本地、客户端ngrok配置... && node scripts/setup/update-build-config.js",
     "build:status": "echo 📊 检查配置github、本地、客户端, ngrok地址状态... && node scripts/setup/update-build-config.js --status",
     "cleanup": "echo 🧹 清理所有进程... && taskkill /F /IM node.exe 2>nul || echo 无node进程 && taskkill /F /IM ngrok.exe 2>nul || echo 无ngrok进程 && echo ✅ 清理完成",
