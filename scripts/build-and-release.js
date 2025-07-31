@@ -33,11 +33,13 @@ async function buildAndRelease() {
         // 过滤掉自动更新产生的配置文件更改
         const lines = status.trim().split("\n");
         const significantChanges = lines.filter((line) => {
-          const file = line.substring(3); // 去掉状态标记
-          return (
-            !file.includes("server-config.json") &&
-            !file.includes("modules/desktop-client/src/config.js")
-          );
+          const file = line.substring(2).trim(); // 去掉状态标记（2个字符）和空格
+          console.log(`检查文件: "${file}"`); // 调试输出
+          const isConfigFile =
+            file.endsWith("server-config.json") ||
+            file.endsWith("modules/desktop-client/src/config.js");
+          console.log(`是配置文件: ${isConfigFile}`); // 调试输出
+          return !isConfigFile;
         });
 
         if (significantChanges.length > 0) {
