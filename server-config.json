@@ -1,14 +1,14 @@
 {
   "version": "1.0.0",
-  "lastUpdated": "2025-07-24T01:23:14.034Z",
+  "lastUpdated": "2025-07-31T02:40:36.951Z",
   "server": {
-    "host": "ca6bab9d21ac.ngrok-free.app",
+    "host": "af36b13dcce5.ngrok-free.app",
     "port": 443,
     "protocol": "https"
   },
   "metadata": {
-    "buildTime": "2025-07-24T01:23:14.037Z",
-    "ngrokUrl": "https://ca6bab9d21ac.ngrok-free.app",
+    "buildTime": "2025-07-31T02:37:12.624Z",
+    "ngrokUrl": "https://af36b13dcce5.ngrok-free.app",
     "status": "active",
     "autoUpdated": true
   }

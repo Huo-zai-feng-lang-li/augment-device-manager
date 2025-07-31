@@ -57,11 +57,15 @@ async function updateBuildConfig() {
     const ngrokHost = latestConfig.server.host;
     console.log(`✅ 获取到最新ngrok地址: ${ngrokHost}`);
 
-    // 2. 更新客户端配置文件
-    console.log("📝 更新客户端配置文件...");
+    // 2. 更新本地配置文件
+    console.log("📝 更新本地配置文件...");
+    await updateLocalConfig(latestConfig);
+
+    // 3. 更新客户端配置文件
+    console.log("📱 更新客户端配置文件...");
     await updateClientConfig(latestConfig);
 
-    // 3. 更新打包配置
+    // 4. 更新打包配置
     console.log("📦 更新打包配置...");
     await updatePackageConfig(ngrokHost);
 
@@ -100,6 +104,24 @@ async function fetchLatestConfig() {
   }
 
   return null;
+}
+
+// 更新本地配置文件
+async function updateLocalConfig(config) {
+  const configPath = path.join(__dirname, "../../server-config.json");
+
+  try {
+    // 更新本地配置文件
+    const updatedConfig = {
+      ...config,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    await fs.writeJson(configPath, updatedConfig, { spaces: 2 });
+    console.log("   ✅ 本地配置已更新");
+  } catch (error) {
+    console.log(`   ❌ 更新本地配置失败: ${error.message}`);
+  }
 }
 
 // 更新客户端配置文件

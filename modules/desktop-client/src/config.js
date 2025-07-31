@@ -53,7 +53,7 @@ function getDefaultConfig() {
     // 生产环境：使用当前活跃的ngrok地址
     return {
       server: {
-        host: "ca6bab9d21ac.ngrok-free.app", // 更新为当前活跃地址
+        host: "af36b13dcce5.ngrok-free.app", // 更新为当前活跃地址
         port: 443,
         protocol: "https",
       },

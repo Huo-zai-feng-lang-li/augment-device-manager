@@ -1,9 +1,8 @@
 {
-  "_comment": "开发环境本地配置",
   "server": {
-    "host": "localhost",
-    "port": 3002,
-    "protocol": "http"
+    "host": "b954977afb0c.ngrok-free.app",
+    "port": 443,
+    "protocol": "https"
   },
   "client": {
     "autoConnect": true,

@@ -46,7 +46,7 @@
   "git.postCommitCommand": "push", // 提交后自动推送
   "git.enableSmartCommit": true, // 自动提交
   "explorer.confirmDelete": false, // 删除文件时不再提示
-  "terminal.integrated.defaultProfile.windows": "Git Bash", // 默认终端
+  "terminal.integrated.defaultProfile.windows": "Command Prompt", // 默认终端
   "explorer.confirmDragAndDrop": false, // 拖拽文件时不再提示
   "javascript.updateImportsOnFileMove.enabled": "always", // 移动文件时自动更新导入路径
   // "json.schemas": [

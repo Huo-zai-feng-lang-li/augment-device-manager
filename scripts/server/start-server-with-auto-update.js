@@ -8,7 +8,24 @@
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
-const fetch = require("node-fetch");
+
+// 使用动态导入node-fetch或内置fetch
+let fetch;
+async function initFetch() {
+  try {
+    // 尝试使用内置fetch (Node.js 18+)
+    if (typeof globalThis.fetch !== "undefined") {
+      fetch = globalThis.fetch;
+    } else {
+      // 降级到node-fetch
+      const nodeFetch = await import("node-fetch");
+      fetch = nodeFetch.default;
+    }
+  } catch (error) {
+    console.error("❌ 无法加载fetch模块:", error.message);
+    process.exit(1);
+  }
+}
 
 // 加载环境变量
 require("dotenv").config({ path: path.join(__dirname, "../../.env") });
@@ -19,6 +36,10 @@ console.log("====================");
 let serverProcess = null;
 let ngrokProcess = null;
 
+// PID文件路径
+const PID_FILE = path.join(__dirname, "../../.server.pid");
+const NGROK_PID_FILE = path.join(__dirname, "../../.ngrok.pid");
+
 // GitHub配置
 const GITHUB_CONFIG = {
   owner: "Huo-zai-feng-lang-li", // GitHub用户名
@@ -28,8 +49,100 @@ const GITHUB_CONFIG = {
   token: process.env.GITHUB_TOKEN, // GitHub Token - 必须通过环境变量设置
 };
 
+// 停止之前运行的进程
+async function stopPreviousProcesses() {
+  console.log("🔍 检查并停止之前运行的进程...");
+
+  try {
+    // 1. 从PID文件读取之前的进程ID
+    const pidsToStop = [];
+
+    if (fs.existsSync(PID_FILE)) {
+      const serverPid = fs.readFileSync(PID_FILE, "utf8").trim();
+      if (serverPid) pidsToStop.push({ pid: serverPid, name: "后端服务" });
+    }
+
+    if (fs.existsSync(NGROK_PID_FILE)) {
+      const ngrokPid = fs.readFileSync(NGROK_PID_FILE, "utf8").trim();
+      if (ngrokPid) pidsToStop.push({ pid: ngrokPid, name: "ngrok隧道" });
+    }
+
+    // 2. 停止指定的进程
+    for (const { pid, name } of pidsToStop) {
+      try {
+        const { execSync } = require("child_process");
+        execSync(`taskkill /F /PID ${pid}`, { stdio: "pipe" });
+        console.log(`✅ 已停止${name} (PID: ${pid})`);
+      } catch (error) {
+        console.log(`⚠️ ${name} (PID: ${pid}) 可能已经停止`);
+      }
+    }
+
+    // 3. 通用清理：停止所有可能相关的进程
+    console.log("🧹 执行通用进程清理...");
+    try {
+      const { execSync } = require("child_process");
+
+      // 清理可能占用3002端口的进程
+      try {
+        const netstatOutput = execSync("netstat -ano | findstr :3002", {
+          encoding: "utf8",
+        });
+        const lines = netstatOutput
+          .split("\n")
+          .filter((line) => line.includes("LISTENING"));
+
+        for (const line of lines) {
+          const parts = line.trim().split(/\s+/);
+          const pid = parts[parts.length - 1];
+          if (pid && pid !== "0") {
+            try {
+              execSync(`taskkill /F /PID ${pid}`, { stdio: "pipe" });
+              console.log(`✅ 已停止占用3002端口的进程 (PID: ${pid})`);
+            } catch (e) {
+              // 忽略错误
+            }
+          }
+        }
+      } catch (error) {
+        // 没有进程占用3002端口
+      }
+
+      // 清理可能的ngrok进程
+      try {
+        execSync("taskkill /F /IM ngrok.exe", { stdio: "pipe" });
+        console.log("✅ 已清理ngrok进程");
+      } catch (error) {
+        // 没有ngrok进程需要清理
+      }
+    } catch (error) {
+      console.log("⚠️ 通用清理过程中出现错误:", error.message);
+    }
+
+    // 4. 清理PID文件
+    [PID_FILE, NGROK_PID_FILE].forEach((file) => {
+      if (fs.existsSync(file)) {
+        fs.unlinkSync(file);
+      }
+    });
+
+    // 5. 等待进程完全退出
+    await sleep(2000);
+    console.log("✅ 进程清理完成，环境已准备就绪");
+  } catch (error) {
+    console.log("⚠️ 进程清理过程中出现错误:", error.message);
+    console.log("🔄 继续启动新服务...");
+  }
+}
+
 async function main() {
   try {
+    // 初始化fetch
+    await initFetch();
+
+    // 🔥 新增：停止之前运行的进程
+    await stopPreviousProcesses();
+
     // 检查ngrok配置
     const ngrokPath = await checkNgrok();
 
@@ -254,8 +367,10 @@ function startServer() {
     server.stdout.on("data", (data) => {
       const output = data.toString();
       console.log("后端:", output.trim());
-      if (output.includes("3003") && output.includes("运行在")) {
+      if (output.includes("3002") && output.includes("运行在")) {
         console.log("✅ 后端服务已启动");
+        // 🔥 新增：记录后端服务PID
+        fs.writeFileSync(PID_FILE, server.pid.toString());
         resolve(server);
       }
     });
@@ -266,16 +381,17 @@ function startServer() {
 
     server.on("error", reject);
 
+    // 简单的超时机制，给更多时间让服务启动
     setTimeout(() => {
       reject(new Error("后端服务启动超时"));
-    }, 30000);
+    }, 60000); // 增加到60秒
   });
 }
 
 // 启动ngrok
 function startNgrok(ngrokPath) {
   return new Promise((resolve, reject) => {
-    const ngrok = spawn(ngrokPath, ["http", "3003"], {
+    const ngrok = spawn(ngrokPath, ["http", "3002"], {
       shell: true,
       stdio: "pipe",
     });
@@ -294,7 +410,8 @@ function startNgrok(ngrokPath) {
 
     // 使用API检测ngrok状态
     const checkAPI = async () => {
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 120; i++) {
+        // 增加到120秒
         try {
           // 尝试多个可能的端口
           const ports = [4040, 4041, 4042];
@@ -310,6 +427,8 @@ function startNgrok(ngrokPath) {
                   console.log(`🌐 公网地址: ${data.tunnels[0].public_url}`);
                   if (!resolved) {
                     resolved = true;
+                    // 🔥 新增：记录ngrok进程PID
+                    fs.writeFileSync(NGROK_PID_FILE, ngrok.pid.toString());
                     resolve(ngrok);
                   }
                   return;
@@ -394,12 +513,24 @@ function cleanup() {
     console.log("✅ ngrok已停止");
   }
 
-  // 删除服务信息文件
+  // 删除服务信息文件和PID文件
   try {
     fs.unlinkSync(path.join(__dirname, "../../server-info.json"));
   } catch (error) {
     // 忽略删除错误
   }
+
+  // 🔥 新增：清理PID文件
+  [PID_FILE, NGROK_PID_FILE].forEach((file) => {
+    try {
+      if (fs.existsSync(file)) {
+        fs.unlinkSync(file);
+        console.log(`✅ 已清理PID文件: ${path.basename(file)}`);
+      }
+    } catch (error) {
+      // 忽略删除错误
+    }
+  });
 }
 
 // 睡眠函数
